@@ -15,8 +15,8 @@ Ordered by dependency. **Now** items need no broker, pair or timeframe choice. *
 - [x] B-06a Hindsight deployed on this machine (local only), bank `fxra` created, MCP tool allowlist, first backup taken (2026-10-26)
 - [x] B-06b Daily backup job: `infra/hindsight/backup.ps1`, Task Scheduler `fxra-hindsight-backup` at 12:30 (2026-10-26)
 - [x] B-06d Off-disk copy to `Backups/`, synced by Google Drive (2026-10-26)
-- [ ] B-06e Test a restore from a zip downloaded from Drive
-- [ ] B-06c Connect the second machine (Tailscale or LAN; Q-03)
+- [x] B-06e Restore test: the Drive-synced zip `hindsight-20261026T060702Z.zip` was restored into a throwaway compose project. Row counts and content hashes of `memory_units`, `documents` and `banks` match the live server (2026-10-26)
+- [ ] B-06c Connect the second machine over the LAN (D-16). Owner steps: fixed IP, `.env` bind IP, firewall rule (runbook section 2B)
 - [ ] B-07 CI (GitHub Actions): `uv run pytest`, compose config check, secret scan (gitleaks)
 - [ ] B-08 Hypothesis template (`experiments/_template/`), plus the Hindsight memory conventions from research-lifecycle.md, as a short agent skill written and reviewed in this repo
 - [ ] B-09 Run comparison report: table of runs per hypothesis, with trial count and in-sample vs OOS
