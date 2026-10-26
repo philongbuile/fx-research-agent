@@ -1,0 +1,26 @@
+# Import one bar CSV (e.g. an MT5 "Export bars" file) into the raw store.
+# Copy, fill the placeholders, run: uv run fxra import-csv <file> --root data/raw
+resolution = "<minute|hour|daily>"
+start = "2000-01-01T00:00:00+00:00"   # UTC, inclusive
+end = "2000-02-01T00:00:00+00:00"     # UTC, exclusive
+
+[source]
+id = "<source-id>"           # e.g. csv-<broker>-<server>; [A-Za-z0-9._-] only
+path = "data/inbox/<file>.csv"
+timezone = "<IANA tz of the time column, e.g. Etc/GMT-2>"   # broker server time is often not UTC
+time_format = "%Y.%m.%d %H:%M"
+price_side = "<bid|mid|ask>"  # MT5 bars are bid-based at most brokers; confirm with your broker
+# Map CSV headers to contract names when they differ:
+columns = { time = "time", open = "open", high = "high", low = "low", close = "close", tick_volume = "tick_volume", spread = "spread" }
+
+[symbol_spec]                # copy from the broker's contract specification; never guess
+symbol = "<SYMBOL>"
+source = "<source-id>"
+digits = 5
+point = 0.00001
+pip_size = 0.0001
+contract_size = 100000
+volume_min = 0.01
+volume_max = 100
+volume_step = 0.01
+quote_currency = "<CCY>"

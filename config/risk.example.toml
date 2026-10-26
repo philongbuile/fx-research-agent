@@ -1,0 +1,14 @@
+# Risk gate limits. Copy to config/risk.toml (gitignored) and edit.
+# Defaults are fail-closed: empty allowlists reject every order.
+[risk]
+mode = "dry_run"                 # only allowed mode in Phase 0
+allowed_symbols = []             # e.g. ["<SYMBOL>"]; empty = nothing allowed
+approved_strategies = []         # "strategy_id@git_commit", added only after owner approval
+max_lots_per_order = 0.01
+max_open_positions = 1
+max_daily_loss_fraction = 0.01   # of day-start equity
+max_spread_points = 20
+max_quote_age_seconds = 5
+max_account_age_seconds = 30
+require_stop_loss = true
+kill_switch_file = "artifacts/KILL_SWITCH"   # create this file to block every order

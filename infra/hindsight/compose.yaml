@@ -1,0 +1,63 @@
+# One shared Hindsight memory server for both development machines.
+# Based on the upstream external-PostgreSQL compose file
+# (vectorize-io/hindsight docker/docker-compose/external-pg, checked at commit fa35987, 2026-10-25).
+# Differences from upstream: pinned versions, API key auth on, Control Plane UI behind an
+# access key, ports bound to one address (default 127.0.0.1), backups folder mounted.
+#
+# Usage (from this folder):  cp .env.example .env  # fill secrets
+#                            docker compose up -d
+# Runbook: infra/hindsight/README.md
+
+name: fxra-hindsight
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.1-pg18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hindsight
+      POSTGRES_PASSWORD: ${HINDSIGHT_DB_PASSWORD:?set HINDSIGHT_DB_PASSWORD in .env}
+      POSTGRES_DB: hindsight
+    volumes:
+      - pg_data:/var/lib/postgresql/18/docker
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hindsight -d hindsight"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+    # no ports: the database is reachable only from the hindsight container
+
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight:${HINDSIGHT_VERSION:-1.1.0}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      # Bind to ONE address. 127.0.0.1 (default) + `tailscale serve` is the recommended setup.
+      # Never 0.0.0.0 on a machine with a public interface. See README "Network exposure".
+      - "${HINDSIGHT_BIND_IP:-127.0.0.1}:8888:8888"   # API + MCP
+      - "${HINDSIGHT_BIND_IP:-127.0.0.1}:9999:9999"   # Control Plane UI
+    environment:
+      HINDSIGHT_API_DATABASE_URL: postgresql://hindsight:${HINDSIGHT_DB_PASSWORD}@db:5432/hindsight
+      # LLM used by Hindsight itself for fact extraction / reflect. `none` = chunk storage +
+      # search only (no key needed). See docs/decisions.md D-05.
+      HINDSIGHT_API_LLM_PROVIDER: ${HINDSIGHT_API_LLM_PROVIDER:-none}
+      HINDSIGHT_API_LLM_API_KEY: ${HINDSIGHT_API_LLM_API_KEY:-}
+      HINDSIGHT_API_LLM_MODEL: ${HINDSIGHT_API_LLM_MODEL:-}
+      # Every API and MCP request must send `Authorization: Bearer <HINDSIGHT_API_KEY>`.
+      HINDSIGHT_API_TENANT_EXTENSION: hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension
+      HINDSIGHT_API_TENANT_API_KEY: ${HINDSIGHT_API_KEY:?set HINDSIGHT_API_KEY in .env}
+      # Control Plane UI talks to the API with the same key, and asks humans for its own access key.
+      HINDSIGHT_CP_DATAPLANE_API_KEY: ${HINDSIGHT_API_KEY}
+      HINDSIGHT_CP_ACCESS_KEY: ${HINDSIGHT_UI_ACCESS_KEY:?set HINDSIGHT_UI_ACCESS_KEY in .env}
+    volumes:
+      - ./backups:/backups
+    networks: [internal]
+
+networks:
+  internal:
+
+volumes:
+  pg_data:

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/philongbuile/fx-research-agent/schemas/run.schema.json",
+  "title": "Research run record",
+  "description": "One backtest / walk-forward / paper / demo run. Written by fxra; see docs/data-contracts.md.",
+  "type": "object",
+  "required": ["schema_version", "run_id", "created_at", "kind", "hypothesis_id", "technical_only", "reproducible",
+               "code", "config", "engine", "data", "assumptions", "split", "metrics", "artifacts", "status"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "run_id": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "finished_at": {"type": "string", "format": "date-time"},
+    "kind": {"enum": ["backtest", "walk_forward", "stress", "paper", "demo"]},
+    "hypothesis_id": {"type": "string", "minLength": 1},
+    "technical_only": {"type": "boolean", "description": "True for engine smoke tests. Such runs are never evidence of edge."},
+    "reproducible": {"type": "boolean", "description": "False when code was dirty or not in git. Non-reproducible runs cannot be promoted."},
+    "code": {
+      "type": "object",
+      "required": ["git_commit", "git_dirty", "strategy_path"],
+      "properties": {
+        "git_commit": {"type": ["string", "null"]},
+        "git_dirty": {"type": "boolean"},
+        "strategy_path": {"type": "string"}
+      }
+    },
+    "config": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {"path": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+    },
+    "engine": {
+      "type": "object",
+      "required": ["name", "image"],
+      "properties": {"name": {"const": "lean"}, "image": {"type": "string", "pattern": "@sha256:|:[0-9]+$"}}
+    },
+    "data": {
+      "type": "object",
+      "required": ["source", "symbols", "resolution", "start", "end", "manifests"],
+      "properties": {
+        "source": {"type": "string"},
+        "symbols": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "resolution": {"enum": ["tick", "second", "minute", "hour", "daily"]},
+        "start": {"type": "string", "format": "date"},
+        "end": {"type": "string", "format": "date"},
+        "timezone": {"type": "string"},
+        "manifests": {
+          "type": "array",
+          "items": {"type": "object", "required": ["path", "manifest_sha256"]}
+        }
+      }
+    },
+    "assumptions": {
+      "type": "object",
+      "required": ["spread", "slippage", "swap", "commission", "fill_model"],
+      "properties": {
+        "spread": {"type": "string"},
+        "slippage": {"type": "string"},
+        "swap": {"type": "string"},
+        "commission": {"type": "string"},
+        "fill_model": {"type": "string"}
+      }
+    },
+    "split": {
+      "type": "object",
+      "required": ["in_sample", "out_of_sample"],
+      "properties": {
+        "in_sample": {"$ref": "#/$defs/range"},
+        "out_of_sample": {"oneOf": [{"$ref": "#/$defs/range"}, {"type": "null"}]}
+      }
+    },
+    "metrics": {"type": "object"},
+    "artifacts": {"type": "array", "items": {"type": "string"}},
+    "status": {"enum": ["created", "completed", "failed"]}
+  },
+  "$defs": {
+    "range": {
+      "type": "object",
+      "required": ["start", "end"],
+      "properties": {"start": {"type": "string", "format": "date"}, "end": {"type": "string", "format": "date"}}
+    }
+  }
+}

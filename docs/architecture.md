@@ -1,0 +1,68 @@
+# Architecture
+
+## Components and trust zones
+
+```mermaid
+flowchart LR
+  subgraph DEV["Dev machine A / B (Windows or macOS/Linux)"]
+    AG["Claude Code / Codex<br/>(propose, code, review)"]
+    FX["fxra CLI<br/>contracts · raw store · runs · risk gate (dry-run)"]
+    LEAN["LEAN engine<br/>Docker image, --network none"]
+    MT5T["MT5 terminal + MetaTrader5 pkg<br/>(future, Windows only)"]
+  end
+  subgraph HOST["Docker host (one machine)"]
+    HS["Hindsight API + MCP :8888<br/>Control Plane UI :9999"]
+    PG[("PostgreSQL + pgvector<br/>named volume pg_data")]
+    STORE[("Structured store<br/>Parquet + manifests, run records")]
+  end
+  BROKER["Broker (MT5 server)"]
+
+  AG -- "MCP over Tailscale / LAN<br/>Bearer key" --> HS
+  HS --> PG
+  AG -- "runs commands" --> FX
+  FX -- "docker run" --> LEAN
+  FX -- "write once, checksum" --> STORE
+  LEAN -- "results" --> FX
+  MT5T -. "read-only data (future)" .-> FX
+  MT5T -. "orders: NOT in Phase 0" .-> BROKER
+```
+
+| Component | Owns | Does not own |
+|---|---|---|
+| LEAN | Strategy execution in backtest and paper modes, fills, portfolio statistics | Raw data provenance, approval decisions |
+| `fxra` | Data contracts, raw store, run records, risk gate, LEAN invocation | Strategy logic |
+| Structured store | Prices, quotes, spreads, swaps, symbol specs, fills, account snapshots, run metrics | Narrative and rationale |
+| Hindsight | Hypotheses, decisions, results summaries (with `run_id`), postmortems, operating lessons | Any number used in a calculation |
+| Claude / Codex | Research notes, code, reviews, candidate strategies (as pull requests) | Promotion, live config, order sending |
+| Owner (human) | Approval at every promotion gate, broker account, secrets | — |
+
+## Data flow
+
+1. **Ingest.** A market data adapter (`fxra.adapters.MarketDataAdapter`) fetches bars or quotes, converts times to UTC, and returns contract-shaped tables. `fxra.rawstore.write_partition` writes one immutable partition per source, symbol, resolution and UTC day, with a manifest (checksum, row count, adapter version, source timezone, git commit, writer host).
+2. **Prepare.** *(Phase 1)* An export step converts raw partitions into LEAN's data format under `data/lean/`, and records which manifests it used.
+3. **Run.** `fxra backtest <research.toml>` writes a run record (`runs/<run_id>/run.json`: code commit, config hash, data source and range, cost assumptions, split). It then runs LEAN in the pinned image with no network and collects the statistics and artifacts into the same folder.
+4. **Remember.** An agent or a human writes a short Hindsight memory: the hypothesis, the `run_id`, what happened, and the decision. The memory points to the run. It never copies the numbers as the source of truth.
+5. **Gate.** *(Phase 2 and later)* Order intents from paper or demo strategies go through `fxra.risk.evaluate` before any execution adapter. Phase 0 has only `DryRunExecution`, which writes to a journal and sends nothing.
+
+## Permissions
+
+| Actor | Read | Write | Never |
+|---|---|---|---|
+| Coding agent | repo, structured store, Hindsight bank | branches and PRs, `runs/`, `experiments/`, Hindsight memories | push to `main` for strategy/live/risk config, change `risk.toml` or the kill switch, hold broker credentials, have an order tool |
+| `fxra` ingestion | broker data API (read-only login when MT5 arrives) | `data/raw` (one writer host per source) | overwrite a partition |
+| LEAN container | mounted algorithm (read-only), data (read-only) | its results folder | network access in backtests |
+| Hindsight server | its database | its database, `/backups` | public Internet exposure |
+| Owner | everything | approvals, secrets, risk limits | — |
+
+## Deployment
+
+- **One** Hindsight server on one Docker host. Both dev machines connect to the same server through Tailscale (recommended) or the LAN. See `infra/hindsight/README.md`.
+- In Phase 0, the structured store lives on the machine that ingests (single writer per source). Other machines get read-only copies (Phase 1 decides how: rsync, Syncthing, or a shared read-only mount; see `decisions.md` Q-08).
+- Dev machines run LEAN locally in Docker. Results stay in `runs/` on the machine that ran them, and summaries go to Hindsight.
+
+## What is deliberately absent
+
+- A LEAN–MT5 brokerage or data adapter. None is chosen or verified; this is research item B-12.
+- A vector database or RAG system of our own. Hindsight already provides recall.
+- Automated optimization that reports in-sample results as evidence.
+- Any LLM in the per-tick decision path.

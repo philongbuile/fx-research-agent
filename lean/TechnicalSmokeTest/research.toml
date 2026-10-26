@@ -1,0 +1,25 @@
+# Run record config for the engine smoke test. technical_only = true: never evidence of edge.
+[run]
+kind = "backtest"
+hypothesis_id = "TECH-0001-engine-smoke-test"
+strategy_path = "lean/TechnicalSmokeTest/main.py"
+technical_only = true
+
+[data]
+source = "lean-image-sample"   # sample data bundled in quantconnect/lean image
+symbols = ["EURUSD"]
+resolution = "minute"
+start = 2014-05-05
+end = 2014-05-09
+timezone = "UTC"
+
+[assumptions]
+spread = "LEAN sample quote data (Oanda bid/ask), not broker spread"
+slippage = "LEAN default (none)"
+swap = "not modeled"
+commission = "LEAN default brokerage model"
+fill_model = "LEAN default ImmediateFillModel"
+
+[split]
+in_sample = { start = 2014-05-05, end = 2014-05-09 }
+# out_of_sample omitted: smoke test has none

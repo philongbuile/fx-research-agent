@@ -1,0 +1,27 @@
+{
+  "now": "2026-01-05T10:00:01+00:00",
+  "intent": {
+    "client_order_id": "example-0001",
+    "strategy_id": "example",
+    "strategy_version": "0000000",
+    "symbol": "SYMBOL",
+    "side": "buy",
+    "quantity_lots": 0.01,
+    "order_type": "market",
+    "stop_loss": 1.0950
+  },
+  "symbol_spec": {
+    "symbol": "SYMBOL",
+    "source": "example",
+    "digits": 5,
+    "point": 0.00001,
+    "pip_size": 0.0001,
+    "contract_size": 100000,
+    "volume_min": 0.01,
+    "volume_max": 100,
+    "volume_step": 0.01,
+    "quote_currency": "USD"
+  },
+  "quote": {"symbol": "SYMBOL", "time": "2026-01-05T10:00:00+00:00", "bid": 1.10000, "ask": 1.10010},
+  "account": {"time": "2026-01-05T10:00:00+00:00", "currency": "USD", "equity": 10000, "day_start_equity": 10000, "open_positions": 0}
+}
