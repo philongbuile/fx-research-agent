@@ -21,16 +21,19 @@
 | D-13 | Docs and code are in English (open-source audience). | Convention. |
 | D-14 | Hindsight is hosted on the owner's Windows dev machine (Docker Desktop), bound to `127.0.0.1`. No Tailscale for now; the second machine connects later. Answers Q-03 for now. | Owner, 2026-10-26. |
 | D-15 | The MCP server exposes only an allowlist of tools (`HINDSIGHT_API_MCP_ENABLED_TOOLS` in compose): read, recall, retain, reflect. No delete, clear, update, invalidate or bank management tools for agents. Humans curate through the UI or REST. | Verified 2026-10-26: the single-bank endpoint `/mcp/fxra/` still offers `delete_bank`, `clear_memories` and `delete_document`. With the allowlist, `tools/list` returns 18 tools and none of them delete. |
+| D-16 | The second machine reaches Hindsight over the LAN: ports bind to the Docker host's fixed LAN IP, and the host firewall allows 8888/9999 only from the two dev machines. No Tailscale. Answers Q-03. | Owner, 2026-10-26. Plain HTTP on the LAN, so the bearer key is visible to anyone who can sniff that network (R-14). Runbook: `infra/hindsight/README.md` section 2B. |
+| D-17 | First instrument for research: **EURUSD**. Store minute bars; the first hypothesis works on **hour** bars (aggregated from minute). | Owner delegated the choice to the agent on 2026-10-26; this is the agent's proposal, confirmed when the owner merges it. Reasons: the most traded pair, so usually the tightest spread and the lowest cost hurdle; LEAN sample data has EURUSD minute bid/ask, so the export golden test (B-14) can use it. Hour bars keep the spread small relative to the bar range. Counterpoint: it is also the most studied pair, so simple published patterns are the most likely to be arbitraged away. This choice says nothing about edge. |
 
 ## Open questions
 
-Only Q-01 and Q-02 block Phase 1 work. Q-03 is answered for now by D-14. The rest have defaults that work for now.
+Only Q-01 blocks Phase 1 work. Q-02 is answered by D-17, Q-03 by D-14 and D-16. The rest have defaults that work for now.
 
 | ID | Question | Blocks | Default until answered |
 |---|---|---|---|
 | Q-01 | Which broker, and does it offer MT5 (demo account first)? Which server? | MT5 data adapter (B-10), symbol specs, real spreads and swaps | CSV import only |
-| Q-02 | Which pairs and which bar resolution for the first hypothesis? | First real ingestion, LEAN data export test | None (smoke test uses LEAN sample EURUSD only) |
-| Q-03 | ~~Which machine is the Docker host?~~ This machine, local only (D-14). Still open: how the second machine connects (Tailscale or LAN). | Second-machine access | Local only |
+| | *Path agreed for now (2026-10-26): a free MT5 **demo** account (no money) at a broker regulated by a tier-1 regulator (for example FCA, ASIC or CySEC), with a raw-spread account type and published commission. Export bars from the MT5 terminal to CSV and use `fxra import-csv`. That needs no new code. The owner picks the broker.* | | |
+| Q-02 | ~~Which pairs and which bar resolution for the first hypothesis?~~ Answered by D-17. | — | — |
+| Q-03 | ~~Which machine is the Docker host, and how does the second machine connect?~~ This machine (D-14), over the LAN (D-16). | — | — |
 | Q-04 | Should Hindsight use an LLM (for example Anthropic with its own API key) for fact extraction and reflect? That sends memory text to the provider. | Better recall quality only | `none` |
 | Q-05 | Account currency, leverage and account type (hedging or netting) of the planned demo account. | Position sizing, risk limits, swap conversion | — |
 | Q-06 | Where does the canonical run registry live when two machines run backtests: the Docker host, or each machine plus sync? | Cross-machine run comparison | Local `runs/` plus Hindsight summary |

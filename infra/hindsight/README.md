@@ -28,7 +28,7 @@ Linux host only: the container runs as uid 1000. Make `backups/` writable by tha
 mkdir -p backups && sudo chown 1000:1000 backups
 ```
 
-## 2. Network exposure (choose one)
+## 2. Network exposure (choose one; the owner chose B, LAN, on 2026-10-26)
 
 **A. Tailscale (recommended).** Keep `HINDSIGHT_BIND_IP=127.0.0.1`. On the Docker host, with MagicDNS and HTTPS certificates turned on for the tailnet:
 
@@ -40,7 +40,20 @@ tailscale serve status
 
 Clients use `https://<host>.<tailnet>.ts.net:8888`. Traffic stays inside the tailnet and uses TLS. Restrict access to the two dev devices with a Tailscale ACL. **Never** use `tailscale funnel`, because that publishes the service to the Internet. (Check the `serve` flags against `tailscale serve --help` for your Tailscale version.)
 
-**B. LAN only.** Set `HINDSIGHT_BIND_IP=<host LAN IP>` (not `0.0.0.0`), then run `docker compose up -d`. Allow TCP 8888 and 9999 in the host firewall from the two dev machines' IPs only. Traffic is plain HTTP, so the bearer key crosses the LAN unencrypted. Use this only on a network you trust.
+**B. LAN only (current choice, D-16).** Set `HINDSIGHT_BIND_IP=<host LAN IP>` (not `0.0.0.0`), then run `docker compose up -d`. Allow TCP 8888 and 9999 in the host firewall from the two dev machines' IPs only. Traffic is plain HTTP, so the bearer key crosses the LAN unencrypted. Use this only on a network you trust.
+
+Steps on the Windows Docker host (the owner runs these; agents do not change firewall or network settings):
+
+1. Give the host a fixed LAN IP: a DHCP reservation on the router is simplest. If the IP changes, the container cannot bind and Hindsight does not start.
+2. In `infra/hindsight/.env`, set `HINDSIGHT_BIND_IP=<host LAN IP>`, then run `docker compose up -d` in this folder. The service is then no longer on `127.0.0.1`, so this machine also uses `http://<host LAN IP>:8888`. Update its MCP URL (section 3).
+3. Firewall, in an elevated PowerShell. Replace the addresses with the two dev machines' IPs:
+
+   ```powershell
+   New-NetFirewallRule -DisplayName "fxra-hindsight LAN" -Direction Inbound -Protocol TCP -LocalPort 8888,9999 -RemoteAddress 192.168.1.10,192.168.1.11 -Profile Private -Action Allow
+   ```
+
+   The LAN must use the **Private** network profile. Windows allows a connection when *any* allow rule matches. Docker Desktop may have added its own broad inbound allow rules for its backend. Check for them with `Get-NetFirewallRule -Direction Inbound -Enabled True | Where-Object DisplayName -match 'docker'`. If they allow everything, the address list above does not restrict access. Disable those rules, or scope them, and test from a third device on the LAN (expect a timeout).
+4. Smoke test from the second machine (section 3): 401 without the key, 200 with it.
 
 Check what is bound:
 
