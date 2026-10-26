@@ -40,6 +40,15 @@ docker pull quantconnect/lean:18206
 uv run fxra backtest lean/TechnicalSmokeTest/research.toml
 ```
 
+More run commands (details in `docs/research-lifecycle.md`):
+
+```bash
+uv run fxra backtest <config> --segment out_of_sample   # once per hypothesis
+uv run fxra walk-forward <config>                        # needs [walk_forward] and committed code
+uv run fxra stress <config> --spread 1.5 --spread 2 --slippage-points 2
+uv run fxra report --runs-root runs                      # markdown comparison of all runs
+```
+
 `lean/TechnicalSmokeTest` only checks that the engine works. It is **not a strategy and has no edge**.
 
 Dry-run one order intent through the risk gate. With the example limits, the gate rejects it, because empty allowlists fail closed:

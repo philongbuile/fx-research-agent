@@ -70,6 +70,23 @@
         "out_of_sample": {"oneOf": [{"$ref": "#/$defs/range"}, {"type": "null"}]}
       }
     },
+    "window": {
+      "type": "object",
+      "description": "The dates actually backtested. Absent on records written before B-09/B-16/B-17.",
+      "required": ["segment", "start", "end"],
+      "properties": {
+        "segment": {"enum": ["in_sample", "out_of_sample"]},
+        "start": {"type": "string", "format": "date"},
+        "end": {"type": "string", "format": "date"}
+      }
+    },
+    "stress": {
+      "type": "object",
+      "description": "Cost stress variant (kind = stress).",
+      "required": ["spread_multiplier", "slippage_points"],
+      "properties": {"spread_multiplier": {"type": "number"}, "slippage_points": {"type": "number"}}
+    },
+    "group_id": {"type": "string", "description": "Links the windows of one walk-forward."},
     "metrics": {"type": "object"},
     "artifacts": {"type": "array", "items": {"type": "string"}},
     "status": {"enum": ["created", "completed", "failed"]}

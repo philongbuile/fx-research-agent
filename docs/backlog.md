@@ -19,12 +19,12 @@ Ordered by dependency. **Now** items need no broker, pair or timeframe choice. *
 - [ ] B-06c Connect the second machine over the LAN (D-16). Owner steps: fixed IP, `.env` bind IP, firewall rule (runbook section 2B)
 - [ ] B-07 CI (GitHub Actions): `uv run pytest`, compose config check, secret scan (gitleaks)
 - [ ] B-08 Hypothesis template (`experiments/_template/`), plus the Hindsight memory conventions from research-lifecycle.md, as a short agent skill written and reviewed in this repo
-- [ ] B-09 Run comparison report: table of runs per hypothesis, with trial count and in-sample vs OOS
+- [x] B-09 Run comparison report: table of runs per hypothesis, with trial count and in-sample vs OOS
 - [ ] B-13 Data quality report per partition: gaps against the expected session calendar, spread stats
 - [x] B-14 Export raw store → LEAN data format (`data/lean/`, `fxra export-lean`) with bid/ask quote bars. No time shift: LEAN files use bar open time (D-08 corrected). Golden test against LEAN sample data. Export manifests are recorded in the run record (2026-10-26)
 - [ ] B-15 Supersede mechanism for corrected data (new batch id, reader picks the latest, old one kept)
-- [ ] B-16 Walk-forward runner: fixed windows, frozen rules, one OOS pass, all windows recorded
-- [ ] B-17 Cost stress runner: spread and slippage multipliers as `kind = "stress"` runs
+- [x] B-16 Walk-forward runner: fixed windows, frozen rules, one OOS pass, all windows recorded
+- [x] B-17 Cost stress runner: spread and slippage multipliers as `kind = "stress"` runs
 
 ## Phase 1 — blocked on broker / instrument choices
 

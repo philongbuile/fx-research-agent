@@ -5,6 +5,7 @@ Why not the CLI: QuantConnect's docs say CLI use needs a paid-tier organization
 The image tag is pinned so a run can be reproduced; change it through a reviewed commit.
 """
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -20,13 +21,17 @@ def image_ref(image: str = LEAN_IMAGE) -> str:
 
 
 def backtest(project_dir: Path, results_dir: Path, image: str = LEAN_IMAGE,
-             data_dir: Path | None = None) -> int:
+             data_dir: Path | None = None, parameters: dict | None = None) -> int:
     """Run main.py in project_dir. Results land in results_dir. Returns the container exit code.
 
     data_dir None = the sample data bundled in the image (/Lean/Data). Otherwise each
     <security type>/<market> folder of data_dir (e.g. forex/oanda from `fxra export-lean`) is
     mounted read-only over the image's copy. The image's market-hours and symbol-properties
     databases stay visible; mounting all of /Lean/Data would hide them.
+
+    parameters reach the algorithm as self.get_parameter(name): written to a config file that
+    the launcher merges over its default config.json (`--config`). `--parameters` on the command
+    line did not work (checked 2026-10-26, see docs/decisions.md D-18).
     """
     project_dir, results_dir = Path(project_dir).resolve(), Path(results_dir).resolve()
     if not (project_dir / "main.py").exists():
@@ -40,6 +45,10 @@ def backtest(project_dir: Path, results_dir: Path, image: str = LEAN_IMAGE,
             raise FileNotFoundError(f"{data_dir} has no <security type>/<market> folders")
         for m in markets:
             cmd += ["-v", f"{m}:/Lean/Data/{m.parent.name}/{m.name}:ro"]
+    if parameters:
+        extra = results_dir / "lean-config.json"  # kept with the run as an artifact
+        extra.write_text(json.dumps({"parameters": {k: str(v) for k, v in parameters.items()}}, indent=2))
+        cmd += ["-v", f"{extra}:/Config/lean-config.json:ro"]
     cmd += ["-w", "/Lean/Launcher/bin/Debug", "--entrypoint", "dotnet", image,
             "QuantConnect.Lean.Launcher.dll",
             "--environment", "backtesting",
@@ -49,5 +58,7 @@ def backtest(project_dir: Path, results_dir: Path, image: str = LEAN_IMAGE,
             "--data-folder", "/Lean/Data",
             "--results-destination-folder", "/Results",
             "--close-automatically", "true"]
+    if parameters:
+        cmd += ["--config", "/Config/lean-config.json"]
     with open(results_dir / "engine.log", "w") as log:
         return subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT).returncode
