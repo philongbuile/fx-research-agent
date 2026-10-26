@@ -14,7 +14,8 @@ Ordered by dependency. **Now** items need no broker, pair or timeframe choice. *
 
 - [x] B-06a Hindsight deployed on this machine (local only), bank `fxra` created, MCP tool allowlist, first backup taken (2026-10-26)
 - [x] B-06b Daily backup job: `infra/hindsight/backup.ps1`, Task Scheduler `fxra-hindsight-backup` at 12:30 (2026-10-26)
-- [ ] B-06d Turn on the off-disk copy (`FXRA_BACKUP_COPY_TO`, e.g. personal OneDrive) and test a restore from it
+- [x] B-06d Off-disk copy to `Backups/`, synced by Google Drive (2026-10-26)
+- [ ] B-06e Test a restore from a zip downloaded from Drive
 - [ ] B-06c Connect the second machine (Tailscale or LAN; Q-03)
 - [ ] B-07 CI (GitHub Actions): `uv run pytest`, compose config check, secret scan (gitleaks)
 - [ ] B-08 Hypothesis template (`experiments/_template/`), plus the Hindsight memory conventions from research-lifecycle.md, as a short agent skill written and reviewed in this repo

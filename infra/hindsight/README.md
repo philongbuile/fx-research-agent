@@ -119,6 +119,8 @@ To copy off the disk, point `FXRA_BACKUP_COPY_TO` at a folder that leaves this m
 
 Backups are not encrypted. Choose a destination you trust with the research notes.
 
+Current setup on the owner's machine (2026-10-26): the task passes `-CopyTo C:\workx-research-agent\Backups`, a gitignored folder that Google Drive for desktop syncs ("Folders from your computer", account of the owner). Local copies keep 14 days, the Drive-synced copies keep 90 days. A file deleted from the synced folder goes to Drive's trash for 30 days. To restore after losing this disk, download the latest zip from Drive (Computers section) and follow section 5.
+
 ## 5. Restore
 
 **Restore deletes all existing data in the target schema.** Make a fresh backup first.

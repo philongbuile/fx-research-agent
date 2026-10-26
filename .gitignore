@@ -15,6 +15,7 @@ data/
 runs/
 artifacts/
 infra/hindsight/backups/
+/Backups/          # off-disk copy target, synced by Google Drive for desktop
 *.parquet
 *.zip
 *.csv
