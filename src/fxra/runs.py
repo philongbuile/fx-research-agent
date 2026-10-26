@@ -36,6 +36,11 @@ def git_info(cwd: Path = REPO) -> dict:
         return {"git_commit": None, "git_dirty": True}
 
 
+def tracked(path: str, cwd: Path = REPO) -> bool:
+    """True if path is a file committed in this repo. A strategy outside git cannot be reproduced."""
+    return subprocess.run(["git", "ls-files", "--error-unmatch", path], cwd=cwd, capture_output=True).returncode == 0
+
+
 def validate(record: dict) -> None:
     jsonschema.validate(record, json.loads(RUN_SCHEMA.read_text()))
 
@@ -86,7 +91,7 @@ def new_run(config_path: Path, runs_root: Path, engine_image: str, now: datetime
         "kind": kind or cfg["run"]["kind"],
         "hypothesis_id": cfg["run"]["hypothesis_id"],
         "technical_only": cfg["run"].get("technical_only", False),
-        "reproducible": bool(code["git_commit"]) and not code["git_dirty"],
+        "reproducible": bool(code["git_commit"]) and not code["git_dirty"] and tracked(code["strategy_path"]),
         "code": code,
         "config": {"path": config_path.as_posix(), "sha256": sha256_file(config_path)},
         "engine": {"name": "lean", "image": engine_image},

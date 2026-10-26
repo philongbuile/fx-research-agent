@@ -30,3 +30,8 @@ def test_unfilled_template_is_rejected(tmp_path):
 def test_schema_rejects_unpinned_engine_image(tmp_path):
     with pytest.raises(jsonschema.ValidationError):
         runs.new_run(runs.REPO / "lean/TechnicalSmokeTest/research.toml", tmp_path, "quantconnect/lean:latest")
+
+
+def test_strategy_outside_git_is_not_reproducible():
+    assert runs.tracked("lean/TechnicalSmokeTest/main.py")
+    assert not runs.tracked("lean/NoSuchStrategy/main.py")

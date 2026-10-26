@@ -17,19 +17,19 @@ Ordered by dependency. **Now** items need no broker, pair or timeframe choice. *
 - [x] B-06d Off-disk copy to `Backups/`, synced by Google Drive (2026-10-26)
 - [x] B-06e Restore test: the Drive-synced zip `hindsight-20261026T060702Z.zip` was restored into a throwaway compose project. Row counts and content hashes of `memory_units`, `documents` and `banks` match the live server (2026-10-26)
 - [ ] B-06c Connect the second machine over the LAN (D-16). Owner steps: fixed IP, `.env` bind IP, firewall rule (runbook section 2B)
-- [ ] B-07 CI (GitHub Actions): `uv run pytest`, compose config check, secret scan (gitleaks)
-- [ ] B-08 Hypothesis template (`experiments/_template/`), plus the Hindsight memory conventions from research-lifecycle.md, as a short agent skill written and reviewed in this repo
+- [x] B-07 CI (GitHub Actions): `uv run pytest`, compose config check, secret scan (gitleaks)
+- [x] B-08 Hypothesis template (`experiments/_template/`), plus the Hindsight memory conventions from research-lifecycle.md, as a short agent skill written and reviewed in this repo
 - [x] B-09 Run comparison report: table of runs per hypothesis, with trial count and in-sample vs OOS
-- [ ] B-13 Data quality report per partition: gaps against the expected session calendar, spread stats
+- [x] B-13 Data quality report per partition: gaps against the expected session calendar, spread stats
 - [x] B-14 Export raw store → LEAN data format (`data/lean/`, `fxra export-lean`) with bid/ask quote bars. No time shift: LEAN files use bar open time (D-08 corrected). Golden test against LEAN sample data. Export manifests are recorded in the run record (2026-10-26)
-- [ ] B-15 Supersede mechanism for corrected data (new batch id, reader picks the latest, old one kept)
+- [x] B-15 Supersede mechanism for corrected data (new batch id, reader picks the latest, old one kept)
 - [x] B-16 Walk-forward runner: fixed windows, frozen rules, one OOS pass, all windows recorded
 - [x] B-17 Cost stress runner: spread and slippage multipliers as `kind = "stress"` runs
 
 ## Phase 1 — blocked on broker / instrument choices
 
 - [ ] B-10 MT5 market data adapter (read-only): `copy_rates_range`, `copy_ticks_range`, `symbol_info` → SymbolSpec + swaps. Windows only. DST and server-timezone tests. *Needs Q-01.*
-- [ ] B-11 First real ingestion and data quality review. *Needs Q-01, Q-02.*
+- [ ] B-11 First real ingestion and data quality review. *Needs Q-01 (Q-02 answered by D-17).*
 - [ ] B-12 Research: LEAN ↔ MT5 integration options (community brokerage plugins, a bridge via files or sockets, or our own `IBrokerage`). Review code, license, maintenance and tool permissions before any use. *Needs Q-01.*
 - [ ] B-18 Broker vs LEAN/vendor data comparison on overlapping days (R-01). *Needs B-11, B-14.*
 
