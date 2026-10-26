@@ -1,0 +1,8 @@
+These files are verbatim row subsets of the forex sample data in the QuantConnect LEAN
+repository (Data/forex/oanda), as shipped in the image quantconnect/lean:18206.
+LEAN is licensed under the Apache License 2.0 (https://github.com/QuantConnect/Lean).
+
+20140505_eurusd_minute_quote.csv  first 30 and last 10 rows of minute/eurusd/20140505_quote.zip
+eurusd_hour_20140505.csv          rows 20140505 00:00..05:00 of hour/eurusd.zip
+
+Used only as the golden reference for tests/test_lean_export.py. Not research data.

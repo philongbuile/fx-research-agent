@@ -5,7 +5,7 @@ Code is canonical: `src/fxra/contracts.py` (Arrow schemas, dataclasses) and `sch
 ## Conventions
 
 - **Time is UTC.** Every stored timestamp is timezone-aware UTC with microsecond precision. Adapters convert from the source timezone (for example, MT5 server time) and write the source timezone into the manifest.
-- **Bar time is the open time.** LEAN stamps bars with their end time, so the LEAN export step shifts bars by one period.
+- **Bar time is the open time.** LEAN data files stamp bars with their open time too, and LEAN delivers a bar to the algorithm at `EndTime = Time + period`. The LEAN export therefore writes bars unshifted (D-08, verified 2026-10-26).
 - **Prices keep their side.** Bars are bid, ask or mid, as declared by `provenance.price_side` in the manifest. Never mix sides in one partition.
 - **Points, pips and lots are never implicit.** `SymbolSpec` states `digits`, `point`, `pip_size`, `contract_size` and the volume range and step, per symbol **per source**. Two brokers can differ for the same pair.
 - **Spread in points** means `(ask - bid) / point`.

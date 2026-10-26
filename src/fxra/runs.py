@@ -40,9 +40,18 @@ def validate(record: dict) -> None:
     jsonschema.validate(record, json.loads(RUN_SCHEMA.read_text()))
 
 
-def new_run(config_path: Path, runs_root: Path, engine_image: str, now: datetime | None = None) -> Path:
+def new_run(config_path: Path, runs_root: Path, engine_image: str, now: datetime | None = None,
+            data_export: Path | None = None) -> Path:
+    """data_export: export.json of a `fxra export-lean` folder; its manifest_refs become data.manifests."""
     config_path = Path(config_path)
     cfg = json.loads(json.dumps(tomllib.loads(config_path.read_text()), default=str))  # TOML dates -> ISO strings
+    data = cfg["data"] | {"manifests": cfg["data"].get("manifests", [])}
+    if data_export:  # checked before the run dir exists, so a mismatch leaves nothing behind
+        exports = json.loads(Path(data_export).read_text())["exports"]
+        if data["source"] not in {e["source"] for e in exports}:
+            raise ValueError(f"config data.source {data['source']!r} is not in {data_export}")
+        data["manifests"] = [r for e in exports for r in e["manifest_refs"]]
+        data["export"] = {"path": Path(data_export).as_posix(), "sha256": sha256_file(data_export)}
     now = now or datetime.now(timezone.utc)
     run_id = f"{now:%Y%m%dT%H%M%SZ}-{secrets.token_hex(4)}"
     run_dir = Path(runs_root) / run_id
@@ -61,7 +70,7 @@ def new_run(config_path: Path, runs_root: Path, engine_image: str, now: datetime
         "code": code,
         "config": {"path": config_path.as_posix(), "sha256": sha256_file(config_path)},
         "engine": {"name": "lean", "image": engine_image},
-        "data": cfg["data"] | {"manifests": cfg["data"].get("manifests", [])},
+        "data": data,
         "assumptions": cfg["assumptions"],
         "split": {"in_sample": cfg["split"]["in_sample"],
                   "out_of_sample": cfg["split"].get("out_of_sample")},  # TOML has no null: omit = none

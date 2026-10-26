@@ -5,12 +5,12 @@ import json
 import sys
 import tomllib
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pyarrow as pa
 
-from . import lean, quality, rawstore, risk, runs
+from . import lean, lean_export, quality, rawstore, risk, runs
 from .adapters import CsvBarsAdapter, DryRunExecution
 from .contracts import AccountSnapshot, OrderIntent, Quote, Resolution, SymbolSpec
 
@@ -20,7 +20,9 @@ def _ts(s: str) -> datetime:
 
 
 def cmd_backtest(a) -> int:
-    run_dir = runs.new_run(a.config, a.runs_root, lean.image_ref())
+    export = a.data_dir / lean_export.EXPORT_JSON if a.data_dir else None
+    run_dir = runs.new_run(a.config, a.runs_root, lean.image_ref(),
+                           data_export=export if export and export.exists() else None)
     record = json.loads((run_dir / "run.json").read_text())
     project = runs.REPO / Path(record["code"]["strategy_path"]).parent
     code = lean.backtest(project, run_dir / "lean", data_dir=a.data_dir)
@@ -79,6 +81,13 @@ def cmd_import_csv(a) -> int:
     return 0
 
 
+def cmd_export_lean(a) -> int:
+    entry = lean_export.export(a.root, a.out, a.source, a.symbol, Resolution(a.resolution),
+                               date.fromisoformat(a.start), date.fromisoformat(a.end), a.fixed_spread_points)
+    print(json.dumps({k: entry[k] for k in ("rows", "price_side", "spread", "lean")}, indent=2))
+    return 0
+
+
 def cmd_verify(a) -> int:
     problems = rawstore.verify(a.root)
     print("\n".join(problems) or "ok")
@@ -114,6 +123,18 @@ def main(argv=None) -> int:
     i.add_argument("--root", type=Path, default=Path("data/raw"))
     i.add_argument("--supersede", metavar="REASON", help="write a corrected batch for days that already exist")
     i.set_defaults(fn=cmd_import_csv)
+
+    e = sub.add_parser("export-lean", help="export raw-store bars to LEAN QuoteBar files (forex/oanda layout)")
+    e.add_argument("--source", required=True)
+    e.add_argument("--symbol", required=True)
+    e.add_argument("--resolution", required=True, choices=["minute", "hour"])
+    e.add_argument("--start", required=True, help="first UTC day, YYYY-MM-DD")
+    e.add_argument("--end", required=True, help="last UTC day (inclusive), YYYY-MM-DD")
+    e.add_argument("--root", type=Path, default=Path("data/raw"))
+    e.add_argument("--out", type=Path, default=Path("data/lean"))
+    e.add_argument("--fixed-spread-points", type=int, metavar="N",
+                   help="spread for bars whose spread_points is null; without it such bars are refused")
+    e.set_defaults(fn=cmd_export_lean)
 
     v = sub.add_parser("verify", help="recompute checksums for every raw partition")
     v.add_argument("--root", type=Path, default=Path("data/raw"))

@@ -23,8 +23,10 @@ def backtest(project_dir: Path, results_dir: Path, image: str = LEAN_IMAGE,
              data_dir: Path | None = None) -> int:
     """Run main.py in project_dir. Results land in results_dir. Returns the container exit code.
 
-    data_dir None = the sample data bundled in the image (/Lean/Data). Otherwise mount a
-    LEAN-format data folder read-only in its place.
+    data_dir None = the sample data bundled in the image (/Lean/Data). Otherwise each
+    <security type>/<market> folder of data_dir (e.g. forex/oanda from `fxra export-lean`) is
+    mounted read-only over the image's copy. The image's market-hours and symbol-properties
+    databases stay visible; mounting all of /Lean/Data would hide them.
     """
     project_dir, results_dir = Path(project_dir).resolve(), Path(results_dir).resolve()
     if not (project_dir / "main.py").exists():
@@ -33,7 +35,11 @@ def backtest(project_dir: Path, results_dir: Path, image: str = LEAN_IMAGE,
     cmd = ["docker", "run", "--rm", "--network", "none",  # backtests need no network
            "-v", f"{project_dir}:/LeanCLI:ro", "-v", f"{results_dir}:/Results"]
     if data_dir:
-        cmd += ["-v", f"{Path(data_dir).resolve()}:/Lean/Data:ro"]
+        markets = sorted(p for p in Path(data_dir).resolve().glob("*/*") if p.is_dir())
+        if not markets:
+            raise FileNotFoundError(f"{data_dir} has no <security type>/<market> folders")
+        for m in markets:
+            cmd += ["-v", f"{m}:/Lean/Data/{m.parent.name}/{m.name}:ro"]
     cmd += ["-w", "/Lean/Launcher/bin/Debug", "--entrypoint", "dotnet", image,
             "QuantConnect.Lean.Launcher.dll",
             "--environment", "backtesting",
