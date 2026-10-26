@@ -71,7 +71,7 @@ def cmd_import_csv(a) -> int:
             p = rawstore.write_partition(a.root, "bars", adapter.source, spec.symbol, res, day,
                                          pa.Table.from_pylist(rows, schema=table.schema),
                                          {"name": type(adapter).__name__, "version": adapter.adapter_version},
-                                         adapter.provenance())
+                                         adapter.provenance(), supersede=a.supersede)
             written.append(str(p))
         except rawstore.PartitionExists:
             skipped.append(day.isoformat())
@@ -104,6 +104,7 @@ def main(argv=None) -> int:
     i = sub.add_parser("import-csv", help="import a bar CSV into the immutable raw store")
     i.add_argument("config", type=Path)
     i.add_argument("--root", type=Path, default=Path("data/raw"))
+    i.add_argument("--supersede", metavar="REASON", help="write a corrected batch for days that already exist")
     i.set_defaults(fn=cmd_import_csv)
 
     v = sub.add_parser("verify", help="recompute checksums for every raw partition")
