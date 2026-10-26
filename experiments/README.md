@@ -1,6 +1,6 @@
 # Experiments
 
-One folder per hypothesis: `experiments/<H-0001-short-name>/`.
+One folder per hypothesis: `experiments/<H-0001-short-name>/`. Start by copying `experiments/_template/` and `config/research.example.toml`. Conventions: `.claude/skills/fxra-research/SKILL.md`.
 
 ```
 hypothesis.md    claim, rationale, falsification test, costs it must survive, trial count
