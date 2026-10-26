@@ -16,6 +16,16 @@ idea -> candidate -> in-sample backtest -> robustness -> out-of-sample / walk-fo
 | 5. Demo | OOS passed | Paper (LEAN) or broker demo account through the risk gate (`mode` widened in a reviewed change). At least N weeks (owner sets N), with fills compared to backtest assumptions. | Fills dataset (environment=`demo`), daily reconciliation, incident log | Owner |
 | 6. Owner approval | Demo report | Written approval naming the strategy commit, risk limits, max size and kill criteria. | Approval record (`reports/approvals/`) | **Owner only** |
 
+## Commands per stage
+
+| Stage | Command | Records |
+|---|---|---|
+| 2 | `fxra backtest <config> [--segment in_sample]` | `kind=backtest`, `window.segment=in_sample`, dates from `[split]` |
+| 3 | `fxra stress <config> --spread 1.5 --spread 2 --slippage-points N` | one `kind=stress` run per variant, in-sample only, `stress` block |
+| 4 | `fxra backtest <config> --segment out_of_sample` | refused if the hypothesis already has a completed OOS run (failed runs do not block, and stay recorded) |
+| 4 | `fxra walk-forward <config>` | windows from `[walk_forward]` in `research.toml`, same code and parameters in every window, one `kind=walk_forward` OOS run each, shared `group_id`. Refuses dirty code. Counts as the OOS look: refused if a completed OOS run exists |
+| any | `fxra report [--hypothesis H]` | markdown per hypothesis: trial count, in-sample and OOS tables, an "evidence" column that flags technical-only, non-reproducible, in-sample and failed runs |
+
 ## Rules that apply at every stage
 
 - **One hypothesis, one id.** If you change the idea after seeing results, you have a new id. Keep the old one and its failure.

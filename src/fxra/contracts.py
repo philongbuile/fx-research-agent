@@ -21,8 +21,9 @@ class Resolution(StrEnum):
     DAILY = "daily"
 
 
-# Bar timestamp = bar OPEN time (UTC). LEAN uses end time internally; the LEAN
-# export step must shift by one period. Prices are mid unless price_side says otherwise.
+# Bar timestamp = bar OPEN time (UTC). LEAN files use the open time too (LEAN derives
+# EndTime = Time + period), so the LEAN export does not shift (D-08). Prices are mid
+# unless price_side says otherwise.
 BARS_SCHEMA = pa.schema(
     [
         pa.field("time", UTC_TS, nullable=False),

@@ -25,7 +25,7 @@ Forex research tooling around QuantConnect LEAN, with a shared Hindsight memory.
 
 ## Review checklist for strategy code
 
-- No look-ahead: signals at time t use only data with timestamps ≤ t (bars are stamped with open time in our store and end time in LEAN).
+- No look-ahead: signals at time t use only data with timestamps ≤ t (bars are stamped with open time, in our store and in LEAN data files; LEAN delivers a bar to the algorithm at its end time, see D-08).
 - Costs: spread, slippage, commission and swap are modeled, and listed in `research.toml` `[assumptions]`.
 - Sizes in lots use `SymbolSpec` (contract size, volume step). No hard-coded pip values.
 - Every order has a stop loss and a unique `client_order_id`.

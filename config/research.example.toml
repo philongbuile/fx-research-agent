@@ -27,3 +27,12 @@ fill_model = "<e.g. LEAN ImmediateFillModel>"
 [split]
 in_sample = { start = 2000-01-01, end = 2000-06-30 }
 out_of_sample = { start = 2000-07-01, end = 2000-12-31 }   # untouched until the in-sample design is frozen
+
+# Optional. Used by `fxra walk-forward`. Fixed in advance, rules frozen (no refit between windows).
+# Test windows follow each train window; a last window that would run past `end` is dropped.
+# [walk_forward]
+# start = 2000-01-01       # <first day of the first train window>
+# end = 2000-12-31         # <last day any test window may cover>
+# train_days = 0           # <int>
+# test_days = 0            # <int>
+# step_days = 0            # <int>
