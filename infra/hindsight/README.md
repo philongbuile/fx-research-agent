@@ -92,7 +92,32 @@ docker compose exec hindsight hindsight-admin backup /backups/hindsight-$(date -
 
 On Windows Git Bash, prefix the command with `MSYS_NO_PATHCONV=1`, or Git Bash rewrites `/backups/...` into a Windows path.
 
-Files appear in `infra/hindsight/backups/`, which is gitignored. Copy them **off the host** (another disk, or the second machine). Schedule the backup daily with cron or Windows Task Scheduler. Optional second layer: `docker compose exec db pg_dump -U hindsight -Fc hindsight > hindsight.dump`.
+Files appear in `infra/hindsight/backups/`, which is gitignored. Copy them **off the host** (another disk, cloud sync folder, or the second machine). Optional second layer: `docker compose exec db pg_dump -U hindsight -Fc hindsight > hindsight.dump`.
+
+### Scheduled backup (Windows host)
+
+`backup.ps1` takes a backup, checks that the zip opens, records its sha256 in `backups/backup.log`, optionally copies it to `-CopyTo` (or the `FXRA_BACKUP_COPY_TO` environment variable) and verifies the copy, then prunes files older than 14 days locally and 90 days at the copy target. It always keeps the 3 newest. It exits 1 and logs `FAILED ...` if Docker or the container is not running.
+
+Register it once (PowerShell, as the user who runs Docker Desktop):
+
+```powershell
+$script = "$PWD\backup.ps1"   # run from infra\hindsight
+$action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$script`"" -WorkingDirectory $PWD
+$trigger = New-ScheduledTaskTrigger -Daily -At 12:30
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 30) -MultipleInstances IgnoreNew -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+$principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
+Register-ScheduledTask -TaskName 'fxra-hindsight-backup' -Action $action -Trigger $trigger -Settings $settings -Principal $principal
+```
+
+`-StartWhenAvailable` runs a missed backup at the next logon. The task runs only while the user is logged on, because Docker Desktop does too. Check it with `Get-ScheduledTaskInfo fxra-hindsight-backup` (`LastTaskResult` 0 = success) and the last lines of `backups/backup.log`.
+
+To copy off the disk, point `FXRA_BACKUP_COPY_TO` at a folder that leaves this machine, for example a personal OneDrive folder:
+
+```powershell
+[Environment]::SetEnvironmentVariable('FXRA_BACKUP_COPY_TO', "$env:OneDrive\Backups\fxra-hindsight", 'User')
+```
+
+Backups are not encrypted. Choose a destination you trust with the research notes.
 
 ## 5. Restore
 
