@@ -43,5 +43,6 @@ Forex research tooling around QuantConnect LEAN, with a shared Hindsight memory.
 - Python 3.12+, managed with `uv`. Run `uv run pytest` before you propose a change. Keep code small and match the existing style.
 - New data source = a new class that satisfies `MarketDataAdapter`, plus tests with fixture files. It writes through `rawstore.write_partition` only.
 - New algorithm = `lean/<Name>/main.py` + `research.toml`, run through `uv run fxra backtest`.
+- Hypothesis template and Hindsight tag conventions for research work: `.claude/skills/fxra-research/SKILL.md` (plain Markdown, any agent can read it).
 - Branch and PR for every change. Do not push to `main` directly when the change touches risk, data contracts or strategy code.
 - Docs are in English. Keep `docs/decisions.md` current when you settle or open a question.
