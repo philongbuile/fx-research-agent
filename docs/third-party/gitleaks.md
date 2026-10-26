@@ -31,6 +31,6 @@ Go modules compiled into the release binary (listed in `go.mod` upstream), under
 
 ## 6. Approval
 
-Approved by: pending owner review
+Approved by: owner (philongbuile), 2026-10-26, by merging PR #2 ("ok merge đi" in chat)
 
 Updating: bump `GITLEAKS_VERSION` and `GITLEAKS_SHA256` together, and edit this note.

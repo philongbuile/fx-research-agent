@@ -35,6 +35,6 @@ Both MIT. Compatible with Apache-2.0 and commercial use. The actions run only in
 
 ## 6. Approval
 
-Approved by: pending owner review
+Approved by: owner (philongbuile), 2026-10-26, by merging PR #2 ("ok merge đi" in chat)
 
 Updating a pin (Dependabot or by hand) needs a new SHA lookup and an edit of this note.
