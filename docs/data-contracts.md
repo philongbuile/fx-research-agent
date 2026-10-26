@@ -13,22 +13,26 @@ Code is canonical: `src/fxra/contracts.py` (Arrow schemas, dataclasses) and `sch
 ## Raw store layout
 
 ```
-data/raw/<dataset>/source=<src>/symbol=<SYM>/resolution=<res>/date=YYYY-MM-DD/
+data/raw/<dataset>/source=<src>/symbol=<SYM>/resolution=<res>/date=YYYY-MM-DD/batch=<batch_id>/
     data.parquet      zstd, schema = SCHEMAS[dataset]
     _manifest.json
 ```
 
-- **Immutable.** Writing an existing partition raises `PartitionExists`. A correction is a new source id (for example `csv-broker-v2`) or a future supersede mechanism (backlog B-15). It is never an overwrite.
-- **Atomic.** The write goes to `<partition>.tmp-xxxx`, then a rename. A `<partition>.lock` file is created with `O_EXCL` for the duration of the write.
+`batch_id` is `YYYYMMDDTHHMMSSZ-<8 hex>` (UTC write time), so batches sort by time.
+
+- **Immutable.** A batch is never modified or deleted. Writing a day that already has a batch raises `PartitionExists`.
+- **Supersede (B-15).** A correction is a new batch written with `supersede=<reason>` (CLI: `import-csv --supersede REASON`). Its manifest has `supersedes=<previous latest batch_id>` and `supersede_reason`. The old batch stays on disk. Readers (`latest_batch`, `read_partition`, `read_range`) use the latest batch of each day and check its sha256. Run records cite the batch dir through `manifest_ref`, so a run stays tied to the exact batch it read. Missing days are absent from `read_range`; nothing is filled in. A new source id is still the way to hold a genuinely different dataset.
+- **Atomic.** The write goes to `<partition>.tmp-xxxx`, then a rename to `batch=<batch_id>`. A per-day `<partition>.lock` file is created with `O_EXCL` for the duration of the write, so two writers cannot race on "latest".
 - **One writer host per source** (D-09). The lock catches accidents. The operating rule prevents them.
-- `fxra verify` recomputes every checksum and row count, and reports stale locks and leftover temp directories.
+- `fxra verify` recomputes every batch's checksum and row count, reports a batch whose `supersedes` names a missing batch, and reports stale locks and leftover temp directories.
 
 ### Manifest (`_manifest.json`)
 
 | Field | Meaning |
 |---|---|
-| `manifest_version` | 1 |
+| `manifest_version` | 2 |
 | `dataset`, `source`, `symbol`, `resolution`, `date` | Partition key |
+| `batch_id`, `supersedes`, `supersede_reason` | This batch; the batch it replaces and why (both null for the first batch) |
 | `file`, `sha256`, `bytes`, `row_count` | What is in the partition, and its checksum |
 | `time_min`, `time_max` | First and last timestamp (UTC) |
 | `schema` | Arrow schema string at write time |
@@ -80,7 +84,7 @@ Schema: `schemas/run.schema.json`. Written by `fxra backtest`.
 | `code` | `git_commit`, `git_dirty`, `strategy_path` |
 | `config` | Path and sha256 of the research config. A copy is stored in the run folder. |
 | `engine` | `lean` plus the image tag **and digest** |
-| `data` | `source`, `symbols`, `resolution`, `start`, `end`, `timezone`, `manifests` (partition path plus manifest sha256) |
+| `data` | `source`, `symbols`, `resolution`, `start`, `end`, `timezone`, `manifests` (batch dir path plus manifest sha256, from `manifest_ref`) |
 | `assumptions` | `spread`, `slippage`, `swap`, `commission`, `fill_model`. Each one is explicit text. |
 | `split` | `in_sample` range, and the `out_of_sample` range or null |
 | `metrics` | LEAN `statistics` and `runtime_statistics` from `*-summary.json` |
