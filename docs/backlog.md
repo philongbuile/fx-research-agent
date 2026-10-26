@@ -16,7 +16,7 @@ Ordered by dependency. **Now** items need no broker, pair or timeframe choice. *
 - [x] B-06b Daily backup job: `infra/hindsight/backup.ps1`, Task Scheduler `fxra-hindsight-backup` at 12:30 (2026-10-26)
 - [x] B-06d Off-disk copy to `Backups/`, synced by Google Drive (2026-10-26)
 - [x] B-06e Restore test: the Drive-synced zip `hindsight-20261026T060702Z.zip` was restored into a throwaway compose project. Row counts and content hashes of `memory_units`, `documents` and `banks` match the live server (2026-10-26)
-- [ ] B-06c Connect the second machine over the LAN (D-16). Owner steps: fixed IP, `.env` bind IP, firewall rule (runbook section 2B)
+- [ ] ~~B-06c Connect the second machine over the LAN (D-16)~~ Not needed: everything moves to one laptop (D-20)
 - [x] B-07 CI (GitHub Actions): `uv run pytest`, compose config check, secret scan (gitleaks)
 - [x] B-08 Hypothesis template (`experiments/_template/`), plus the Hindsight memory conventions from research-lifecycle.md, as a short agent skill written and reviewed in this repo
 - [x] B-09 Run comparison report: table of runs per hypothesis, with trial count and in-sample vs OOS
@@ -25,6 +25,19 @@ Ordered by dependency. **Now** items need no broker, pair or timeframe choice. *
 - [x] B-15 Supersede mechanism for corrected data (new batch id, reader picks the latest, old one kept)
 - [x] B-16 Walk-forward runner: fixed windows, frozen rules, one OOS pass, all windows recorded
 - [x] B-17 Cost stress runner: spread and slippage multipliers as `kind = "stress"` runs
+
+## Move to the MT5 laptop (D-20)
+
+On the MT5 laptop (Windows), in this order:
+
+- [ ] M-01 Install Git, `uv`, Docker Desktop. Clone the repo, run `uv sync` and `uv run pytest`.
+- [ ] M-02 Hindsight: copy `infra/hindsight/.env` by hand (a password manager or USB, never git or chat). Run `docker compose up -d`, then restore the latest zip from the Google Drive `Backups` folder (runbook section 5). Check that the row counts match. Then set up the backup task (`backup.ps1` + Task Scheduler) and the Drive sync folder again.
+- [ ] M-03 Add the Hindsight MCP server to Claude Code at user scope (runbook section 3).
+- [ ] M-04 `docker pull quantconnect/lean:18206` (about 14 GB compressed), then run the smoke test `uv run fxra backtest lean/TechnicalSmokeTest/research.toml`.
+- [ ] M-05 Install the MT5 desktop terminal from metatrader5.com. Open a demo account (Pepperstone, or `MetaQuotes-Demo` from File > Open an Account). Keep the login out of the repo.
+- [ ] M-06 Export EURUSD M1 bars (View > Symbols > Bars), write an import config from `config/import-csv.example.toml`, then run `fxra import-csv`, `fxra quality` (check the server timezone, R-02) and `fxra export-lean`.
+
+Then, on this machine, after M-02 is verified: clean up (stop and remove the Hindsight containers and volume, the LEAN image, the backup task and the local folders). The owner confirms each step.
 
 ## Phase 1 — blocked on broker / instrument choices
 
