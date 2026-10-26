@@ -12,7 +12,9 @@ Ordered by dependency. **Now** items need no broker, pair or timeframe choice. *
 
 ## Phase 1 — research loop without a broker (Now)
 
-- [ ] B-06 Deploy Hindsight on the chosen Docker host; connect both machines; create bank `fxra`; set a daily backup job and copy backups off the host; decide on the MCP tool allowlist. *Needs Q-03.*
+- [x] B-06a Hindsight deployed on this machine (local only), bank `fxra` created, MCP tool allowlist, first backup taken (2026-10-26)
+- [ ] B-06b Daily backup job (Task Scheduler) and a copy off this disk
+- [ ] B-06c Connect the second machine (Tailscale or LAN; Q-03)
 - [ ] B-07 CI (GitHub Actions): `uv run pytest`, compose config check, secret scan (gitleaks)
 - [ ] B-08 Hypothesis template (`experiments/_template/`), plus the Hindsight memory conventions from research-lifecycle.md, as a short agent skill written and reviewed in this repo
 - [ ] B-09 Run comparison report: table of runs per hypothesis, with trial count and in-sample vs OOS

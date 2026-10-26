@@ -80,7 +80,7 @@ curl -s -o /dev/null -w "%{http_code}\n" "$HINDSIGHT_URL/v1/default/banks"      
 curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $HINDSIGHT_API_KEY" "$HINDSIGHT_URL/v1/default/banks"   # expect 200
 ```
 
-Use the single-bank endpoint `/mcp/fxra/` for agents. The multi-bank `/mcp/` exposes bank create, list and delete tools.
+Use the single-bank endpoint `/mcp/fxra/` for agents. The multi-bank `/mcp/` exposes bank create, list and delete tools. The single-bank endpoint is filtered too: `HINDSIGHT_API_MCP_ENABLED_TOOLS` in `compose.yaml` removes every delete, clear and update tool. To change the list, set `HINDSIGHT_MCP_ENABLED_TOOLS` in `.env`.
 
 ## 4. Backup
 

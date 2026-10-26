@@ -19,16 +19,18 @@
 | D-11 | Claude and Codex only propose. A strategy reaches paper, demo or live only as a specific git commit, through the gates in `research-lifecycle.md`, with owner approval. | Owner constraint. |
 | D-12 | `AGENTS.md` is the canonical agent rule file. `CLAUDE.md` imports it and adds only Claude-specific notes. | Avoids two rule sets drifting apart. |
 | D-13 | Docs and code are in English (open-source audience). | Convention. |
+| D-14 | Hindsight is hosted on the owner's Windows dev machine (Docker Desktop), bound to `127.0.0.1`. No Tailscale for now; the second machine connects later. Answers Q-03 for now. | Owner, 2026-10-26. |
+| D-15 | The MCP server exposes only an allowlist of tools (`HINDSIGHT_API_MCP_ENABLED_TOOLS` in compose): read, recall, retain, reflect. No delete, clear, update, invalidate or bank management tools for agents. Humans curate through the UI or REST. | Verified 2026-10-26: the single-bank endpoint `/mcp/fxra/` still offers `delete_bank`, `clear_memories` and `delete_document`. With the allowlist, `tools/list` returns 18 tools and none of them delete. |
 
 ## Open questions
 
-Only Q-01 to Q-03 block Phase 1 work. The rest have defaults that work for now.
+Only Q-01 and Q-02 block Phase 1 work. Q-03 is answered for now by D-14. The rest have defaults that work for now.
 
 | ID | Question | Blocks | Default until answered |
 |---|---|---|---|
 | Q-01 | Which broker, and does it offer MT5 (demo account first)? Which server? | MT5 data adapter (B-10), symbol specs, real spreads and swaps | CSV import only |
 | Q-02 | Which pairs and which bar resolution for the first hypothesis? | First real ingestion, LEAN data export test | None (smoke test uses LEAN sample EURUSD only) |
-| Q-03 | Which machine is the Docker host for Hindsight, and is it reached over Tailscale or the LAN? | Hindsight deployment on the real host | Tailscale with `tailscale serve` |
+| Q-03 | ~~Which machine is the Docker host?~~ This machine, local only (D-14). Still open: how the second machine connects (Tailscale or LAN). | Second-machine access | Local only |
 | Q-04 | Should Hindsight use an LLM (for example Anthropic with its own API key) for fact extraction and reflect? That sends memory text to the provider. | Better recall quality only | `none` |
 | Q-05 | Account currency, leverage and account type (hedging or netting) of the planned demo account. | Position sizing, risk limits, swap conversion | — |
 | Q-06 | Where does the canonical run registry live when two machines run backtests: the Docker host, or each machine plus sync? | Cross-machine run comparison | Local `runs/` plus Hindsight summary |

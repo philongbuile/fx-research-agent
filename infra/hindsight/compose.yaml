@@ -49,6 +49,10 @@ services:
       # Every API and MCP request must send `Authorization: Bearer <HINDSIGHT_API_KEY>`.
       HINDSIGHT_API_TENANT_EXTENSION: hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension
       HINDSIGHT_API_TENANT_API_KEY: ${HINDSIGHT_API_KEY:?set HINDSIGHT_API_KEY in .env}
+      # MCP tools agents may call. Excludes every delete/clear/update/invalidate tool and
+      # bank/directive/mental-model management: agents add and read memory, humans curate it
+      # (Control Plane UI or REST). Applies to MCP only, not to the REST API.
+      HINDSIGHT_API_MCP_ENABLED_TOOLS: ${HINDSIGHT_MCP_ENABLED_TOOLS:-retain,sync_retain,recall,reflect,list_memories,get_memory,list_documents,get_document,list_tags,get_bank,list_operations,get_operation,list_mental_models,get_mental_model,list_directives,get_knowledge_base_tree,search_knowledge_base,get_knowledge_page}
       # Control Plane UI talks to the API with the same key, and asks humans for its own access key.
       HINDSIGHT_CP_DATAPLANE_API_KEY: ${HINDSIGHT_API_KEY}
       HINDSIGHT_CP_ACCESS_KEY: ${HINDSIGHT_UI_ACCESS_KEY:?set HINDSIGHT_UI_ACCESS_KEY in .env}

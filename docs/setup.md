@@ -4,7 +4,7 @@
 
 1. Install Git, Docker (Docker Desktop on Windows/macOS, Docker Engine on Linux) and [uv](https://docs.astral.sh/uv/).
 2. Clone the repo and run `uv sync`, then `uv run pytest`.
-3. Pull the pinned LEAN image (about 14 GB compressed, much more on disk): `docker pull quantconnect/lean:18206`.
+3. Pull the pinned LEAN image: `docker pull quantconnect/lean:18206`. It is about 14 GB to download and **42.5 GB on disk**. Between research sessions you can remove it with `docker image rm quantconnect/lean:18206` and pull it again later; the tag is pinned, so you get the same engine back.
 4. Run the smoke test: `uv run fxra backtest lean/TechnicalSmokeTest/research.toml`. You should see `"status": "completed"` and one order. The run is in `runs/<run_id>/`.
 5. Connect to the shared Hindsight server: `infra/hindsight/README.md`, section 3.
 
