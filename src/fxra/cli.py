@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pyarrow as pa
 
-from . import lean, rawstore, risk, runs
+from . import lean, quality, rawstore, risk, runs
 from .adapters import CsvBarsAdapter, DryRunExecution
 from .contracts import AccountSnapshot, OrderIntent, Quote, Resolution, SymbolSpec
 
@@ -85,6 +85,14 @@ def cmd_verify(a) -> int:
     return 1 if problems else 0
 
 
+def cmd_quality(a) -> int:
+    from datetime import date
+    rep = quality.report(a.root, a.source, a.symbol, Resolution(a.resolution), date.fromisoformat(a.start),
+                         date.fromisoformat(a.end), a.week_open, a.week_close, a.session_tz)
+    print(json.dumps(rep, indent=2) if a.json else quality.to_markdown(rep))
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="fxra")
     sub = p.add_subparsers(required=True)
@@ -110,6 +118,19 @@ def main(argv=None) -> int:
     v = sub.add_parser("verify", help="recompute checksums for every raw partition")
     v.add_argument("--root", type=Path, default=Path("data/raw"))
     v.set_defaults(fn=cmd_verify)
+
+    q = sub.add_parser("quality", help="gap and spread report for raw bars (read only)")
+    q.add_argument("--source", required=True)
+    q.add_argument("--symbol", required=True)
+    q.add_argument("--resolution", choices=["minute", "hour"], required=True)
+    q.add_argument("--start", required=True, help="YYYY-MM-DD (UTC day)")
+    q.add_argument("--end", required=True, help="YYYY-MM-DD (UTC day, inclusive)")
+    q.add_argument("--root", type=Path, default=Path("data/raw"))
+    q.add_argument("--week-open", default="Sun 17:00")
+    q.add_argument("--week-close", default="Fri 17:00")
+    q.add_argument("--session-tz", default="America/New_York")
+    q.add_argument("--json", action="store_true")
+    q.set_defaults(fn=cmd_quality)
 
     a = p.parse_args(argv)
     return a.fn(a)
