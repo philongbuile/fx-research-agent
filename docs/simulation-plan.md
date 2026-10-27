@@ -30,7 +30,7 @@ Implementation: `src/fxra/simulation.py`, `simulation_memory.py`, `simulation_de
 |---|---|---|---|
 | V-01 | Identify the actual Hindsight host; apply replacement API/UI credentials without changing the database password | Host location/access | Old API credential rejected, new credential accepted, bank and stored data preserved; no credentials in logs |
 | V-02 | Exercise authenticated synchronous retain and exact-document read against deployed Hindsight | V-01; existing approved server | Sanitized transport results, restart/retry evidence and simulation isolation checks |
-| V-03 | Coordinate SQLite/Hindsight backup and restore into an isolated target | V-02 | Same simulation UUID, event history, pending departure and document integrity; expired sessions recovered |
+| V-03 | Verified locally: coordinated SQLite/Hindsight backup and isolated restore; [drill and evidence](simulation-restore-verification.md) | V-02 | Same simulation UUID, event history, pending departure and document integrity; expired sessions recovered; isolated service restart passed |
 | A-01 | Complete ai-memory artifact/digest, dependency/license and permission review; obtain explicit installation approval | Q-09 | Approved review note for an exact artifact and installation scope |
 | A-02 | Configure the two coding clients on the same authenticated development backend using discovered schemas | A-01 | Same explicit workspace/project; no character endpoint or automatic transcript capture |
 | A-03 | Run Claude→Codex→Claude canary and claim-once handoff tests plus wrong-scope checks | A-02 | Actual client versions and sanitized canary/handoff evidence, not only parsed configuration |
@@ -44,7 +44,7 @@ Implementation: `src/fxra/simulation.py`, `simulation_memory.py`, `simulation_de
 
 Local infrastructure update (2026-10-27): Docker is running; the engine was empty before bootstrap. A new local deployment was restored from the existing shared archive, with a pre-restore archive preserved. Replacement keys are active locally; missing/wrong keys are rejected, but the lost original key and the other host could not be tested. V-02's actual retain/read, identity/time filtering, MCP allowlist and restart persistence checks pass locally. The backup task produced a new checked archive and copied it to the shared folder. Details and remaining limitations are in the [verification runbook](memory-and-simulation.md#verification-in-this-environment).
 
-V-01 remains open for the other host and canonical-write policy (Q-13); V-03's coordinated SQLite/Hindsight restore remains open. Do not overwrite an existing database or claim live replication merely because both hosts sync archive files.
+V-01 remains open for the other host and canonical-write policy (Q-13). V-03 passed locally on 2026-10-27 using a frozen synthetic simulation and a fresh isolated restore target; see [verification evidence](simulation-restore-verification.md). The regression suite now passes 94 tests with Python 3.13 and existing declared dependencies; local `uv` is unavailable, and CI runs the required `uv` command. Do not overwrite an existing database or claim live replication merely because both hosts sync archive files.
 
 ## Required acceptance matrix
 

@@ -5,13 +5,20 @@ This roadmap orders outcomes by dependency, without speculative calendar dates. 
 | Milestone | Status | Scope | Exit gate |
 |---|---|---|---|
 | S0 — Durable synthetic foundation | Implemented locally | Separate memory responsibilities, controller-owned life/job/ledgers, continuous journal/outbox, time-scoped reads, recoverable handoff, bounded final capability and offline demo | Regression suite and demo pass; deployed/runner limitations remain explicit |
-| S1 — Verified memory infrastructure | Pending host access and approval | Restore authenticated Hindsight access, verify actual document transport/restore, approve and activate ai-memory, test both coding clients | V-01..V-03 and A-01..A-03 pass with sanitized evidence |
+| S1 — Verified memory infrastructure | Local Hindsight transport and coordinated restore verified; other-host routing and ai-memory approval pending | Restore authenticated Hindsight access, verify actual document transport/restore, approve and activate ai-memory, test both coding clients | V-01..V-03 and A-01..A-03 pass with sanitized evidence |
 | S2 — Agreed business policy | Owner decisions pending | KPI/review schedule, reassessment/rehire, personal economy and initial balances | Q-10..Q-12 settled with testable examples and versioned policies |
 | S3 — Supervised character agents | Not implemented | Real runner, tool/permission isolation, independent expiry scheduler, process timeout, small multi-character exercise | R-01..R-03 demonstrate that agents cannot alter controller state or bypass memory isolation |
 | S4 — Reproducible research replay | Future | Connect simulation chronology to LEAN runs and evidence-qualified professional learning | L-01 proves temporal eligibility, provenance and hypothesis/trial accounting; no claim of edge from fixtures or in-sample results |
 | S5 — Research operations and optional experience layer | Future, separately scoped | Migration exercises, observability and long-run recovery; optional character-life interface if requested | Operational recovery proven first; any UI/game/economic expansion has separate requirements and review |
 
 S1 verification and S2 policy discussions can proceed independently. S3 requires functioning character memory and agreed policy before an economic exercise is treated as representative. S4 builds on the existing research loop rather than replacing LEAN or its run records.
+
+V-03 passed locally on 2026-10-27: a frozen synthetic SQLite/Hindsight pair was
+restored into a fresh isolated Docker project and verified again after service
+restart. Identity/time isolation, exact document integrity, persisted departure
+and expired-session recovery passed. See the [repeatable drill and sanitized
+evidence](simulation-restore-verification.md). This does not close Q-09 or Q-13,
+or complete S1.
 
 ## Workstream boundaries
 
