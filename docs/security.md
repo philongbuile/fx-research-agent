@@ -45,6 +45,8 @@ Pin by version tag or digest. No `latest` in anything that runs. Already reviewe
 
 ## Backup
 
+Simulation agents are a separate trust zone from coding agents. Bind only the identity/time-scoped dispatcher described in `docs/memory-and-simulation.md`; do not expose Python objects, filesystem, databases, credentials, raw Hindsight or ai-memory MCP. Exact-document retrieval and integrity checks prevent another character's memory or a later-mutated document from entering the session. A real character runner/sandbox is not yet implemented. Development-memory automatic capture is not enabled; the ai-memory review remains pending.
+
 - Hindsight: daily `hindsight-admin backup` to `infra/hindsight/backups/`, copied off the host. Restore is tested (runbook in `infra/hindsight/README.md`). The `pg_data` volume is the live copy, not a backup.
 - Raw store: immutable partitions plus checksums. Back up with any file copy, then run `fxra verify` on the copy.
 - Run records: small. Back them up with the raw store.

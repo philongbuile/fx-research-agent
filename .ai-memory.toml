@@ -1,0 +1,14 @@
+# Prepared for the reviewed ai-memory candidate; installation is pending owner approval.
+# MCP-only curated development notes first. Do not enable automatic hooks here.
+workspace = "personal-development"
+project = "fx-research-agent"
+
+[profile]
+contribute = false
+consume = false
+
+[capture]
+# Defense in depth if hooks are enabled later; this is NOT prompt/output DLP.
+ignore_paths = ["data/**", "runs/**", "artifacts/**", "infra/hindsight/**",
+                ".env", "**/.env", "*.env", "**/*.env", "secrets/**", "Backups/**",
+                "config/**", "reports/**", "docs/decisions.md", "AGENTS.md", "CLAUDE.md"]

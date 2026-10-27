@@ -1,0 +1,10 @@
+# Business rules remain unset until the owner decides Q-10..Q-12.
+# The strict personal-debt termination boundary is fixed at > 5000 USD cents.
+[simulation]
+final_timeout_seconds = 60
+final_max_chars = 8000
+# kpi_metric = "OWNER_TO_DECIDE"
+# kpi_minimum = 0
+# review_every_seconds = 0
+# rehire_rule = "controller_attestation"
+# debt_rule = "controller_adjustment"
