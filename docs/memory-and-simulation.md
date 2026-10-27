@@ -4,7 +4,7 @@ Product intent: [design](simulation-design.md). Execution status: [plan](simulat
 
 ## Recover lost access credentials
 
-Replacement API and UI keys can be generated without resetting the database. Apply them on the actual Hindsight host, preserving `HINDSIGHT_DB_PASSWORD` and the PostgreSQL volume. On this checkout's machine there is no Docker executable or existing `infra/hindsight/.env`; the replacement keys are in the private, Git-ignored `infra/hindsight/.credentials.pending.env` and are **not active on a server**.
+Replacement API and UI keys can be generated without resetting an existing database. Preserve its database password and PostgreSQL volume during an in-place rotation. On 2026-10-27 this checkout's machine instead bootstrapped a new local Docker deployment: the engine had no existing containers, images or volumes. Its private, ignored `.env` uses the previously generated replacement API/UI keys and a new database password for the new volume. The keys are now active **on this local deployment only**; the other host's credentials were not changed.
 
 Transfer that file using a private mechanism, and replace only `HINDSIGHT_API_KEY` and `HINDSIGHT_UI_ACCESS_KEY` in the host's ignored `.env`. Do not paste values into chat or shell commands. From `infra/hindsight`, recreate only the application container:
 
@@ -12,7 +12,7 @@ Transfer that file using a private mechanism, and replace only `HINDSIGHT_API_KE
 docker compose up -d --no-deps hindsight
 ```
 
-Update authorized client credentials through their existing private configuration. Verify that the old API key is rejected, the new key can access bank `fxra`, and existing records remain intact; then check the UI with its replacement key. Do not print tokens or a rendered Compose configuration containing secrets. Preserve the private pending file until successful activation, then remove it through the owner's normal secret-retention procedure.
+Update authorized client credentials through their existing private configuration. For an in-place rotation, verify that the old API key is rejected, the new key can access bank `fxra`, and existing records remain intact; then check the UI with its replacement key. The lost original key could not be tested here; missing and deliberately wrong keys were both rejected. Do not print tokens or a rendered Compose configuration containing secrets. The private pending file remains a bootstrap copy; remove it through the owner's normal secret-retention procedure when no longer needed.
 
 If the database password is also lost, do not replace it with a random value in `.env` or delete/reinitialize the database volume. Recover the running deployment's private configuration or perform a separately reviewed PostgreSQL credential-reset procedure on the actual host. Lost access keys do not imply lost stored memories.
 
@@ -130,4 +130,15 @@ Both machines now target the same existing Drive archive folder (D-24). The inst
 
 ## Verification in this environment
 
-The default demo and automated lifecycle/transport contract tests run offline. Real Hindsight credentials are unavailable to this host process, so authenticated retain/read against the deployed service is unverified. Claude/Codex ai-memory acceptance is also unverified because installation awaits review. `uv` is absent; the test suite was run with Python and existing declared dependencies installed only into ignored `artifacts/test-deps`. No global environment, live execution adapter, risk config, approval artifact or strategy stage was changed.
+Verified locally on 2026-10-27 after Docker Desktop installation:
+
+- Pinned Hindsight and PostgreSQL images start from the existing Compose configuration, on loopback only. Existing volumes were absent before bootstrap; a pre-restore archive was taken before importing `hindsight-20261026T060702Z.zip` from the shared backup folder.
+- The restored `banks`, `documents` and `memory_units` table counts match the archive manifest. Bank `fxra` is present. This comparison preceded synthetic verification writes.
+- Health returns 200; a valid replacement API key is accepted; missing/wrong keys return 401. MCP initialization and tool listing work, with deletion/update/invalidation tools absent.
+- Actual synchronous Hindsight retain and exact-document read pass using explicitly synthetic trading-training narratives. Identity isolation, the historical cutoff and untrusted hypothesis status pass against the real transport. No coding handoff or development lesson was written to Hindsight.
+- An existing personal document remains readable after restarting the application container. The Control Plane renders its login screen on port 9999; interactive login with the UI key was not automated.
+- Task `fxra-hindsight-backup` completed with result 0, made a new consistent archive and copied it to `D:\Work\codex\gs_learner\Backups`. It runs daily at 12:35 local time, after the other host's documented 12:30 backup slot. The separate shared-folder sync runs every five minutes.
+
+Sanitized verification artifacts remain ignored under `artifacts/`; credentials remain in private ignored files. Docker's CLI is at `%LOCALAPPDATA%\Programs\DockerDesktop\resources\bin\docker.exe`; the agent's older process PATH did not include it, so commands and the backup task add that directory to their own process PATH only.
+
+Remaining limits: the other host was not contacted, and the two writable databases are not continuously synchronized (Q-13). A coordinated restore of a matching simulation SQLite/Hindsight pair remains to be exercised. Claude/Codex ai-memory acceptance is unverified because installation awaits review; no real character LLM runner/sandbox is installed. `uv` is absent in the current process; local tests use Python and declared dependencies isolated in ignored `artifacts/test-deps`, while CI runs the standard `uv` suite. No global environment, live execution adapter, risk config, approval artifact or strategy stage was changed.
