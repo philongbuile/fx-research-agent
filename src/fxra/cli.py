@@ -163,9 +163,41 @@ def cmd_quality(a) -> int:
     return 0
 
 
+def cmd_simulation_demo(a) -> int:
+    from .simulation import Policy
+    from .simulation_demo import run_demo
+    from .simulation_memory import HindsightDocuments
+
+    result = run_demo(a.db, Policy.load(a.config), HindsightDocuments.from_env() if a.hindsight else None)
+    print(json.dumps(result, indent=2))
+    return 0
+
+
+def cmd_simulation_recover(a) -> int:
+    from .simulation import Simulation
+
+    engine = Simulation.open_existing(a.db)
+    try:
+        engine.recover()
+    finally:
+        engine.close()
+    print('recovery tick completed')
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="fxra")
     sub = p.add_subparsers(required=True)
+
+    sd = sub.add_parser('simulation-demo', help='synthetic lifecycle demo; no trading or market results')
+    sd.add_argument('--config', type=Path, default=Path('config/simulation-demo.example.toml'))
+    sd.add_argument('--db', type=Path, default=Path('artifacts/simulation/demo.sqlite'))
+    sd.add_argument('--hindsight', action='store_true', help='use HINDSIGHT_URL and HINDSIGHT_API_KEY from host environment')
+    sd.set_defaults(fn=cmd_simulation_demo)
+
+    sr = sub.add_parser('simulation-recover', help='expire interrupted final sessions without waiting for an agent')
+    sr.add_argument('--db', type=Path, required=True)
+    sr.set_defaults(fn=cmd_simulation_recover)
 
     def run_args(sp):
         sp.add_argument("config", type=Path)

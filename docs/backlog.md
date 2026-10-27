@@ -2,6 +2,8 @@
 
 Ordered by dependency. **Now** items need no broker, pair or timeframe choice. **Blocked** items name the question in `decisions.md` that blocks them.
 
+The character simulation and two-layer memory initiative has its own [design](simulation-design.md), [implementation plan](simulation-plan.md) and [roadmap](roadmap.md). Its synthetic foundation is implemented; real Hindsight verification, ai-memory activation, business policies and a supervised LLM runner remain separate milestones. This does not replace the research or migration work below.
+
 ## Phase 0 — scaffold (this commit)
 
 - [x] B-01 Repo layout, agent rules, docs

@@ -29,6 +29,22 @@
 
 ## Open questions
 
+### Simulation and memory decisions (owner request, 2026-10-27)
+
+- D-21: Separate development memory (ai-memory, shared Claude/Codex scope) from research/character memory (Hindsight). No migration or replacement of Hindsight. ai-memory activation awaits the review approval required by AGENTS.md; see `third-party/ai-memory.md`.
+- D-22: Life and employment are independent. Dismissal retains identity/personality/personal history and permits evidenced reassessment/rehire. Personal debt strictly exceeding USD 50 permanently ends the character; USD 50 itself does not. Company cash, trading capital, personal cash and personal debt remain separate. Only the trusted controller changes these values.
+- D-23: Continuous durable event/knowledge storage and Hindsight narrative delivery precede departure. Successors get status/evidence-qualified shared knowledge, versioned skill references, pending work and attributed personal testimony, with their own personal history. Identity and simulation-time filtering are enforced in code. Final sessions have bounded wall time/output and cannot delay controller recovery indefinitely.
+- Implementation choice: a local SQLite controller with transactional event IDs, outbox and departure snapshots; no database server and no changes to market-data storage (D-04). Initial development memory activation is curated MCP-only; automatic hooks await separate privacy review. Operational final-session defaults are configurable, not owner-approved business criteria.
+
+| ID | Question | Blocks | Default until answered |
+|---|---|---|---|
+| Q-09 | Approve the ai-memory source/artifact/dependency review, installation scope and initial MCP-only client registration? | Real shared development-memory service and Claude↔Codex acceptance test | Marker/runbook only; nothing installed |
+| Q-10 | Which KPI metric, evidence source, pass threshold, evaluation interval and missed-review handling should employment use? | Business KPI automation | Unset; no automatic dismissal; demo uses explicit synthetic fixtures |
+| Q-11 | What learning/reassessment evidence, reviewer and waiting period qualify a dismissed character for rehire? | Business rehire automation | Unset; opt-in controller-attestation mechanism exists, without invented eligibility rules |
+| Q-12 | What creates/repays personal debt: living costs, salary, borrowing, interest and schedule? What funds initial balances? | Economic simulation | Unset; opt-in evidenced controller adjustments only; trading loss is never personal debt |
+
+### Existing research questions
+
 Nothing blocks Phase 1 work now; Q-01 is answered for demo data by D-19. Q-02 is answered by D-17, Q-03 by D-14 and D-16. The rest have defaults that work for now.
 
 | ID | Question | Blocks | Default until answered |

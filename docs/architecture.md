@@ -66,3 +66,13 @@ flowchart LR
 - A vector database or RAG system of our own. Hindsight already provides recall.
 - Automated optimization that reports in-sample results as evidence.
 - Any LLM in the per-tick decision path.
+
+## Memory layers and simulation foundation
+
+Development context and Claude/Codex handoffs use a separately scoped ai-memory backend (prepared, not activated; third-party review pending). Hindsight remains the research/character memory system. There is no bridge that copies one layer into the other. Canonical project decisions stay in Git.
+
+`fxra.simulation` adds a local SQLite controller database, separate from the market-data Parquet store. It atomically owns the event journal, independent life/employment state, four separate financial account types, evidence/status revisions, immutable personality, departure snapshots and final outputs. It has no dependency on execution adapters. It neither promotes strategies nor relaxes the existing risk gate.
+
+Personal and professional narrative events are queued durably and retained into Hindsight through a trusted document transport. The registry selects exact immutable documents for one identity and a host-selected simulation cutoff. No character gets bank-wide recall, derived memories, ai-memory access, host credentials or filesystem tools. Shared tasks/skills/knowledge have explicit evidence and status. Successor messages require a separate timed publication event; private life reviews remain archived.
+
+The implemented boundary is an allowlisted tool dispatcher. A character LLM runner/OS sandbox is not part of this increment; any future runner must enforce the documented no-shell/no-filesystem/no-raw-MCP deployment. `simulation-demo` demonstrates the lifecycle without an LLM, market data, MT5 or LEAN. See [memory and simulation](memory-and-simulation.md) for policy, clocks, expiry scheduling and restore procedures.

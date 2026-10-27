@@ -1,0 +1,9 @@
+# SYNTHETIC DEMO ONLY. These are fixtures, not agreed business rules or trading KPIs.
+[simulation]
+kpi_metric = "synthetic_fixture_score"
+kpi_minimum = 1
+review_every_seconds = 10
+rehire_rule = "controller_attestation"
+debt_rule = "controller_adjustment"
+final_timeout_seconds = 5
+final_max_chars = 8000

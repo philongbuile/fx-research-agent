@@ -18,9 +18,13 @@ Goals:
 | [QuantConnect LEAN](https://github.com/QuantConnect/Lean) (Apache-2.0) | Strategy code, backtest, paper trading, statistics | Runs from the pinned Docker image `quantconnect/lean:18206` |
 | `fxra` (this repo, Python) | Data contracts, immutable raw store, run records, risk gate, adapter interfaces | Phase 0 |
 | [Hindsight](https://github.com/vectorize-io/hindsight) (MIT) | Shared memory over MCP/API: hypotheses, decisions, results, lessons | Docker Compose in `infra/hindsight` |
+| [ai-memory](https://github.com/akitaonrails/ai-memory) (MIT) | Shared development context and coding handoffs for Claude/Codex | Scope prepared; installation pending third-party review approval |
+| Simulation controller | Independent character/job lifecycle, durable journal, scoped memory and recoverable handoffs | Synthetic CLI demo and regression tests; no broker execution |
 | MetaTrader 5 | Planned data/execution source, if the broker uses MT5 | Not integrated. No LEAN–MT5 adapter exists here (see `docs/decisions.md`) |
 
 Read next: [architecture](docs/architecture.md), [decisions](docs/decisions.md), [research lifecycle](docs/research-lifecycle.md), [data contracts](docs/data-contracts.md), [security](docs/security.md), [risks](docs/risks.md), [backlog](docs/backlog.md), [setup](docs/setup.md).
+
+Memory/character simulation: [design](docs/simulation-design.md), [implementation plan](docs/simulation-plan.md), [roadmap](docs/roadmap.md), and [operations runbook](docs/memory-and-simulation.md). Both Claude and Codex use this reading path through the canonical agent rules.
 
 ## Quick start
 
@@ -59,6 +63,14 @@ uv run fxra risk-check --limits config/risk.toml --request config/risk-request.e
 ```
 
 To start the shared memory server and connect both machines, see [`infra/hindsight/README.md`](infra/hindsight/README.md).
+
+Try the synthetic character lifecycle (no market data or orders):
+
+```bash
+uv run fxra simulation-demo
+```
+
+See [memory and simulation](docs/memory-and-simulation.md) for the two memory layers, configuration, Hindsight transport, crash recovery, backups and ai-memory activation/acceptance steps. Default demo memory is an ephemeral test double; use `--hindsight` with host credentials for real Hindsight persistence.
 
 ## Repository layout
 
