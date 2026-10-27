@@ -2,6 +2,12 @@
 
 Product intent: [design](simulation-design.md). Execution status: [plan](simulation-plan.md). Milestone order: [roadmap](roadmap.md).
 
+D-26 authorizes adopting ai-memory and its bounded MCP-only installation after
+exact-artifact review. D-27 selects this development machine as the single primary
+memory host for both machines, with authenticated SSH forwarding to loopback
+services. See [topology, cutover and acceptance](memory-topology.md). These are
+settled decisions; installation and two-machine connectivity remain unverified.
+
 ## Recover lost access credentials
 
 Replacement API and UI keys can be generated without resetting an existing database. Preserve its database password and PostgreSQL volume during an in-place rotation. On 2026-10-27 this checkout's machine instead bootstrapped a new local Docker deployment: the engine had no existing containers, images or volumes. Its private, ignored `.env` uses the previously generated replacement API/UI keys and a new database password for the new volume. The keys are now active **on this local deployment only**; the other host's credentials were not changed.
@@ -20,7 +26,7 @@ If the database password is also lost, do not replace it with a random value in 
 
 | Data | Location / owner | Reader |
 |---|---|---|
-| Architecture, technical decisions, coding progress and coding handoffs | ai-memory, workspace `personal-development`, project `fx-research-agent`; activation pending review | Claude and Codex coding sessions |
+| Architecture, technical decisions, coding progress and coding handoffs | ai-memory, workspace `personal-development`, project `fx-research-agent`; D-26 scope authorized, artifact checks and acceptance remain | Claude and Codex coding sessions |
 | Canonical project rules and decisions | `AGENTS.md`, `docs/decisions.md`, Git | Coding agents; memory holds links and context, not another authoritative copy |
 | Simulation events, raw fixture results, balances, policy, identities, personality, knowledge revisions, handoff snapshots and original final outputs | SQLite selected by `--db`, normally `artifacts/simulation/*.sqlite` | Trusted simulation controller only |
 | Personal experience narratives and professional narratives | Hindsight bank `fxra`, immutable simulation/document IDs | Identity-bound gateway only |
@@ -96,7 +102,7 @@ The implemented opt-in rehire rule is a controller attestation referencing a rec
 
 ## Activate development memory after approval
 
-First approve [the review note](third-party/ai-memory.md) and complete its remaining artifact/dependency checks. No third-party code was installed for this change. Candidate source pin: `0e5488073d7073caa3181bbaf184102b215dcf66` (manifest version `3.2.8`). Do not substitute a `latest` binary/container. This Windows host currently has no `ai-memory` executable, and no ai-memory tools are connected to this session.
+D-26 records owner authorization for the [review note's MCP-only scope](third-party/ai-memory.md); further adoption approval is not pending within that scope. Complete its remaining exact-artifact/digest, dependency/license and permission checks before execution. No third-party code was installed for this decision change. Candidate source pin: `0e5488073d7073caa3181bbaf184102b215dcf66` (manifest version `3.2.8`). Do not substitute a `latest` binary/container. This Windows host currently has no `ai-memory` executable, and no ai-memory tools are connected to this session. D-26 selects a Linux/WSL2 service on the primary; do not silently substitute experimental native Windows deployment.
 
 After an approved matching binary/service is available, consult that binary's `--help` and the pinned upstream [installation documentation](https://github.com/akitaonrails/ai-memory/blob/0e5488073d7073caa3181bbaf184102b215dcf66/docs/install.md) before applying client settings. Upstream offers non-applying registration previews:
 
@@ -146,4 +152,4 @@ The owner authorizes local Control Plane sign-in using `HINDSIGHT_UI_ACCESS_KEY`
 
 V-03 also passed locally on 2026-10-27: a matching synthetic SQLite/Hindsight pair was restored into an isolated target, preserving exact documents, identity/time filtering, the pending departure and its original deadline. Startup recovered the expired departure without fabricated final outputs. Verification passed again after a target service restart. The source was neither restored nor restarted; temporary target resources were removed. See [sanitized evidence and replay instructions](simulation-restore-verification.md).
 
-Remaining limits: the other host was not contacted, and the two writable databases are not continuously synchronized (Q-13). The coordinated restore uses a frozen single simulation writer, not a distributed snapshot protocol. Claude/Codex ai-memory acceptance is unverified because installation awaits review; no real character LLM runner/sandbox is installed. `uv` is absent in the current process; local tests use Python and declared dependencies isolated in ignored `artifacts/test-deps`, while CI runs the standard `uv` suite. No global environment, live execution adapter, risk config, approval artifact or strategy stage was changed.
+Remaining limits: the other host was not contacted, and its local history has not been reconciled or rerouted. D-27 settles Q-13 with a single primary; its cutover checks remain unverified. The coordinated restore uses a frozen single simulation writer, not a distributed snapshot protocol. D-26 settles ai-memory adoption/scope authorization; exact-artifact review, installation and Claude/Codex acceptance remain incomplete. No real character LLM runner/sandbox is installed. `uv` is absent in the current process; local tests use Python and declared dependencies isolated in ignored `artifacts/test-deps`, while CI runs the standard `uv` suite. No global environment, live execution adapter, risk config, approval artifact or strategy stage was changed.

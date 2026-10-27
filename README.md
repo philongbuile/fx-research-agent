@@ -18,7 +18,7 @@ Goals:
 | [QuantConnect LEAN](https://github.com/QuantConnect/Lean) (Apache-2.0) | Strategy code, backtest, paper trading, statistics | Runs from the pinned Docker image `quantconnect/lean:18206` |
 | `fxra` (this repo, Python) | Data contracts, immutable raw store, run records, risk gate, adapter interfaces | Phase 0 |
 | [Hindsight](https://github.com/vectorize-io/hindsight) (MIT) | Shared memory over MCP/API: hypotheses, decisions, results, lessons | Docker Compose in `infra/hindsight` |
-| [ai-memory](https://github.com/akitaonrails/ai-memory) (MIT) | Shared development context and coding handoffs for Claude/Codex | Scope prepared; installation pending third-party review approval |
+| [ai-memory](https://github.com/akitaonrails/ai-memory) (MIT) | Shared development context and coding handoffs for Claude/Codex | MCP scope authorized (D-26); exact-artifact checks, installation and acceptance remain |
 | Simulation controller | Independent character/job lifecycle, durable journal, scoped memory and recoverable handoffs | Synthetic CLI demo and regression tests; no broker execution |
 | MetaTrader 5 | Planned data/execution source, if the broker uses MT5 | Not integrated. No LEAN–MT5 adapter exists here (see `docs/decisions.md`) |
 

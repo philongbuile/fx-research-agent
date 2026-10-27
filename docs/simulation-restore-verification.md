@@ -70,8 +70,8 @@ failure output. They use the explicit offline test double; passing them alone
 does not establish deployed restore success.
 
 This drill verifies the local synthetic infrastructure. It does not demonstrate
-cross-host reconciliation (Q-13), a real character runner, approved economic
-policy, or both-client ai-memory acceptance (Q-09).
+cross-host cutover (D-27, answering Q-13), a real character runner, approved
+economic policy, or both-client ai-memory acceptance (D-26, answering Q-09).
 
 ## Local result (2026-10-27)
 

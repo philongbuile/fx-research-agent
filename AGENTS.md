@@ -36,7 +36,7 @@ For memory or simulation work, also read `docs/simulation-design.md`, `docs/simu
 ## Development memory (ai-memory)
 
 - Development knowledge, technical context, progress and coding handoffs belong only to ai-memory: workspace `personal-development`, project `fx-research-agent`, shared by Claude and Codex through `.ai-memory.toml`.
-- Activation is pending owner approval of `docs/third-party/ai-memory.md`. Do not install it or enable hooks before approval. Initial integration is MCP-only with curated development notes; no automatic transcript capture or bootstrap.
+- D-26 records owner authorization to adopt the pinned ai-memory candidate and install/register the MCP-only scope after the exact-artifact, dependency/license and permission checks in `docs/third-party/ai-memory.md` pass. Do not treat this scope authorization as completed artifact verification. Initial integration uses curated development notes; no hooks, automatic transcript capture or bootstrap. D-27 and `docs/memory-topology.md` define one primary memory host for both machines; no local-write fallback or automatic database merge.
 - Canonical rules and technical decisions remain in Git. Memory points to them; it does not create competing authoritative copies.
 - Never put simulation personal experiences, raw trading results, credentials or account information into development memory. Do not copy coding notes into Hindsight.
 - Missing ai-memory tools: continue without development memory and report the limitation. Do not use Hindsight as a fallback. See `docs/memory-and-simulation.md` for activation and the two-client acceptance test.

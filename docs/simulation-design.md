@@ -10,7 +10,7 @@ Build a research simulation in which distinct characters can work as traders, le
 
 | Layer | Purpose | Persistence and access |
 |---|---|---|
-| Development | Architecture context, implementation progress, technical lessons and Claude/Codex handoffs | ai-memory, workspace `personal-development`, project `fx-research-agent`; pending approved installation and two-client test |
+| Development | Architecture context, implementation progress, technical lessons and Claude/Codex handoffs | ai-memory, workspace `personal-development`, project `fx-research-agent`; D-26 scope authorized, exact-artifact checks, installation and two-client test remain |
 | Personal | One character's experiences and interpretation of events | Hindsight documents, selected by the controller for that identity and simulation time |
 | Professional | Evidence-qualified knowledge shared across successors | Append-only SQLite revisions plus Hindsight narratives; explicit evidence/status and time eligibility |
 | Executable skills | Reusable code or procedures, with applicability conditions | Versioned Git source plus registry references and verification commands; no execution from memory text |
@@ -70,4 +70,4 @@ The foundation uses `Simulation`, identity-bound session objects, an allowlisted
 
 No live trading, order tool, risk-gate change, strategy promotion, game UI, automatic living-cost model or new broker/pair/strategy selection is authorized by this design. MT5 remains an existing research/data workstream; this simulation adds no MT5 execution adapter.
 
-Open decisions and their owner are tracked as Q-09..Q-12 in [decisions](decisions.md). Installation, examples, access boundaries and backup procedures are in the [runbook](memory-and-simulation.md).
+Open business decisions Q-10..Q-12 remain with the owner. D-26 settles ai-memory adoption and bounded installation scope; D-27 settles the single-primary memory topology. See [decisions](decisions.md), [topology and cutover](memory-topology.md), and the [runbook](memory-and-simulation.md). A settled design does not establish installation or cross-machine acceptance.
