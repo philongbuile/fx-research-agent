@@ -56,7 +56,7 @@ flowchart LR
 
 ## Deployment
 
-- **One** Hindsight server on one Docker host. Both dev machines connect to the same server through Tailscale (recommended) or the LAN. See `infra/hindsight/README.md`.
+- The original design uses one shared Hindsight server. The owner now also runs a local server on this machine (D-25), restored from the shared archive and bound to loopback. The other host remains separate; archive synchronization does not replicate live writes. Canonical cross-machine write routing remains Q-13. See `infra/hindsight/README.md` and the verification section in `docs/memory-and-simulation.md`.
 - In Phase 0, the structured store lives on the machine that ingests (single writer per source). Other machines get read-only copies (Phase 1 decides how: rsync, Syncthing, or a shared read-only mount; see `decisions.md` Q-08).
 - Dev machines run LEAN locally in Docker. Results stay in `runs/` on the machine that ran them, and summaries go to Hindsight.
 

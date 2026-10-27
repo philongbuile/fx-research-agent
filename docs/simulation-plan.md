@@ -42,7 +42,9 @@ Implementation: `src/fxra/simulation.py`, `simulation_memory.py`, `simulation_de
 | R-03 | Execute a small multi-character simulation using the approved policies | P-01..P-03, R-02 | Restartable event trace, isolated memories, explicit handoffs and absent-message paths |
 | L-01 | Define a LEAN replay bridge with frozen hypothesis/run IDs and knowledge cutoffs | R-03; existing research rules | No future knowledge, preserved trial records, costs/provenance linked to actual `run.json` |
 
-V-01 credentials have been generated locally into an ignored, private pending file; they are not yet active on a host. There is no Docker executable or existing Hindsight `.env` on this checkout's machine. Do not create a fresh database as a substitute for recovering an existing deployment.
+Local infrastructure update (2026-10-27): Docker is running; the engine was empty before bootstrap. A new local deployment was restored from the existing shared archive, with a pre-restore archive preserved. Replacement keys are active locally; missing/wrong keys are rejected, but the lost original key and the other host could not be tested. V-02's actual retain/read, identity/time filtering, MCP allowlist and restart persistence checks pass locally. The backup task produced a new checked archive and copied it to the shared folder. Details and remaining limitations are in the [verification runbook](memory-and-simulation.md#verification-in-this-environment).
+
+V-01 remains open for the other host and canonical-write policy (Q-13); V-03's coordinated SQLite/Hindsight restore remains open. Do not overwrite an existing database or claim live replication merely because both hosts sync archive files.
 
 ## Required acceptance matrix
 
@@ -52,7 +54,7 @@ V-01 credentials have been generated locally into an ignored, private pending fi
 | Dismissal preserves identity/history; learning and rehire work | Local regression tests | Real agent reassessment flow |
 | Termination is irreversible, including stale capabilities | Local regression tests | Runner/sandbox capability revocation |
 | Company/trading/personal balances remain independent | Local regression tests | Approved debt/expense schedule |
-| Duplicate events and lost acknowledgements are safe | Local transaction/outbox tests and HTTP fixture | Real server failure/retry |
+| Duplicate events and lost acknowledgements are safe | Local transaction/outbox tests and HTTP fixture; real synchronous retain/read passes | Real server failure/retry |
 | Interrupted departure/final submission resumes atomically | Local crash/restart tests | Kill supervised writer and restart host |
 | Missing farewell remains missing | Demo and regression tests | Actual agent unavailable/stalled path |
 | Personal memories remain isolated; successor starts fresh | Local dispatcher/document tests | Multi-agent runner with denied raw endpoints |
