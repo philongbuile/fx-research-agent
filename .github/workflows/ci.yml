@@ -10,6 +10,16 @@ permissions:
   contents: read
 
 jobs:
+  backup-sync:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check shared backup sync with isolated fixtures
+        shell: powershell
+        run: ./infra/backup-sync/test-sync.ps1
+
   test:
     runs-on: ubuntu-latest
     steps:

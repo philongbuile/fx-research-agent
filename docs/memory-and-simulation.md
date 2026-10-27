@@ -121,6 +121,8 @@ The checked marker disables cross-project profile and excludes generated/sensiti
 
 ## Backup and restore
 
+Both machines now target the same existing Drive archive folder (D-24). The installed additive sync task and its reusable source are documented in [shared backup sync](../infra/backup-sync/README.md). File synchronization does not merge running Hindsight servers or determine which database is authoritative. Verify the actual host, replacement credentials and preserved records before restoring anything.
+
 - Simulation: `engine.backup(Path(...))` uses SQLite's consistent backup API. Copy that snapshot off the host with the existing backup workflow. Do not copy a database during a write. Restore to a new path, reopen with `Simulation.open_existing`, run recovery and verify journal/identity/departure contents before any agent session. Keep the persisted simulation UUID unchanged.
 - Hindsight: use the existing `infra/hindsight/README.md` backup/restore procedure. The SQLite registry and Hindsight documents must both be backed up. Restore a coordinated pair; if Hindsight lost documents that SQLite marks delivered, re-retain the registered immutable originals through a reviewed controller recovery procedure before opening agents. Never silently substitute another character's documents.
 - ai-memory after activation: stop its sole writer and back up the entire data directory, including wiki Git history, SQLite, config and protected authentication material. Restore into a private directory with the same approved binary, reapply file permissions and run the cross-client canary test. Do not assume copying only Markdown preserves open handoffs/index metadata. Exact upstream backup/reindex commands have not been verified here, so none are invented.
