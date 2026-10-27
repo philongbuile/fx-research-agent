@@ -2,6 +2,13 @@
 
 One Hindsight server on one Docker host, shared by both dev machines. Verified locally on 2026-10-26 with Docker Desktop 4 (Compose v5.3) on Windows 11. The checks were: auth (401 without the key, 200 with it, on the REST API and on MCP), retain and recall, backup, restore, and data surviving `down`/`up`.
 
+Current selected topology (D-27, 2026-10-27): the current development machine is
+the primary; both machines use its loopback service, with authenticated SSH
+forwarding and verified host identity from the second machine. Keep the other
+database preserved during cutover. This replaces the earlier direct LAN choice;
+actual two-machine cutover is still unverified. See
+[topology and cutover](../../docs/memory-topology.md).
+
 | Port | Service | Auth |
 |---|---|---|
 | 8888 | REST API (`/v1/...`), MCP (`/mcp/<bank>/`), `/health` | `Authorization: Bearer $HINDSIGHT_API_KEY` (`/health` is open) |
@@ -28,7 +35,7 @@ Linux host only: the container runs as uid 1000. Make `backups/` writable by tha
 mkdir -p backups && sudo chown 1000:1000 backups
 ```
 
-## 2. Network exposure (choose one; the owner chose B, LAN, on 2026-10-26)
+## 2. Earlier network alternatives (D-27 now selects SSH forwarding)
 
 **A. Tailscale (recommended).** Keep `HINDSIGHT_BIND_IP=127.0.0.1`. On the Docker host, with MagicDNS and HTTPS certificates turned on for the tailnet:
 
@@ -40,7 +47,7 @@ tailscale serve status
 
 Clients use `https://<host>.<tailnet>.ts.net:8888`. Traffic stays inside the tailnet and uses TLS. Restrict access to the two dev devices with a Tailscale ACL. **Never** use `tailscale funnel`, because that publishes the service to the Internet. (Check the `serve` flags against `tailscale serve --help` for your Tailscale version.)
 
-**B. LAN only (current choice, D-16).** Set `HINDSIGHT_BIND_IP=<host LAN IP>` (not `0.0.0.0`), then run `docker compose up -d`. Allow TCP 8888 and 9999 in the host firewall from the two dev machines' IPs only. Traffic is plain HTTP, so the bearer key crosses the LAN unencrypted. Use this only on a network you trust.
+**B. LAN only (historical D-16, superseded for memory clients by D-27).** Set `HINDSIGHT_BIND_IP=<host LAN IP>` (not `0.0.0.0`), then run `docker compose up -d`. Allow TCP 8888 and 9999 in the host firewall from the two dev machines' IPs only. Traffic is plain HTTP, so the bearer key crosses the LAN unencrypted. These instructions document the earlier deployment; use the selected D-27 SSH/loopback topology for the new cutover.
 
 Steps on the Windows Docker host (the owner runs these; agents do not change firewall or network settings):
 

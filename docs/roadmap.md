@@ -5,7 +5,7 @@ This roadmap orders outcomes by dependency, without speculative calendar dates. 
 | Milestone | Status | Scope | Exit gate |
 |---|---|---|---|
 | S0 — Durable synthetic foundation | Implemented locally | Separate memory responsibilities, controller-owned life/job/ledgers, continuous journal/outbox, time-scoped reads, recoverable handoff, bounded final capability and offline demo | Regression suite and demo pass; deployed/runner limitations remain explicit |
-| S1 — Verified memory infrastructure | Local Hindsight transport and coordinated restore verified; other-host routing and ai-memory approval pending | Restore authenticated Hindsight access, verify actual document transport/restore, approve and activate ai-memory, test both coding clients | V-01..V-03 and A-01..A-03 pass with sanitized evidence |
+| S1 — Verified memory infrastructure | Local Hindsight transport/restore verified; ai-memory scope and single-primary topology settled (D-26/D-27); artifact review and two-machine deployment/acceptance remain | Restore authenticated Hindsight access, verify actual document transport/restore, activate ai-memory after artifact checks, test both coding clients and machine routing | V-01..V-03 and A-01..A-03 plus D-27 cutover checks pass with sanitized evidence |
 | S2 — Agreed business policy | Owner decisions pending | KPI/review schedule, reassessment/rehire, personal economy and initial balances | Q-10..Q-12 settled with testable examples and versioned policies |
 | S3 — Supervised character agents | Not implemented | Real runner, tool/permission isolation, independent expiry scheduler, process timeout, small multi-character exercise | R-01..R-03 demonstrate that agents cannot alter controller state or bypass memory isolation |
 | S4 — Reproducible research replay | Future | Connect simulation chronology to LEAN runs and evidence-qualified professional learning | L-01 proves temporal eligibility, provenance and hypothesis/trial accounting; no claim of edge from fixtures or in-sample results |
@@ -17,14 +17,16 @@ V-03 passed locally on 2026-10-27: a frozen synthetic SQLite/Hindsight pair was
 restored into a fresh isolated Docker project and verified again after service
 restart. Identity/time isolation, exact document integrity, persisted departure
 and expired-session recovery passed. See the [repeatable drill and sanitized
-evidence](simulation-restore-verification.md). This does not close Q-09 or Q-13,
-or complete S1.
+evidence](simulation-restore-verification.md). The owner's subsequent delegated
+decisions close the adoption/topology questions Q-09/Q-13 through D-26/D-27.
+Exact-artifact checks, installation and [two-machine cutover acceptance](memory-topology.md)
+remain; S1 is incomplete.
 
 ## Workstream boundaries
 
-- Development memory: ai-memory handles coding context/handoffs only; both Claude and Codex must pass real shared-scope tests. Its installation is not approved merely by merging this roadmap.
+- Development memory: ai-memory handles coding context/handoffs only. D-26 explicitly authorizes its bounded MCP installation after exact-artifact review; both Claude and Codex must pass real shared-scope tests. Merging unrelated roadmap work does not certify artifacts or expand the authorized scope.
 - Character memory: Hindsight retains personal/professional narratives; the controller registry governs identity, chronology, evidence and status. Successors do not inherit another identity's lived experience.
-- Infrastructure: use the current Hindsight host or the planned MT5 laptop, preserving existing data. Replacement access credentials alone do not constitute a deployed service or a successful rotation.
+- Infrastructure: D-27 selects this development machine as the primary memory host for both clients, with loopback services and authenticated SSH forwarding from the other machine. Preserve both existing histories during cutover. Replacement credentials and a topology decision alone do not establish deployment or successful reconciliation.
 - Trading research: continue the existing data-quality, cost, OOS and promotion rules. This roadmap authorizes neither strategy selection nor stage promotion, risk-gate changes or broker order sending.
 - Product breadth: start with the working simulation flow. A full life/game system, automatic economic model and UI are not prerequisites and are not part of the delivered foundation.
 

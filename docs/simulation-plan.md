@@ -8,7 +8,7 @@ Read `AGENTS.md`, architecture and decisions first; then [design](simulation-des
 
 When ai-memory tools are available, use the actual discovered tool schemas with workspace `personal-development` and project `fx-research-agent`. Retrieve the current scoped development handoff, verify it against Git, and publish a curated handoff at the end: implementation paths, validation, limitations and next steps. Link this plan and decision IDs instead of copying the full specification. Never transfer character memory or secrets into that handoff.
 
-At present ai-memory is not installed/connected. Repository instructions provide the shared reading path for both clients; they are canonical documentation, not a claim that an external memory write succeeded. Do not use Serena memory, Hindsight or another local memory system as a substitute. Activation requires Q-09 and the real Claude↔Codex acceptance test in the runbook.
+At present ai-memory is not installed/connected. Repository instructions provide the shared reading path for both clients; they are canonical documentation, not a claim that an external memory write succeeded. Do not use Serena memory, Hindsight or another local memory system as a substitute. D-26 authorizes adoption and bounded installation; activation still requires A-01's exact-artifact checks and the real Claude↔Codex acceptance test. D-27 settles the single-primary topology; [cutover acceptance](memory-topology.md) remains.
 
 ## Delivered foundation
 
@@ -31,7 +31,7 @@ Implementation: `src/fxra/simulation.py`, `simulation_memory.py`, `simulation_de
 | V-01 | Identify the actual Hindsight host; apply replacement API/UI credentials without changing the database password | Host location/access | Old API credential rejected, new credential accepted, bank and stored data preserved; no credentials in logs |
 | V-02 | Exercise authenticated synchronous retain and exact-document read against deployed Hindsight | V-01; existing approved server | Sanitized transport results, restart/retry evidence and simulation isolation checks |
 | V-03 | Verified locally: coordinated SQLite/Hindsight backup and isolated restore; [drill and evidence](simulation-restore-verification.md) | V-02 | Same simulation UUID, event history, pending departure and document integrity; expired sessions recovered; isolated service restart passed |
-| A-01 | Complete ai-memory artifact/digest, dependency/license and permission review; obtain explicit installation approval | Q-09 | Approved review note for an exact artifact and installation scope |
+| A-01 | Complete ai-memory artifact/digest, dependency/license and permission checks within D-26's owner-authorized installation scope | D-26 scope settled; exact artifact not yet verified | Review note identifies a verified exact artifact and permitted features; no claim that scope authorization completes technical review |
 | A-02 | Configure the two coding clients on the same authenticated development backend using discovered schemas | A-01 | Same explicit workspace/project; no character endpoint or automatic transcript capture |
 | A-03 | Run Claude→Codex→Claude canary and claim-once handoff tests plus wrong-scope checks | A-02 | Actual client versions and sanitized canary/handoff evidence, not only parsed configuration |
 | P-01 | Specify KPI, schedule and missed-review behavior | Q-10 | Owner-approved policy with evidence source and boundary examples |
@@ -44,7 +44,7 @@ Implementation: `src/fxra/simulation.py`, `simulation_memory.py`, `simulation_de
 
 Local infrastructure update (2026-10-27): Docker is running; the engine was empty before bootstrap. A new local deployment was restored from the existing shared archive, with a pre-restore archive preserved. Replacement keys are active locally; missing/wrong keys are rejected, but the lost original key and the other host could not be tested. V-02's actual retain/read, identity/time filtering, MCP allowlist and restart persistence checks pass locally. The backup task produced a new checked archive and copied it to the shared folder. Details and remaining limitations are in the [verification runbook](memory-and-simulation.md#verification-in-this-environment).
 
-V-01 remains open for the other host and canonical-write policy (Q-13). V-03 passed locally on 2026-10-27 using a frozen synthetic simulation and a fresh isolated restore target; see [verification evidence](simulation-restore-verification.md). The regression suite now passes 94 tests with Python 3.13 and existing declared dependencies; local `uv` is unavailable, and CI runs the required `uv` command. Do not overwrite an existing database or claim live replication merely because both hosts sync archive files.
+V-01 remains open for the other host's access/credential verification and D-27 cutover acceptance; canonical-write policy Q-13 is settled. V-03 passed locally on 2026-10-27 using a frozen synthetic simulation and a fresh isolated restore target; see [verification evidence](simulation-restore-verification.md). The regression suite passes 94 tests with Python 3.13 and existing declared dependencies; local `uv` is unavailable, and CI runs the required `uv` command. Do not overwrite an existing database or claim live replication merely because both hosts sync archive files.
 
 ## Required acceptance matrix
 
@@ -63,6 +63,6 @@ V-01 remains open for the other host and canonical-write policy (Q-13). V-03 pas
 
 ## Delivery and stop conditions
 
-Run the existing suite before proposing a change, verify the diff excludes protected gates and secret files, push a feature branch and use a PR. This change is authorized for commit/push/merge by the owner. Wait for CI; do not bypass failed checks or merge protections. A missing third-party installation approval blocks activation, not documentation or the existing offline foundation.
+Run the existing suite before proposing a change, verify the diff excludes protected gates and secret files, push a feature branch and use a PR. This change is authorized for commit/push/merge by the owner. Wait for CI; do not bypass failed checks or merge protections. D-26 settles adoption and bounded installation authorization; unresolved exact-artifact checks block execution, not documentation or the existing offline foundation.
 
 Update this plan with actual results after each work package. Keep unverified claims explicit. Never mark a roadmap milestone complete merely because its setup instructions exist.

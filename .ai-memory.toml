@@ -1,4 +1,4 @@
-# Prepared for the reviewed ai-memory candidate; installation is pending owner approval.
+# D-26 authorizes the MCP-only scope; exact-artifact review and acceptance remain.
 # MCP-only curated development notes first. Do not enable automatic hooks here.
 workspace = "personal-development"
 project = "fx-research-agent"

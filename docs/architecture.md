@@ -17,7 +17,7 @@ flowchart LR
   end
   BROKER["Broker (MT5 server)"]
 
-  AG -- "MCP over Tailscale / LAN<br/>Bearer key" --> HS
+  AG -- "Local MCP / SSH forwarding<br/>Bearer key" --> HS
   HS --> PG
   AG -- "runs commands" --> FX
   FX -- "docker run" --> LEAN
@@ -56,7 +56,7 @@ flowchart LR
 
 ## Deployment
 
-- The original design uses one shared Hindsight server. The owner now also runs a local server on this machine (D-25), restored from the shared archive and bound to loopback. The other host remains separate; archive synchronization does not replicate live writes. Canonical cross-machine write routing remains Q-13. See `infra/hindsight/README.md` and the verification section in `docs/memory-and-simulation.md`.
+- D-27 selects this development machine as the primary memory host: both machines use its Hindsight service and a separate ai-memory backend. Services bind to loopback; the second machine connects through authenticated SSH forwarding with verified host identity. Its existing Hindsight database is preserved as a standby/archive and leaves the shared write path during cutover. Actual histories remain separate until cutover acceptance; archive synchronization does not replicate live writes. See [topology and cutover](memory-topology.md), `infra/hindsight/README.md` and the verification section in `docs/memory-and-simulation.md`.
 - In Phase 0, the structured store lives on the machine that ingests (single writer per source). Other machines get read-only copies (Phase 1 decides how: rsync, Syncthing, or a shared read-only mount; see `decisions.md` Q-08).
 - Dev machines run LEAN locally in Docker. Results stay in `runs/` on the machine that ran them, and summaries go to Hindsight.
 
@@ -69,7 +69,7 @@ flowchart LR
 
 ## Memory layers and simulation foundation
 
-Development context and Claude/Codex handoffs use a separately scoped ai-memory backend (prepared, not activated; third-party review pending). Hindsight remains the research/character memory system. There is no bridge that copies one layer into the other. Canonical project decisions stay in Git.
+Development context and Claude/Codex handoffs use a separately scoped ai-memory backend (D-26 authorizes adoption and bounded installation; exact-artifact review, installation and acceptance remain). Hindsight remains the research/character memory system. There is no bridge that copies one layer into the other. Canonical project decisions stay in Git. Both layers have one primary host under D-27; unavailable-primary writes fail closed rather than falling back to a divergent local backend.
 
 `fxra.simulation` adds a local SQLite controller database, separate from the market-data Parquet store. It atomically owns the event journal, independent life/employment state, four separate financial account types, evidence/status revisions, immutable personality, departure snapshots and final outputs. It has no dependency on execution adapters. It neither promotes strategies nor relaxes the existing risk gate.
 

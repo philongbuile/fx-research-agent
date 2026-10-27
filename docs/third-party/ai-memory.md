@@ -1,6 +1,6 @@
-# ai-memory integration review — pending owner approval
+# ai-memory integration review — scope authorized, artifact checks pending
 
-Reviewed 2026-10-27. **Not approved, installed, downloaded as executable code, or enabled.**
+Reviewed 2026-10-27. **Adoption and bounded installation scope authorized under D-26; no executable artifact is verified, installed or enabled.**
 
 - Source: <https://github.com/akitaonrails/ai-memory>.
 - Candidate commit: `0e5488073d7073caa3181bbaf184102b215dcf66` (HEAD resolved with `git ls-remote`). Its workspace manifest declares version `3.2.8`. This is a source pin, not a verified release asset or container digest. Re-review if the commit changes.
@@ -24,4 +24,6 @@ The Rust workspace includes Tokio, serde, rusqlite, git2/libgit2, rmcp, axum, re
 
 Only a dedicated development-memory data directory, loopback authenticated HTTP service and explicit project-scoped MCP tools are needed. Keep its token outside the repo. Character sessions receive neither this endpoint nor its credentials. Use the same backend and owner identity for Claude and Codex; the marker is routing, not authorization. Restrict permissions server-side if a server is shared.
 
-Owner approval: **pending**. Activation and the actual Claude→Codex→Claude handoff test are blocked by AGENTS.md hard limit 4 and `docs/security.md` third-party review policy. The prepared marker and [runbook](../memory-and-simulation.md) are reviewable without changing machine-wide settings.
+Owner authorization: on 2026-10-27 the owner explicitly delegated the ai-memory and cross-machine memory decisions and requested merging them. D-26 selects the candidate source and authorizes installation/registration within the MCP-only scope above once exact-artifact checks pass. D-27 selects a single primary host; see [topology and acceptance](../memory-topology.md). Further adoption approval is not pending within this scope.
+
+This authorization does not turn the unresolved dependency/license and artifact checks into completed work. A-01 must identify and verify the exact executable artifact and finish the documented technical review before execution. No binary, installer, dependency set or client registration was tested in this decision change. Material changes to the source pin, permission scope or capture policy require another review under `docs/security.md`. A-02/A-03 and both-machine canaries remain required before activation is reported as successful.
