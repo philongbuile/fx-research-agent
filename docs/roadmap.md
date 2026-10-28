@@ -28,6 +28,15 @@ A-01 exact-artifact checks and local installation passed on 2026-10-28; see
 [local MCP verification](local-memory-mcp.md). A-03 real client acceptance and
 [two-machine cutover acceptance](memory-topology.md) remain; S1 is incomplete.
 
+Demo execution checkpoint (2026-10-28, Claude): under owner decision D-30 the
+H-001B demo agent trades the MT5 demo account autonomously through
+`fxra.mt5_execution`, with the risk gate and kill switch. A local dashboard shows
+decisions, trades, P&L and lessons; see [demo agent](demo-agent.md). Claude-side
+native calls to both ai-memory and Hindsight succeeded in this session. That is
+partial A-03 evidence; the scripted two-client acceptance test is still open.
+Demo results are forward observations, not evidence of edge. H-001's
+historical-data blockers (Q-14, UTC/DST) are unchanged.
+
 ## Workstream boundaries
 
 - Development memory: ai-memory handles coding context/handoffs only. D-26 explicitly authorizes its bounded MCP installation after exact-artifact review; both Claude and Codex must pass real shared-scope tests. Merging unrelated roadmap work does not certify artifacts or expand the authorized scope.
