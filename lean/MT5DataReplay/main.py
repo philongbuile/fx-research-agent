@@ -46,7 +46,7 @@ class MT5DataReplay(QCAlgorithm):
         end = bar.end_time.replace(tzinfo=exchange_zone).astimezone(timezone.utc).replace(tzinfo=None)
         if stamp not in self.expected or stamp in self.seen:
             raise ValueError("unexpected or duplicate replay bar")
-        if end != stamp + timedelta(minutes=1) or self.utc_time < end:
+        if end != stamp + timedelta(minutes=1) or self.utc_time.replace(tzinfo=None) < end:
             raise ValueError("bar timing/look-ahead violation")
         expected = self.expected[stamp]
         for field in ("open", "high", "low", "close"):

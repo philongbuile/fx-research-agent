@@ -72,3 +72,8 @@ QuoteBar labels must be converted from the exchange zone back to UTC before
 comparison; this does not change source/export timestamps. Retain the failed
 trial. The next trial corrects this harness comparison with unchanged input,
 calendar, costs and no orders; no strategy or OOS result was evaluated.
+
+`20261028T104951Z-cdb61afe` then failed on Python's aware/naive comparison with
+LEAN's UTC callback clock. Normalize both comparison operands consistently;
+regression tests cover aware and naive UTC callbacks with exchange-local bars.
+The same inputs remain frozen. This failed technical trial is retained as well.
