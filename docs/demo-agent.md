@@ -157,8 +157,12 @@ Playbook (D-39): candidate rules distilled from lessons live in the journal's
 `playbook` table. Each rule has an action (`avoid`, `prefer`, `watch`), a trade
 filter over pattern, symbol, session, hour, side, arm, vol, h1_trend, dow and
 confluence, a rationale and a confirmation threshold `confirm_n` (at least 10).
-`fxra demo-playbook` recounts each rule's matched-vs-other trades (n, win rate,
-average R, net) and labels it supported, contradicted or unclear. A supported
+`fxra demo-playbook` recounts each rule's matched-vs-other evidence and labels it
+supported, contradicted or unclear. Samples are unique entry events (symbol,
+entry bar, side): both arms and every pattern firing the same way on a bar open
+copies of one trade, so they count once (Codex review of proposal #1). Per-arm
+trade stats are shown beside the event counts. An author can take back an open
+proposal with `fxra demo-propose --withdraw <id> --note "..." --author <agent>/<model>`. A supported
 rule that reaches `confirm_n` is "ready to propose"; it changes a policy only
 after a `demo-propose` agreed by the other model. The dashboard shows the
 playbook and the hourly digest retains it to Hindsight as `fxra-playbook`.

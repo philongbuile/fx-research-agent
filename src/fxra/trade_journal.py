@@ -253,6 +253,18 @@ class Journal:
         if not cur.rowcount:
             raise ValueError(f"no playbook rule {rule_id}")
 
+    def withdraw(self, proposal_id: int, at: datetime, author: str, note: str) -> dict:
+        """The author takes back an open proposal (e.g. its evidence turned out weaker)."""
+        row = self._rows("SELECT * FROM proposals WHERE id=?", proposal_id)
+        if not row or row[0]["status"] != "open":
+            raise ValueError(f"proposal {proposal_id} is not open")
+        if row[0]["author"].split("/")[0] != author.split("/")[0]:
+            raise PermissionError("only the author can withdraw a proposal")
+        with self.db:
+            self.db.execute("UPDATE proposals SET status='withdrawn', reviewer=?, review=?, reviewed_at=? WHERE id=?",
+                            (author, note, at.isoformat(), proposal_id))
+        return self._rows("SELECT * FROM proposals WHERE id=?", proposal_id)[0]
+
     # duty rotation ---------------------------------------------------------
     def latest_override(self) -> dict | None:
         rows = self._rows("SELECT agent, model, until, reason FROM duty_overrides ORDER BY id DESC LIMIT 1")

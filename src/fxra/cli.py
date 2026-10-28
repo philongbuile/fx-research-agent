@@ -281,7 +281,9 @@ def cmd_demo_propose(a) -> int:
     from .trade_journal import Journal
 
     j, now = Journal(a.journal), datetime.now(timezone.utc)
-    if a.review is not None:
+    if a.withdraw is not None:
+        print(json.dumps(j.withdraw(a.withdraw, now, a.author, a.note or ""), indent=2))
+    elif a.review is not None:
         if a.agree == a.reject:
             raise SystemExit("review needs exactly one of --agree / --reject")
         print(json.dumps(j.review(a.review, now, a.author, a.agree, a.note or ""), indent=2))
@@ -420,6 +422,7 @@ def main(argv=None) -> int:
     pr.add_argument("--text")
     pr.add_argument("--evidence")
     pr.add_argument("--review", type=int, metavar="ID")
+    pr.add_argument("--withdraw", type=int, metavar="ID", help="take back your own open proposal (with --note)")
     pr.add_argument("--agree", action="store_true")
     pr.add_argument("--reject", action="store_true")
     pr.add_argument("--note")

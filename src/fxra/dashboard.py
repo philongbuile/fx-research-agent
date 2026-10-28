@@ -355,15 +355,17 @@ async function load(){
     (ch.length?`<h3>Change history</h3><div class="scroll"><table class="mx"><tr><th>When</th><th>Model (arm)</th><th>Version</th><th>Author</th><th style="text-align:left">Reason</th></tr>`+
       ch.map(c=>`<tr><td class="num">${t(c.at)}</td><td>${esc(armLabel("H-002-"+c.arm))}</td><td>v${c.version}</td><td>${esc(c.author==="system"?"system":who(c.author))}</td><td style="text-align:left;white-space:normal">${esc(c.reason)}</td></tr>`).join("")+"</table></div>":"");
   const VB={supported:"b-entry",contradicted:"b-exit",unclear:"b-hold",observing:"b-hold","no data":""};
-  const fmtS=g=>g?`n ${g.n} · win ${pc(g.win_rate)} · ${g.avg_r==null?"–":(g.avg_r>0?"+":"")+g.avg_r.toFixed(2)+"R"} · ${money(g.net)}`:"no trades";
+  const fmtR=g=>g.avg_r==null?"–":(g.avg_r>0?"+":"")+g.avg_r.toFixed(2)+"R";
+  const fmtS=g=>g?`${g.n} events (${g.trades} trades) · win ${pc(g.win_rate)} · ${fmtR(g)} · ${money(g.net)}`:"no trades";
+  const fmtArm=o=>Object.entries(o||{}).map(([a,g])=>`${esc(armLabel("H-002-"+a))}: ${g.n} trades, win ${pc(g.win_rate)}, ${fmtR(g)}, ${money(g.net)}`).join("<br>");
   $("playbook").innerHTML=(s.playbook||[]).length?`<div class="cards">`+s.playbook.map(r=>{const e=r.evidence, n=e.matched?e.matched.n:0, w=Math.min(100,n/r.confirm_n*100);
     return `<div class="mcard"><h4>#${r.id} ${esc(r.title)}</h4>
       <div class="sub"><span class="badge ${r.action==="avoid"?"b-exit":r.action==="prefer"?"b-entry":"b-hold"}">${esc(r.action)}</span> <span class="badge">${esc(r.status)}</span>
         <span class="badge ${VB[e.verdict]||""}">${esc(e.verdict)}</span>${e.ready_to_propose?' <span class="badge b-entry">ready to propose</span>':""}</div>
       <div class="chips" style="margin:6px 0">${Object.entries(r.filter).map(([k,v])=>`<span class="chip">${esc(k)} = ${esc(v.join(", "))}</span>`).join("")}</div>
       <div class="wl"><i style="flex:${w}"></i><s style="flex:${100-w}"></s></div>
-      <div class="stats"><span>evidence <b>${esc(e.progress)}</b> [${esc(e.label)}]</span></div>
-      <p style="margin:8px 0 4px;font-size:13px"><b>Matched:</b> ${fmtS(e.matched)}<br><span class="muted"><b>Others:</b> ${fmtS(e.others)}</span></p>
+      <div class="stats"><span>unique events <b>${esc(e.progress)}</b> [${esc(e.label)}]</span></div>
+      <p style="margin:8px 0 4px;font-size:13px"><b>Matched:</b> ${fmtS(e.matched)}<br><span class="muted"><b>Others:</b> ${fmtS(e.others)}</span>${e.by_arm?`<br><span class="muted" style="font-size:12px">${fmtArm(e.by_arm)}</span>`:""}</p>
       <p class="muted" style="margin:4px 0 0;font-size:12px">${esc(r.rationale)} · ${esc(who(r.author))}${r.proposal_id?` · proposal #${r.proposal_id}`:""}${r.note?` · ${esc(r.note)}`:""}</p></div>`}).join("")+"</div>"
     :'<p class="muted">No rules yet. Each shift, Claude and Codex distill candidate rules from Hindsight lessons with <code>fxra demo-playbook --add</code>.</p>';
   $("proposals").innerHTML=s.proposals.length?`<table><tr><th>#</th><th>By</th><th>Proposal</th><th>Evidence</th><th>Status</th><th>Review</th></tr>`+
