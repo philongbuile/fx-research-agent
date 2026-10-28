@@ -105,6 +105,33 @@ D-28's per-order human confirmation (steps 2-3 of the contract). What remains:
 Demo results are forward-test observations, not evidence of edge. H-001's frozen
 rules are not tuned from demo outcomes; a rule change is a new hypothesis id.
 
+## Demo exploration phase (D-31)
+
+Owner direction, 2026-10-28: the demo stage is for learning and experimenting as
+much as possible. Rigid rules should be distilled only after enough experience.
+Owner also set 0.1 lot for the new strategy and a daily KPI of 50 USD.
+
+- **H-002 explorer** (`src/fxra/h002.py`, `H-002@explore`, magic `20261029`)
+  trades four M15 entry patterns with ATR stop and take profit. When several
+  match, an epsilon-greedy choice prefers patterns with better realised results
+  but keeps exploring. Every trade is tagged with pattern, UTC hour, session and
+  policy version.
+- Claude and Codex may change the H-002 **policy** (`artifacts/demo/h002-policy.json`
+  through `fxra demo-policy --set ... --reason ...`) without owner approval.
+  Policy covers enabled patterns, stop/target multiples, hold time, avoided hours
+  and exploration rate. Every change gets a version, author and reason in the
+  journal. New pattern *code* still goes through a branch and PR.
+- Account safety stays fixed and owner-controlled in `config/risk.toml`: demo
+  only, stop loss on every order, max 0.1 lot, two open positions (one per
+  strategy), 1% daily loss and the kill switch.
+- The 50 USD/day KPI is shown as progress. It is never an optimisation target:
+  agents do not raise size or remove stops to chase it.
+- Research honesty is unchanged in substance. Exploration results are
+  in-sample observations on a zero-spread demo feed, not evidence of edge.
+  Learning statistics subtract an assumed 0.8-pip cost. A rule distilled from
+  exploration becomes a new frozen hypothesis id and must be tested on data that
+  arrives after it is frozen. H-001B stays frozen as the control.
+
 ## Open questions
 
 ### Simulation and memory decisions (owner request, 2026-10-27)

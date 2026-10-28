@@ -176,7 +176,8 @@ def test_dashboard_state_and_page(journal, tmp_path):
     agent = Agent(journal, FakeBroker(bars()), tmp_path / "risk.toml", send=False)
     agent.tick()
     state = agent.state()
-    assert state["approved"] and state["mode"] == "demo" and not state["kill_switch"]
+    assert state["strategies"]["H-001B@h001b-v1"] and not state["strategies"]["H-002@explore"]
+    assert state["mode"] == "demo" and not state["kill_switch"] and state["kpi"]["target_usd"] == 50
     assert state["live"]["account"]["currency"] == "USD"
     json.dumps(state, default=str)
     assert make_handler(agent)  # handler builds; page is static HTML

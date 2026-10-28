@@ -24,6 +24,7 @@ SYMBOL = "EURUSD"
 LOTS = 0.01
 STOP_ATR = 2.0
 MAX_HOLD_HOURS = 24
+MAGIC = 20261028  # fxra.mt5_execution.MAGICS; that module is not importable here (MT5 runtime only)
 REPO = Path(__file__).resolve().parents[2]
 
 
@@ -91,7 +92,10 @@ def _lesson_text(trade: dict, bars: list[dict], currency: str) -> str:
     pips = lambda x: "n/a" if x is None else f"{x / 0.0001:.1f} pips"
     held = (c - o).total_seconds() / 3600
     verdict = "win" if trade["net"] > 0 else "loss" if trade["net"] < 0 else "flat"
-    label = "TECH-0003 execution check" if (trade["entry_id"] or "").startswith("T3-") else STRATEGY_ID
+    eid = trade["entry_id"] or ""
+    label = ("TECH-0003 execution check" if eid.startswith("T3-")
+             else f"H-002 {trade.get('pattern') or ''} @ {trade.get('hour_utc')}h UTC".replace("  ", " ")
+             if eid.startswith("H2-") else STRATEGY_ID)
     return (f"{label} {trade['side']} {trade['volume']} lot: {verdict} {trade['net']:+.2f} {currency} "
             f"(gross {trade['profit']:+.2f}, commission {trade['commission']:+.2f}, swap {trade['swap']:+.2f}). "
             f"Entry {trade['open_price']} at {o:%Y-%m-%d %H:%M}Z, exit {trade['close_price']} at {c:%Y-%m-%d %H:%M}Z "
@@ -101,7 +105,9 @@ def _lesson_text(trade: dict, bars: list[dict], currency: str) -> str:
 
 
 def _exit_reason(trade: dict, journal: Journal) -> str:
-    if trade["exit_id"] and trade["exit_id"].startswith(("H1B-X-", "T3X-")):
+    if (trade["exit_id"] or "").lower().startswith("[tp"):
+        return "take_profit"
+    if trade["exit_id"] and trade["exit_id"].startswith(("H1B-X-", "T3X-", "H2X-")):
         row = journal.db.execute("SELECT result FROM orders WHERE client_order_id=?", (trade["exit_id"],)).fetchone()
         return json.loads(row[0]).get("rule", "rule_exit") if row else "rule_exit"
     if (trade["exit_id"] or "").lower().startswith("[sl"):  # MT5 marks stop-outs "[sl <price>]"
@@ -151,9 +157,16 @@ def test_round_trip(journal: Journal, broker, limits: risk.RiskLimits | None, no
     return {"action": "round_trip", "entry": opened, "exit": closed}
 
 
-def step(journal: Journal, broker, limits: risk.RiskLimits | None, now: datetime, *, send: bool = True) -> dict:
-    """Run one decision cycle. Returns what happened, also stored in the journal."""
-    snap = broker.snapshot({"symbol": SYMBOL, "h1_bars": 60})
+SNAPSHOT_REQUEST = {"symbol": SYMBOL, "h1_bars": 60, "m15_bars": 120}
+
+
+def step(journal: Journal, broker, limits: risk.RiskLimits | None, now: datetime, *, send: bool = True,
+         snap: dict | None = None) -> dict:
+    """Run one decision cycle. Returns what happened, also stored in the journal.
+
+    Also syncs broker deals for every demo strategy into trades and lessons.
+    """
+    snap = snap or broker.snapshot(SNAPSHOT_REQUEST)
     acct, spec_raw = snap["account"], snap["spec"]
     day_start = journal.snapshot_equity(now, acct["balance"], acct["equity"], acct["currency"])
 
@@ -185,8 +198,9 @@ def step(journal: Journal, broker, limits: risk.RiskLimits | None, now: datetime
               "long_exit_below": sig.long_exit_below, "short_exit_above": sig.short_exit_above}
     details = {**base, "signal": signal}
 
-    if snap["positions"]:
-        pos = snap["positions"][0]
+    own = [p for p in snap["positions"] if p.get("magic", MAGIC) == MAGIC]
+    if own:
+        pos = own[0]
         held = int((latest + timedelta(hours=1) - _t(pos["time"])).total_seconds() // 3600)
         rule = None
         if pos["side"] == "buy" and close < sig.long_exit_below:

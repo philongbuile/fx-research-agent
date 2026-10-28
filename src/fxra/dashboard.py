@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import demo_agent, risk
+from . import demo_agent, h002, risk
 from .trade_journal import Journal
 
 
@@ -49,14 +49,29 @@ class Agent:
         except (OSError, KeyError, ValueError):
             return None  # missing config = kill switch active (fail closed)
 
+    @property
+    def policy_path(self):
+        return self.journal.path.parent / "h002-policy.json"
+
     def tick(self):
         now = datetime.now(timezone.utc)
         with self.lock:
+            limits = self.limits()
             try:
-                result = demo_agent.step(self.journal, self.broker, self.limits(), now, send=self.send)
+                snap = self.broker.snapshot(demo_agent.SNAPSHOT_REQUEST)
             except Exception as e:
-                result = {"action": "error", "reason": str(e)}
-            self.last_step = {"at": now.isoformat(), **result}
+                self.last_step = {"at": now.isoformat(), "action": "error", "reason": str(e)}
+                return self.last_step
+            results = {}
+            for name, run in (("H-001B", lambda: demo_agent.step(self.journal, self.broker, limits, now,
+                                                                   send=self.send, snap=snap)),
+                              ("H-002", lambda: h002.step(self.journal, self.broker, limits, now, snap,
+                                                          h002.load_policy(self.policy_path), send=self.send))):
+                try:
+                    results[name] = run()
+                except Exception as e:  # one strategy failing must not stop the other
+                    results[name] = {"action": "error", "reason": f"{type(e).__name__}: {e}"}
+            self.last_step = {"at": now.isoformat(), **results}
         return self.last_step
 
     def run_forever(self, stop: threading.Event):
@@ -68,11 +83,11 @@ class Agent:
         limits = self.limits()
         with self.lock:
             data = self.journal.state()
+        ids = [f"{demo_agent.STRATEGY_ID}@{demo_agent.STRATEGY_VERSION}", f"{h002.STRATEGY_ID}@{h002.STRATEGY_VERSION}"]
         data.update(live=self.broker.last, live_error=self.broker.error, last_step=self.last_step,
                     kill_switch=risk.kill_switch_active(limits), mode=limits.mode if limits else None,
-                    strategy=f"{demo_agent.STRATEGY_ID}@{demo_agent.STRATEGY_VERSION}",
-                    approved=bool(limits and f"{demo_agent.STRATEGY_ID}@{demo_agent.STRATEGY_VERSION}"
-                                  in limits.approved_strategies),
+                    strategies={i: bool(limits and i in limits.approved_strategies) for i in ids},
+                    policy=h002.load_policy(self.policy_path),
                     server_time=datetime.now(timezone.utc).isoformat())
         return data
 
@@ -137,11 +152,14 @@ svg{width:100%;height:160px}.muted{color:var(--mute)}
 <span id="kill" class="pill"></span><span id="conn" class="pill"></span><span id="updated" class="muted"></span></header>
 <main>
 <section class="card wide"><h2>Account &amp; market</h2><div class="kpis" id="kpis"></div></section>
-<section class="card"><h2>Open position</h2><div id="position"></div></section>
+<section class="card wide"><h2>Daily KPI (UTC day)</h2><div id="kpi"></div></section>
+<section class="card"><h2>Open positions</h2><div id="position"></div></section>
 <section class="card"><h2>Last agent step</h2><div id="step" class="mono"></div></section>
 <section class="card wide"><h2>Equity</h2><div id="equity"></div></section>
 <section class="card wide"><h2>Trades (broker deals)</h2><div class="scroll"><table id="trades"></table></div></section>
 <section class="card wide"><h2>Decisions, hour by hour</h2><div class="scroll"><table id="decisions"></table></div></section>
+<section class="card wide"><h2>What H-002 is learning (exploration, after assumed cost)</h2><div id="learning"></div></section>
+<section class="card wide"><h2>H-002 policy</h2><div id="policy" class="mono"></div></section>
 <section class="card wide"><h2>Lessons</h2><div id="lessons"></div></section>
 </main>
 <script>
@@ -159,7 +177,17 @@ function chart(rows){
 async function load(){
   let s; try{ s=await (await fetch("/api/state")).json() }catch(e){ $("updated").textContent="dashboard offline"; return }
   const L=s.live||{}, a=L.account||{}, q=L.quote, ccy=a.currency||"";
-  $("strategy").textContent=s.strategy+(s.approved?" · approved":" · NOT approved");
+  $("strategy").textContent=Object.entries(s.strategies).map(([k,v])=>k+(v?" ✓":" ✗ not approved")).join("  ·  ");
+  const k=s.kpi, pct=Math.max(0,Math.min(100,k.progress*100));
+  $("kpi").innerHTML=`<div class="kpis">${kpi("Net today",money(k.net_today,"USD"))}${kpi("Target",k.target_usd+" USD")}${kpi("Progress",(k.progress*100).toFixed(0)+"%")}</div>
+    <div style="height:10px;background:var(--line);border-radius:99px;margin-top:10px"><div style="height:10px;width:${pct}%;background:${k.net_today<0?"var(--down)":"var(--up)"};border-radius:99px"></div></div>
+    <p class="muted">Tracked, not optimised: the agent never sizes up to chase it.</p>`;
+  const grp=(o,label)=>{const r=Object.entries(o);return r.length?`<table><tr><th>${label}</th><th>n</th><th>Win</th><th>Net USD</th><th>Avg pips after cost</th></tr>`+
+    r.map(([n,g])=>`<tr><td>${esc(n)}</td><td>${g.n}${g.n<10?' <span class="muted">(few)</span>':""}</td><td>${(g.win_rate*100).toFixed(0)}%</td><td>${money(g.net)}</td><td>${money(g.avg_pips_after_cost)}</td></tr>`).join("")+"</table>":""};
+  const ls=s.learning;
+  $("learning").innerHTML=ls.closed_trades?`<p class="muted">${ls.closed_trades} closed exploration trades; assumed cost ${ls.assumed_cost_pips} pip per trade.</p>`+
+    grp(ls.by_pattern,"Pattern")+"<br>"+grp(ls.by_hour,"Hour UTC")+"<br>"+grp(ls.by_pattern_session,"Pattern / session"):'<p class="muted">No closed H-002 trades yet. Every pattern gets explored first.</p>';
+  $("policy").innerHTML=esc(JSON.stringify(s.policy))+(s.policy_changes.length?"<br><br>"+s.policy_changes.map(c=>`v${c.version} · ${esc(c.author)} · ${t(c.at)} · ${esc(c.reason)}`).join("<br>"):"<br><br>default policy (v1), no changes yet");
   $("mode").textContent="mode: "+(s.mode||"no risk.toml");
   $("kill").innerHTML=s.kill_switch?'<span class="bad">kill switch ON</span>':'<span class="ok">kill switch off</span>';
   $("conn").innerHTML=s.live_error?`<span class="bad">MT5: ${esc(s.live_error)}</span>`:(L.account?'<span class="ok">MT5 demo connected</span>':"MT5: waiting");
@@ -169,13 +197,13 @@ async function load(){
     kpi("EURUSD bid / ask",q?`${q.bid} / ${q.ask}`:"no fresh tick")+kpi("Closed trades",sm.closed_trades)+
     kpi("Win rate",sm.win_rate==null?"–":(sm.win_rate*100).toFixed(0)+"%")+kpi("Net P&L (closed)",money(sm.net_total,ccy))+
     kpi("Account mode",a.hedging==null?"–":(a.hedging?"hedging":"netting"));
-  const p=(L.positions||[])[0];
-  $("position").innerHTML=p?`<table><tr><th>Side</th><td>${p.side} ${p.volume} lot</td></tr><tr><th>Open</th><td>${p.price_open} at ${t(p.time)}</td></tr>
-    <tr><th>Stop loss</th><td>${p.sl}</td></tr><tr><th>Now</th><td>${p.price_current}</td></tr><tr><th>Floating P&L</th><td>${money(p.profit,ccy)}</td></tr></table>`:'<p class="muted">Flat. The agent waits for a close outside the 24-hour channel.</p>';
+  const ps=L.positions||[];
+  $("position").innerHTML=ps.length?`<table><tr><th>Strategy</th><th>Side</th><th>Open</th><th>SL</th><th>TP</th><th>Floating</th></tr>`+
+    ps.map(p=>`<tr><td>${esc(p.strategy||"")}</td><td>${p.side} ${p.volume}</td><td>${p.price_open}<br><span class="muted">${t(p.time)}</span></td><td>${p.sl}</td><td>${p.tp||"–"}</td><td>${money(p.profit,ccy)}</td></tr>`).join("")+"</table>":'<p class="muted">Flat.</p>';
   $("step").textContent=s.last_step?JSON.stringify(s.last_step,null,1):"–";
   $("equity").innerHTML=chart(s.equity);
-  $("trades").innerHTML="<tr><th>Opened</th><th>Side</th><th>Lots</th><th>Entry</th><th>Closed</th><th>Exit</th><th>Reason</th><th>Gross</th><th>Comm.</th><th>Swap</th><th>Net</th></tr>"+
-    (s.trades.map(r=>`<tr><td>${t(r.open_time)}</td><td>${r.side}</td><td>${r.volume}</td><td>${r.open_price}</td><td>${t(r.close_time)}</td><td>${r.close_price??"open"}</td><td>${esc(r.exit_reason??"")}</td><td>${money(r.profit)}</td><td>${money(r.commission)}</td><td>${money(r.swap)}</td><td>${money(r.net,ccy)}</td></tr>`).join("")||'<tr><td colspan="11" class="muted">No trades yet.</td></tr>');
+  $("trades").innerHTML="<tr><th>Opened</th><th>Pattern</th><th>Side</th><th>Lots</th><th>Entry</th><th>Closed</th><th>Exit</th><th>Reason</th><th>Gross</th><th>Comm.</th><th>Swap</th><th>Net</th></tr>"+
+    (s.trades.map(r=>`<tr><td>${t(r.open_time)}</td><td>${esc(r.pattern?r.pattern+" · "+r.hour_utc+"h":(r.entry_id||"").startsWith("T3-")?"TECH-0003":"H-001B")}</td><td>${r.side}</td><td>${r.volume}</td><td>${r.open_price}</td><td>${t(r.close_time)}</td><td>${r.close_price??"open"}</td><td>${esc(r.exit_reason??"")}</td><td>${money(r.profit)}</td><td>${money(r.commission)}</td><td>${money(r.swap)}</td><td>${money(r.net,ccy)}</td></tr>`).join("")||'<tr><td colspan="12" class="muted">No trades yet.</td></tr>');
   $("decisions").innerHTML="<tr><th>Bar (UTC)</th><th>Action</th><th>Side</th><th>Why</th><th>ATR</th><th>Close</th></tr>"+
     (s.decisions.map(d=>{const g=d.details.signal||{};return `<tr><td>${t(d.bar)}</td><td><b>${esc(d.action)}</b></td><td>${esc(d.side??"")}</td><td>${esc(d.reason)}</td><td>${g.atr?(g.atr/0.0001).toFixed(1)+" pips":""}</td><td>${g.close??""}</td></tr>`}).join("")||'<tr><td colspan="6" class="muted">No decisions yet. The agent decides once per closed H1 bar.</td></tr>');
   $("lessons").innerHTML=s.lessons.map(l=>`<div class="lesson">${esc(l.text)}<br><small>#${l.id} · ${esc(l.author)} · ${t(l.at)}${l.hindsight_document?" · Hindsight: "+esc(l.hindsight_document):" · not yet in Hindsight"}</small></div>`).join("")||'<p class="muted">Lessons appear after each closed trade.</p>';

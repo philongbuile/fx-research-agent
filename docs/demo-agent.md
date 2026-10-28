@@ -67,6 +67,31 @@ a normal terminal, or with the agent's sandbox disabled for that command.
 - Positions opened by the agent carry magic number `20261028` and a comment
   `H1B-<yymmddhh>-<B|S>`. Close them manually in MT5 if needed.
 
+## H-002 explorer (D-31)
+
+Every closed M15 bar, `h002.step` checks four patterns:
+
+- `breakout20`: close beyond the 20-bar high or low.
+- `ema_pullback`: in an EMA20/EMA50 trend, the bar touches EMA20 and closes back in the trend direction.
+- `bb_rsi_reversion`: close outside the 2σ Bollinger band with RSI14 below 30 or above 70.
+- `inside_bar_break`: close breaks the mother bar of an inside bar.
+
+Each pattern is first tried at least `min_samples` times. After that, an
+epsilon-greedy choice prefers the best average pips after an assumed cost, and
+explores with probability `epsilon`. Stop = max(`sl_atr` × ATR14, `min_sl_pips`).
+Target = `tp_rr` × stop. A time exit fires after `max_hold_bars`. Size is
+`lots` (0.1).
+
+Reflection, by Claude or Codex:
+
+```powershell
+uv run fxra demo-policy                      # policy + stats by pattern, hour, pattern x session
+uv run fxra demo-policy --set tp_rr=2 --set 'avoid_hours_utc=[21,22]' --reason "<what the stats showed>" --author codex
+```
+
+Small samples (n < 10, flagged on the dashboard) are noise. Prefer adding an
+observation to Hindsight over changing the policy after a few trades.
+
 ## Lessons and memory
 
 - `fxra demo-step` writes a factual lesson row for each closed trade: result,

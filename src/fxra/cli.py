@@ -199,6 +199,26 @@ def cmd_demo_step(a) -> int:
     return 0
 
 
+def cmd_demo_policy(a) -> int:
+    """Show or change the H-002 exploration policy (versioned; D-31 lets Claude/Codex change it)."""
+    from . import h002
+    from .trade_journal import Journal
+
+    path = a.journal.parent / "h002-policy.json"
+    if not a.set:
+        print(json.dumps({"policy": h002.load_policy(path),
+                          "learning": Journal(a.journal).learning_stats()}, indent=2))
+        return 0
+    if not a.reason:
+        raise SystemExit("--reason is required when changing the policy")
+    changes = {}
+    for item in a.set:
+        key, _, value = item.partition("=")
+        changes[key] = json.loads(value)
+    print(json.dumps(h002.update_policy(path, Journal(a.journal), changes, a.author, a.reason), indent=2))
+    return 0
+
+
 def cmd_demo_test_order(a) -> int:
     from .demo_agent import test_round_trip
 
@@ -253,6 +273,13 @@ def main(argv=None) -> int:
     ds = sub.add_parser("demo-step", help="one H-001B decision cycle on the MT5 demo account (D-30)")
     demo_args(ds)
     ds.set_defaults(fn=cmd_demo_step)
+
+    dp = sub.add_parser("demo-policy", help="show or change the H-002 exploration policy")
+    dp.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
+    dp.add_argument("--set", action="append", metavar="KEY=JSON", help='e.g. tp_rr=2 or enabled=["breakout20"]')
+    dp.add_argument("--reason")
+    dp.add_argument("--author", default="claude")
+    dp.set_defaults(fn=cmd_demo_policy)
 
     dt = sub.add_parser("demo-test-order", help="TECH-0003: one risk-gated 0.01-lot buy/close round trip")
     demo_args(dt)

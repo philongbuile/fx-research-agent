@@ -6,7 +6,7 @@ from our own price arithmetic. No account identifiers are stored.
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 SCHEMA = """
@@ -27,7 +27,17 @@ CREATE TABLE IF NOT EXISTS lessons (
 CREATE TABLE IF NOT EXISTS equity (
     at TEXT PRIMARY KEY, balance REAL NOT NULL, equity REAL NOT NULL, currency TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS day_start (day TEXT PRIMARY KEY, equity REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS entry_tags (
+    entry_id TEXT PRIMARY KEY, strategy TEXT NOT NULL, pattern TEXT, hour_utc INTEGER, session TEXT,
+    policy_version INTEGER, features TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS policy_changes (
+    version INTEGER PRIMARY KEY, at TEXT NOT NULL, author TEXT NOT NULL, reason TEXT NOT NULL, policy TEXT NOT NULL);
 """
+
+DAILY_KPI_USD = 50.0  # owner's daily target; shown as progress, never optimised for
+PIP = 0.0001
+TRADES_SQL = ("SELECT t.*, g.strategy, g.pattern, g.hour_utc, g.session, g.policy_version "
+              "FROM trades t LEFT JOIN entry_tags g ON g.entry_id = t.entry_id")
 
 
 class Journal:
@@ -109,7 +119,49 @@ class Journal:
             self.db.execute("UPDATE trades SET exit_reason=? WHERE position_id=?", (reason, position_id))
 
     def trade(self, position_id: int) -> dict:
-        return self._rows("SELECT * FROM trades WHERE position_id=?", position_id)[0]
+        return self._rows(TRADES_SQL + " WHERE t.position_id=?", position_id)[0]
+
+    # exploration bookkeeping ---------------------------------------------
+    def tag_entry(self, entry_id: str, tags: dict):
+        with self.db:
+            self.db.execute("INSERT OR REPLACE INTO entry_tags VALUES (?,?,?,?,?,?,?)",
+                            (entry_id, tags["strategy"], tags.get("pattern"), tags.get("hour_utc"),
+                             tags.get("session"), tags.get("policy_version"), json.dumps(tags.get("features", {}))))
+
+    def policy_change(self, version: int, at: datetime, author: str, reason: str, policy: dict):
+        with self.db:
+            self.db.execute("INSERT INTO policy_changes VALUES (?,?,?,?,?)",
+                            (version, at.isoformat(), author, reason, json.dumps(policy)))
+
+    def learning_stats(self, assumed_cost_pips: float = 0.8) -> dict:
+        """Closed exploration trades grouped by pattern, UTC hour and pattern x session.
+
+        Pips are from broker prices; `avg_pips_after_cost` subtracts an assumed
+        round-trip cost because the demo feed shows ~zero spread.
+        """
+        closed = [t for t in self._rows(TRADES_SQL + " WHERE t.net IS NOT NULL AND g.pattern IS NOT NULL")]
+
+        def group(key):
+            out: dict = {}
+            for t in closed:
+                pips = (t["close_price"] - t["open_price"]) / PIP * (1 if t["side"] == "buy" else -1)
+                g = out.setdefault(key(t), {"n": 0, "wins": 0, "net": 0.0, "pips": 0.0})
+                g["n"] += 1
+                g["wins"] += t["net"] > 0
+                g["net"] += t["net"]
+                g["pips"] += pips - assumed_cost_pips
+            for g in out.values():
+                g["net"] = round(g["net"], 2)
+                g["win_rate"] = round(g["wins"] / g["n"], 2)
+                g["avg_pips_after_cost"] = round(g["pips"] / g["n"], 2)
+                del g["pips"]
+            return out
+
+        return {"by_pattern": group(lambda t: t["pattern"]),
+                "by_hour": {str(k): v for k, v in sorted(group(lambda t: t["hour_utc"]).items())},
+                "by_pattern_session": {f"{p} / {s}": v for (p, s), v in
+                                       sorted(group(lambda t: (t["pattern"], t["session"])).items())},
+                "assumed_cost_pips": assumed_cost_pips, "closed_trades": len(closed)}
 
     # lessons -------------------------------------------------------------
     def add_lesson(self, at: datetime, position_id: int | None, author: str, text: str,
@@ -127,13 +179,20 @@ class Journal:
         return self._rows("SELECT id, at, author, text FROM lessons ORDER BY id DESC LIMIT ?", n)
 
     # read model for the dashboard ----------------------------------------
-    def state(self, limit=200) -> dict:
-        trades = self._rows("SELECT * FROM trades ORDER BY open_time DESC LIMIT ?", limit)
+    def state(self, limit=200, now: datetime | None = None) -> dict:
+        trades = self._rows(TRADES_SQL + " ORDER BY t.open_time DESC LIMIT ?", limit)
         closed = [t for t in trades if t["net"] is not None]
         wins = [t for t in closed if t["net"] > 0]
+        today = (now or datetime.now(timezone.utc)).date().isoformat()  # trade times are UTC
+        today_net = sum(t["net"] for t in self._rows("SELECT net FROM trades WHERE net IS NOT NULL AND "
+                                                    "substr(close_time,1,10)=?", today))
         return {
+            "kpi": {"day_utc": today, "target_usd": DAILY_KPI_USD, "net_today": round(today_net, 2),
+                    "progress": round(today_net / DAILY_KPI_USD, 3)},
+            "learning": self.learning_stats(),
+            "policy_changes": self._rows("SELECT version, at, author, reason FROM policy_changes ORDER BY version DESC"),
             "decisions": [dict(r, details=json.loads(r["details"]))
-                          for r in self._rows("SELECT * FROM decisions ORDER BY bar DESC LIMIT ?", limit)],
+                          for r in self._rows("SELECT * FROM decisions ORDER BY at DESC LIMIT ?", limit)],
             "orders": [dict(r, risk=json.loads(r["risk"]), result=json.loads(r["result"]))
                        for r in self._rows("SELECT * FROM orders ORDER BY at DESC LIMIT ?", limit)],
             "trades": trades,
