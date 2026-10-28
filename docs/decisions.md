@@ -156,6 +156,32 @@ at the usual 5-pip stop and about 75 USD at the 1.5R target.
 sets `lots = 1.0`. H-001B stays at 0.01 lot as the frozen control. A
 `risk_per_trade_pct` sizing mode exists but is off.
 
+## Two-model collaboration arms (D-33)
+
+Owner direction, 2026-10-28: Codex can work around the clock, Claude only
+18:00-08:00, so fixed shifts waste Codex time. The two models should learn
+together instead. This supersedes the duty split in D-32; attribution and the
+scoreboard remain.
+
+- **Duty:** Codex (`gpt-6-sol`) is primary 24/7 (operations, hourly review).
+  Claude (`claude-opus-5-5`) is co-duty 18:00-08:00. The roster stays
+  configurable (`config/duty.toml`, `fxra demo-shift take`).
+- **Two H-002 arms on the same market:** `H-002-claude` (magic `20261029`,
+  continuing the original H-002 and its policy history) and `H-002-codex`
+  (magic `20261030`, starting from a copy of the Claude arm's policy). Only an
+  arm's owner may change its policy (`fxra demo-policy --arm`). Pattern
+  statistics used for exploration are pooled across arms as shared knowledge.
+- **Positions:** every matched enabled pattern opens its own position, one per
+  pattern per arm, unless the arm sets `entries_per_bar`. The owner removed the
+  practical cap: `max_open_positions = 50` and daily loss limit 5% in
+  `config/risk.toml`. Stops on every order and 1 lot per order are unchanged.
+- **Learning together:** both models read all Hindsight lessons. At each
+  hand-over (18:00 and 08:00) the leaving model writes a summary with
+  proposals, and the arriving model reviews them. A rule is distilled, or a
+  pattern disabled on evidence, only through `fxra demo-propose` plus review by
+  the *other* agent. New pattern code still goes through a PR that the other
+  agent reviews.
+
 ## Open questions
 
 ### Simulation and memory decisions (owner request, 2026-10-27)

@@ -20,7 +20,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 MAGIC = 20261028  # H-001B (and the TECH-0003 check)
-MAGICS = {MAGIC: "H-001B", 20261029: "H-002"}  # one magic number per demo strategy
+MAGICS = {MAGIC: "H-001B", 20261029: "H-002-claude", 20261030: "H-002-codex"}  # one per demo strategy/arm
 SYMBOLS = frozenset({"EURUSD"})
 MAX_DEVIATION_POINTS = 20
 COMMENT_MAX = 31  # MT5 order comment limit

@@ -38,13 +38,42 @@ CREATE TABLE IF NOT EXISTS duty_overrides (
 CREATE TABLE IF NOT EXISTS shift_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, agent TEXT NOT NULL, model TEXT NOT NULL,
     kind TEXT NOT NULL, summary TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS arm_policy_changes (
+    arm TEXT NOT NULL, version INTEGER NOT NULL, at TEXT NOT NULL, author TEXT NOT NULL, reason TEXT NOT NULL,
+    policy TEXT NOT NULL, PRIMARY KEY (arm, version));
+CREATE TABLE IF NOT EXISTS proposals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, author TEXT NOT NULL, text TEXT NOT NULL,
+    evidence TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', reviewer TEXT, review TEXT, reviewed_at TEXT);
 """
-MIGRATIONS = [("entry_tags", "duty_agent", "TEXT"), ("entry_tags", "duty_model", "TEXT")]
+MIGRATIONS = [("entry_tags", "duty_agent", "TEXT"), ("entry_tags", "duty_model", "TEXT"), ("entry_tags", "arm", "TEXT")]
 
 DAILY_KPI_USD = 50.0  # owner's daily target; shown as progress, never optimised for
 PIP = 0.0001
-TRADES_SQL = ("SELECT t.*, g.strategy, g.pattern, g.hour_utc, g.session, g.policy_version, g.duty_agent, g.duty_model "
+# Trades before D-33 (single H-002) were all opened under the Claude-authored policy line: arm 'claude'.
+TRADES_SQL = ("SELECT t.*, g.strategy, g.pattern, g.hour_utc, g.session, g.policy_version, g.duty_agent, g.duty_model, "
+              "CASE WHEN g.strategy = 'H-002' THEN coalesce(g.arm, 'claude') END AS arm "
               "FROM trades t LEFT JOIN entry_tags g ON g.entry_id = t.entry_id")
+
+
+def _group(rows: list[dict], key, assumed_cost_pips: float) -> dict:
+    """n, wins, losses, win rate, net, profit factor and average pips after an assumed cost, per key."""
+    out: dict = {}
+    for t in rows:
+        pips = (t["close_price"] - t["open_price"]) / PIP * (1 if t["side"] == "buy" else -1)
+        g = out.setdefault(key(t), {"n": 0, "wins": 0, "losses": 0, "net": 0.0, "gross_win": 0.0,
+                                    "gross_loss": 0.0, "pips": 0.0})
+        g["n"] += 1
+        g["wins"] += t["net"] > 0
+        g["losses"] += t["net"] < 0
+        g["net"] += t["net"]
+        g["gross_win" if t["net"] > 0 else "gross_loss"] += t["net"]
+        g["pips"] += pips - assumed_cost_pips
+    for g in out.values():
+        g["win_rate"] = round(g["wins"] / g["n"], 3)
+        g["profit_factor"] = round(g["gross_win"] / -g["gross_loss"], 2) if g["gross_loss"] else None
+        g["avg_pips_after_cost"] = round(g.pop("pips") / g["n"], 2)
+        g["net"], g["gross_win"], g["gross_loss"] = (round(g[k], 2) for k in ("net", "gross_win", "gross_loss"))
+    return out
 
 
 class Journal:
@@ -57,6 +86,9 @@ class Journal:
         for table, column, kind in MIGRATIONS:
             if column not in {r[1] for r in self.db.execute(f"PRAGMA table_info({table})")}:
                 self.db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+        with self.db:  # pre-D-33 single-policy history belongs to the Claude arm
+            self.db.execute("INSERT OR IGNORE INTO arm_policy_changes SELECT 'claude', version, at, author, reason,"
+                            " policy FROM policy_changes")
 
     def close(self):
         self.db.close()
@@ -135,10 +167,34 @@ class Journal:
     def tag_entry(self, entry_id: str, tags: dict):
         with self.db:
             self.db.execute("INSERT OR REPLACE INTO entry_tags (entry_id, strategy, pattern, hour_utc, session,"
-                            " policy_version, features, duty_agent, duty_model) VALUES (?,?,?,?,?,?,?,?,?)",
+                            " policy_version, features, duty_agent, duty_model, arm) VALUES (?,?,?,?,?,?,?,?,?,?)",
                             (entry_id, tags["strategy"], tags.get("pattern"), tags.get("hour_utc"),
                              tags.get("session"), tags.get("policy_version"), json.dumps(tags.get("features", {})),
-                             tags.get("duty_agent"), tags.get("duty_model")))
+                             tags.get("duty_agent"), tags.get("duty_model"), tags.get("arm")))
+
+    def entry_pattern(self, entry_id: str) -> str | None:
+        row = self.db.execute("SELECT pattern FROM entry_tags WHERE entry_id=?", (entry_id,)).fetchone()
+        return row[0] if row else None
+
+    # collaboration: proposals need the other model's review ------------------
+    def propose(self, at: datetime, author: str, text: str, evidence: str) -> int:
+        with self.db:
+            cur = self.db.execute("INSERT INTO proposals (at, author, text, evidence) VALUES (?,?,?,?)",
+                                  (at.isoformat(), author, text, evidence))
+        return cur.lastrowid
+
+    def review(self, proposal_id: int, at: datetime, reviewer: str, agree: bool, note: str) -> dict:
+        row = self._rows("SELECT * FROM proposals WHERE id=?", proposal_id)
+        if not row:
+            raise ValueError(f"no proposal {proposal_id}")
+        if row[0]["status"] != "open":
+            raise ValueError(f"proposal {proposal_id} already {row[0]['status']}")
+        if row[0]["author"].split("/")[0] == reviewer.split("/")[0]:
+            raise PermissionError("a proposal must be reviewed by the other agent")
+        with self.db:
+            self.db.execute("UPDATE proposals SET status=?, reviewer=?, review=?, reviewed_at=? WHERE id=?",
+                            ("agreed" if agree else "rejected", reviewer, note, at.isoformat(), proposal_id))
+        return self._rows("SELECT * FROM proposals WHERE id=?", proposal_id)[0]
 
     # duty rotation ---------------------------------------------------------
     def latest_override(self) -> dict | None:
@@ -161,44 +217,31 @@ class Journal:
         Trades are attributed to the model on duty at entry (the policy then in force
         may be another model's); `by_policy_author` gives the other view.
         """
-        closed = self._rows(TRADES_SQL + " WHERE t.net IS NOT NULL AND g.duty_model IS NOT NULL")
-
-        def group(key):
-            out: dict = {}
-            for t in closed:
-                pips = (t["close_price"] - t["open_price"]) / PIP * (1 if t["side"] == "buy" else -1)
-                g = out.setdefault(key(t), {"n": 0, "wins": 0, "losses": 0, "net": 0.0, "gross_win": 0.0,
-                                            "gross_loss": 0.0, "pips": 0.0})
-                g["n"] += 1
-                g["wins"] += t["net"] > 0
-                g["losses"] += t["net"] < 0
-                g["net"] += t["net"]
-                g["gross_win" if t["net"] > 0 else "gross_loss"] += t["net"]
-                g["pips"] += pips - assumed_cost_pips
-            for g in out.values():
-                g["win_rate"] = round(g["wins"] / g["n"], 3)
-                g["profit_factor"] = round(g["gross_win"] / -g["gross_loss"], 2) if g["gross_loss"] else None
-                g["avg_pips_after_cost"] = round(g.pop("pips") / g["n"], 2)
-                g["net"], g["gross_win"], g["gross_loss"] = (round(g[k], 2) for k in ("net", "gross_win", "gross_loss"))
-            return out
-
-        policy_by_version = {r["version"]: r["author"] for r in self._rows("SELECT version, author FROM policy_changes")}
+        closed = self._rows(TRADES_SQL + " WHERE t.net IS NOT NULL AND g.strategy IS NOT NULL")
+        group = lambda key, rows=closed: _group(rows, key, assumed_cost_pips)
+        on_duty = [t for t in closed if t["duty_model"]]
+        policy_author = {(r["arm"], r["version"]): r["author"]
+                         for r in self._rows("SELECT arm, version, author FROM arm_policy_changes")}
+        h002 = [t for t in closed if t["arm"]]
         counts = lambda sql: {r["k"]: r["n"] for r in self._rows(sql)}
         return {
-            "by_model": group(lambda t: t["duty_model"]),
+            "by_arm": group(lambda t: t["arm"], h002),
+            "by_arm_session": {f"{a} / {s}": v for (a, s), v in sorted(group(lambda t: (t["arm"], t["session"]), h002).items())},
+            "by_model": group(lambda t: t["duty_model"], on_duty),
             "by_model_strategy": {f"{m} / {s}": v for (m, s), v in
-                                  sorted(group(lambda t: (t["duty_model"], t["strategy"])).items())},
-            "by_policy_author": group(lambda t: policy_by_version.get(t["policy_version"], "default-policy")),
+                                  sorted(group(lambda t: (t["duty_model"], t["strategy"]), on_duty).items())},
+            "by_policy_author": group(lambda t: policy_author.get((t["arm"], t["policy_version"]), "default-policy"), h002),
             "lessons_by_author": counts("SELECT author k, count(*) n FROM lessons GROUP BY author"),
-            "policy_changes_by_author": counts("SELECT author k, count(*) n FROM policy_changes GROUP BY author"),
+            "policy_changes_by_author": counts("SELECT author k, count(*) n FROM arm_policy_changes GROUP BY author"),
+            "proposals_by_status": counts("SELECT status k, count(*) n FROM proposals GROUP BY status"),
             "shifts": self._rows("SELECT at, agent, model, kind, summary FROM shift_log ORDER BY id DESC LIMIT 20"),
             "assumed_cost_pips": assumed_cost_pips,
         }
 
-    def policy_change(self, version: int, at: datetime, author: str, reason: str, policy: dict):
+    def policy_change(self, version: int, at: datetime, author: str, reason: str, policy: dict, arm: str = "claude"):
         with self.db:
-            self.db.execute("INSERT INTO policy_changes VALUES (?,?,?,?,?)",
-                            (version, at.isoformat(), author, reason, json.dumps(policy)))
+            self.db.execute("INSERT INTO arm_policy_changes VALUES (?,?,?,?,?,?)",
+                            (arm, version, at.isoformat(), author, reason, json.dumps(policy)))
 
     def learning_stats(self, assumed_cost_pips: float = 0.8) -> dict:
         """Closed exploration trades grouped by pattern, UTC hour and pattern x session.
@@ -207,24 +250,10 @@ class Journal:
         round-trip cost because the demo feed shows ~zero spread.
         """
         closed = [t for t in self._rows(TRADES_SQL + " WHERE t.net IS NOT NULL AND g.pattern IS NOT NULL")]
-
-        def group(key):
-            out: dict = {}
-            for t in closed:
-                pips = (t["close_price"] - t["open_price"]) / PIP * (1 if t["side"] == "buy" else -1)
-                g = out.setdefault(key(t), {"n": 0, "wins": 0, "net": 0.0, "pips": 0.0})
-                g["n"] += 1
-                g["wins"] += t["net"] > 0
-                g["net"] += t["net"]
-                g["pips"] += pips - assumed_cost_pips
-            for g in out.values():
-                g["net"] = round(g["net"], 2)
-                g["win_rate"] = round(g["wins"] / g["n"], 2)
-                g["avg_pips_after_cost"] = round(g["pips"] / g["n"], 2)
-                del g["pips"]
-            return out
-
+        group = lambda key: _group(closed, key, assumed_cost_pips)
         return {"by_pattern": group(lambda t: t["pattern"]),
+                "by_arm_pattern": {f"{a} / {p}": v for (a, p), v in
+                                   sorted(group(lambda t: (t["arm"], t["pattern"])).items())},
                 "by_hour": {str(k): v for k, v in sorted(group(lambda t: t["hour_utc"]).items())},
                 "by_pattern_session": {f"{p} / {s}": v for (p, s), v in
                                        sorted(group(lambda t: (t["pattern"], t["session"])).items())},
@@ -258,7 +287,8 @@ class Journal:
                     "progress": round(today_net / DAILY_KPI_USD, 3)},
             "learning": self.learning_stats(),
             "scoreboard": self.model_scoreboard(),
-            "policy_changes": self._rows("SELECT version, at, author, reason FROM policy_changes ORDER BY version DESC"),
+            "policy_changes": self._rows("SELECT arm, version, at, author, reason FROM arm_policy_changes ORDER BY at DESC"),
+            "proposals": self._rows("SELECT * FROM proposals ORDER BY id DESC LIMIT 50"),
             "decisions": [dict(r, details=json.loads(r["details"]))
                           for r in self._rows("SELECT * FROM decisions ORDER BY at DESC LIMIT ?", limit)],
             "orders": [dict(r, risk=json.loads(r["risk"]), result=json.loads(r["result"]))

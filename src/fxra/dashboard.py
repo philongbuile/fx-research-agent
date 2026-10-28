@@ -56,8 +56,8 @@ class Agent:
             return None  # missing config = kill switch active (fail closed)
 
     @property
-    def policy_path(self):
-        return self.journal.path.parent / "h002-policy.json"
+    def demo_dir(self):
+        return self.journal.path.parent
 
     def tick(self):
         now = datetime.now(timezone.utc)
@@ -69,14 +69,16 @@ class Agent:
                 self.last_step = {"at": now.isoformat(), "action": "error", "reason": str(e)}
                 return self.last_step
             results, on = {}, self.duty(now)
-            for name, run in (("H-001B", lambda: demo_agent.step(self.journal, self.broker, limits, now,
-                                                                   send=self.send, snap=snap, duty=on)),
-                              ("H-002", lambda: h002.step(self.journal, self.broker, limits, now, snap,
-                                                          h002.load_policy(self.policy_path), send=self.send,
-                                                          duty=on))):
+            runs = [("H-001B", lambda: demo_agent.step(self.journal, self.broker, limits, now,
+                                                       send=self.send, snap=snap, duty=on))]
+            for arm, cfg in h002.ARMS.items():
+                runs.append((cfg["arm"], lambda arm=arm: h002.step(
+                    self.journal, self.broker, limits, now, snap,
+                    h002.arm_policy(self.demo_dir, arm, self.journal), send=self.send, duty=on, arm=arm)))
+            for name, run in runs:
                 try:
                     results[name] = run()
-                except Exception as e:  # one strategy failing must not stop the other
+                except Exception as e:  # one strategy failing must not stop the others
                     results[name] = {"action": "error", "reason": f"{type(e).__name__}: {e}"}
             self.last_step = {"at": now.isoformat(), **results}
         return self.last_step
@@ -94,7 +96,8 @@ class Agent:
         data.update(live=self.broker.last, live_error=self.broker.error, last_step=self.last_step,
                     kill_switch=risk.kill_switch_active(limits), mode=limits.mode if limits else None,
                     strategies={i: bool(limits and i in limits.approved_strategies) for i in ids},
-                    policy=h002.load_policy(self.policy_path), duty=self.duty(),
+                    policies={arm: h002.arm_policy(self.demo_dir, arm, self.journal) for arm in h002.ARMS},
+                    duty=self.duty(),
                     server_time=datetime.now(timezone.utc).isoformat())
         return data
 
@@ -167,7 +170,8 @@ svg{width:100%;height:160px}.muted{color:var(--mute)}
 <section class="card wide"><h2>Decisions, hour by hour</h2><div class="scroll"><table id="decisions"></table></div></section>
 <section class="card wide"><h2>Model scoreboard (who was on duty)</h2><div id="scoreboard"></div></section>
 <section class="card wide"><h2>What H-002 is learning (exploration, after assumed cost)</h2><div id="learning"></div></section>
-<section class="card wide"><h2>H-002 policy</h2><div id="policy" class="mono"></div></section>
+<section class="card wide"><h2>Proposals (need the other model's review)</h2><div id="proposals"></div></section>
+<section class="card wide"><h2>Arm policies</h2><div id="policy" class="mono"></div></section>
 <section class="card wide"><h2>Lessons</h2><div id="lessons"></div></section>
 </main>
 <script>
@@ -192,17 +196,21 @@ async function load(){
     <p class="muted">Tracked, not optimised: the agent never sizes up to chase it.</p>`;
   const grp=(o,label)=>{const r=Object.entries(o);return r.length?`<table><tr><th>${label}</th><th>n</th><th>Win</th><th>Net USD</th><th>Avg pips after cost</th></tr>`+
     r.map(([n,g])=>`<tr><td>${esc(n)}</td><td>${g.n}${g.n<10?' <span class="muted">(few)</span>':""}</td><td>${(g.win_rate*100).toFixed(0)}%</td><td>${money(g.net)}</td><td>${money(g.avg_pips_after_cost)}</td></tr>`).join("")+"</table>":""};
-  const d=s.duty; $("duty").innerHTML=`on duty: <b>${esc(d.agent)}</b> · ${esc(d.model)} <span class="muted">(${esc(d.source)} until ${esc((d.until||"").slice(11,16))})</span>`;
+  const d=s.duty; $("duty").innerHTML=`on duty: <b>${esc(d.agent)}</b> · ${esc(d.model)}`+(d.co_duty||[]).map(c=>` + <b>${esc(c.agent)}</b> · ${esc(c.model)} <span class="muted">until ${esc((c.until||"").slice(11,16))}</span>`).join("");
   const sb=s.scoreboard, mrow=o=>Object.entries(o);
   const sbt=(o,label)=>mrow(o).length?`<table><tr><th>${label}</th><th>n</th><th>Win rate</th><th>Net USD</th><th>Profit factor</th><th>Avg pips after cost</th></tr>`+
     mrow(o).map(([n,g])=>`<tr><td>${esc(n)}</td><td>${g.n}${g.n<30?' <span class="muted">(small)</span>':""}</td><td>${(g.win_rate*100).toFixed(0)}% <span class="muted">${g.wins}W/${g.losses}L</span></td><td>${money(g.net)}</td><td>${g.profit_factor??"–"}</td><td>${money(g.avg_pips_after_cost)}</td></tr>`).join("")+"</table>":"";
-  $("scoreboard").innerHTML=(mrow(sb.by_model).length?sbt(sb.by_model,"Model on duty at entry")+"<br>"+sbt(sb.by_model_strategy,"Model / strategy")+"<br>"+sbt(sb.by_policy_author,"Policy author"):'<p class="muted">No closed trades attributed to a model yet.</p>')+
+  $("scoreboard").innerHTML=(mrow(sb.by_arm).length?"<h3>Arm vs arm (same market, same bars)</h3>"+sbt(sb.by_arm,"Arm")+"<br>"+sbt(sb.by_arm_session,"Arm / session")+"<br>":"")+
+    (mrow(sb.by_model).length?sbt(sb.by_model,"Model on duty at entry")+"<br>"+sbt(sb.by_model_strategy,"Model / strategy")+"<br>"+sbt(sb.by_policy_author,"Policy author"):'<p class="muted">No closed trades attributed to a model yet.</p>')+
     `<p class="muted">Lessons: ${esc(JSON.stringify(sb.lessons_by_author))} · Policy changes: ${esc(JSON.stringify(sb.policy_changes_by_author))}</p>`+
     (sb.shifts.length?"<p>"+sb.shifts.map(x=>`${t(x.at)} · <b>${esc(x.agent)}</b> ${esc(x.kind)}: ${esc(x.summary)}`).join("<br>")+"</p>":"");
   const ls=s.learning;
   $("learning").innerHTML=ls.closed_trades?`<p class="muted">${ls.closed_trades} closed exploration trades; assumed cost ${ls.assumed_cost_pips} pip per trade.</p>`+
     grp(ls.by_pattern,"Pattern")+"<br>"+grp(ls.by_hour,"Hour UTC")+"<br>"+grp(ls.by_pattern_session,"Pattern / session"):'<p class="muted">No closed H-002 trades yet. Every pattern gets explored first.</p>';
-  $("policy").innerHTML=esc(JSON.stringify(s.policy))+(s.policy_changes.length?"<br><br>"+s.policy_changes.map(c=>`v${c.version} · ${esc(c.author)} · ${t(c.at)} · ${esc(c.reason)}`).join("<br>"):"<br><br>default policy (v1), no changes yet");
+  $("policy").innerHTML=Object.entries(s.policies).map(([a,p])=>`<b>${esc(a)}</b> v${p.version}: ${esc(JSON.stringify(p))}`).join("<br><br>")+
+    (s.policy_changes.length?"<br><br>"+s.policy_changes.map(c=>`${esc(c.arm)} v${c.version} · ${esc(c.author)} · ${t(c.at)} · ${esc(c.reason)}`).join("<br>"):"");
+  $("proposals").innerHTML=s.proposals.length?`<table><tr><th>#</th><th>By</th><th>Proposal</th><th>Evidence</th><th>Status</th><th>Review</th></tr>`+
+    s.proposals.map(p=>`<tr><td>${p.id}</td><td>${esc(p.author)}</td><td>${esc(p.text)}</td><td>${esc(p.evidence)}</td><td><b>${esc(p.status)}</b></td><td>${esc(p.reviewer?p.reviewer+": "+p.review:"")}</td></tr>`).join("")+"</table>":'<p class="muted">No proposals yet. A rule is distilled only when the other model agrees.</p>';
   $("mode").textContent="mode: "+(s.mode||"no risk.toml");
   $("kill").innerHTML=s.kill_switch?'<span class="bad">kill switch ON</span>':'<span class="ok">kill switch off</span>';
   $("conn").innerHTML=s.live_error?`<span class="bad">MT5: ${esc(s.live_error)}</span>`:(L.account?'<span class="ok">MT5 demo connected</span>':"MT5: waiting");
@@ -220,7 +228,7 @@ async function load(){
   $("trades").innerHTML="<tr><th>Opened</th><th>Pattern</th><th>Side</th><th>Lots</th><th>Entry</th><th>Closed</th><th>Exit</th><th>Reason</th><th>Gross</th><th>Comm.</th><th>Swap</th><th>Net</th></tr>"+
     (s.trades.map(r=>`<tr><td>${t(r.open_time)}</td><td>${esc(r.pattern?r.pattern+" · "+r.hour_utc+"h":(r.entry_id||"").startsWith("T3-")?"TECH-0003":"H-001B")}</td><td>${r.side}</td><td>${r.volume}</td><td>${r.open_price}</td><td>${t(r.close_time)}</td><td>${r.close_price??"open"}</td><td>${esc(r.exit_reason??"")}</td><td>${money(r.profit)}</td><td>${money(r.commission)}</td><td>${money(r.swap)}</td><td>${money(r.net,ccy)}</td></tr>`).join("")||'<tr><td colspan="12" class="muted">No trades yet.</td></tr>');
   $("decisions").innerHTML="<tr><th>Bar (UTC)</th><th>Strategy</th><th>Action</th><th>Side</th><th>Why</th><th>ATR</th><th>Close</th></tr>"+
-    (s.decisions.map(d=>{const g=d.details.signal||{},h2=d.bar.startsWith("H-002:");return `<tr><td>${t(h2?d.bar.slice(6):d.bar)}</td><td>${h2?"H-002 · M15":"H-001B · H1"}</td><td><b>${esc(d.action)}</b></td><td>${esc(d.side??"")}</td><td>${esc(d.reason)}</td><td>${g.atr?(g.atr/0.0001).toFixed(1)+" pips":""}</td><td>${g.close??""}</td></tr>`}).join("")||'<tr><td colspan="7" class="muted">No decisions yet.</td></tr>');
+    (s.decisions.map(d=>{const g=d.details.signal||{},m=d.bar.match(/^(H-002[^:]*):(.*)$/);return `<tr><td>${t(m?m[2]:d.bar)}</td><td>${esc(m?m[1]:"H-001B")}${m?" · M15":" · H1"}</td><td><b>${esc(d.action)}</b></td><td>${esc(d.side??"")}</td><td>${esc(d.reason)}</td><td>${g.atr?(g.atr/0.0001).toFixed(1)+" pips":""}</td><td>${g.close??""}</td></tr>`}).join("")||'<tr><td colspan="7" class="muted">No decisions yet.</td></tr>');
   $("lessons").innerHTML=s.lessons.map(l=>`<div class="lesson">${esc(l.text)}<br><small>#${l.id} · ${esc(l.author)} · ${t(l.at)}${l.hindsight_document?" · Hindsight: "+esc(l.hindsight_document):" · not yet in Hindsight"}</small></div>`).join("")||'<p class="muted">Lessons appear after each closed trade.</p>';
 }
 load(); setInterval(load,10000);

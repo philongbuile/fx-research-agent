@@ -19,8 +19,14 @@ from .contracts import AccountSnapshot, OrderIntent, Quote, SymbolSpec
 from .trade_journal import Journal
 
 STRATEGY_ID = "H-002"
-STRATEGY_VERSION = "explore"  # risk.toml approves "H-002@explore"; the policy version is tracked per trade
-MAGIC = 20261029
+STRATEGY_VERSION = "explore"  # risk.toml approves "H-002@explore"; arm and policy version are tracked per trade
+MAGIC = 20261029  # the Claude arm keeps the original H-002 magic number
+
+# D-33: one arm per AI model, same market and patterns, own policy. Only the owner edits its policy.
+ARMS = {
+    "claude": {"arm": "H-002-claude", "owner": "claude", "magic": 20261029, "code": "CL"},
+    "codex": {"arm": "H-002-codex", "owner": "codex", "magic": 20261030, "code": "CX"},
+}
 SYMBOL = "EURUSD"
 PIP = 0.0001
 PATTERNS = ("breakout20", "ema_pullback", "bb_rsi_reversion", "inside_bar_break",
@@ -36,6 +42,7 @@ DEFAULT_POLICY = {
     "sl_atr": 1.0, "min_sl_pips": 5.0, "tp_rr": 1.5, "max_hold_bars": 8,
     "avoid_hours_utc": [21],  # daily rollover: wide spreads, thin book
     "epsilon": 0.3, "min_samples": 3,
+    "entries_per_bar": None,  # None = open every matched enabled pattern not already open in this arm
     "assumed_cost_pips": 0.8,  # demo spread is ~0; learning stats subtract this to stay honest
 }
 
@@ -193,15 +200,19 @@ def _more_patterns(bars, closes, r, out):
 
 def choose(matches: dict[str, str], stats: dict[str, dict], policy: dict, rng: random.Random) -> str | None:
     """Epsilon-greedy over matched, enabled patterns using realised average net pips."""
+    ranked = rank(matches, stats, policy, rng)
+    return ranked[0] if ranked else None
+
+
+def rank(matches: dict[str, str], stats: dict[str, dict], policy: dict, rng: random.Random) -> list[str]:
+    """Order matched, enabled patterns: unexplored first, then epsilon-greedy by average net pips."""
     names = [m for m in matches if m in policy["enabled"]]
-    if not names:
-        return None
+    rng.shuffle(names)
     unexplored = [m for m in names if stats.get(m, {}).get("n", 0) < policy["min_samples"]]
-    if unexplored:
-        return rng.choice(unexplored)
-    if rng.random() < policy["epsilon"]:
-        return rng.choice(names)
-    return max(names, key=lambda m: stats[m]["avg_pips_after_cost"])
+    explored = [m for m in names if m not in unexplored]
+    if rng.random() >= policy["epsilon"]:
+        explored.sort(key=lambda m: stats[m]["avg_pips_after_cost"], reverse=True)
+    return unexplored + explored
 
 
 def size_lots(policy: dict, equity: float, stop_distance: float, spec: dict, max_lots: float) -> float:
@@ -227,7 +238,8 @@ def load_policy(path: Path) -> dict:
         return dict(DEFAULT_POLICY)
 
 
-def update_policy(path: Path, journal: Journal, changes: dict, author: str, reason: str) -> dict:
+def update_policy(path: Path, journal: Journal, changes: dict, author: str, reason: str,
+                  arm: str = "claude") -> dict:
     old = load_policy(path)
     unknown = set(changes) - set(DEFAULT_POLICY) - {"version"}
     if unknown:
@@ -237,8 +249,35 @@ def update_policy(path: Path, journal: Journal, changes: dict, author: str, reas
     new = {**old, **changes, "version": old["version"] + 1}
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     Path(path).write_text(json.dumps(new, indent=2))
-    journal.policy_change(new["version"], datetime.now(timezone.utc), author, reason, new)
+    journal.policy_change(new["version"], datetime.now(timezone.utc), author, reason, new, arm=arm)
     return new
+
+
+def policy_path(demo_dir: Path, arm: str) -> Path:
+    return Path(demo_dir) / f"h002-policy-{arm}.json"
+
+
+def arm_policy(demo_dir: Path, arm: str, journal: Journal) -> dict:
+    """Load an arm's policy. First use: the Claude arm adopts the pre-D-33 single policy,
+    the Codex arm starts as a copy of the Claude arm (same starting line for both)."""
+    path = policy_path(demo_dir, arm)
+    if not path.exists():
+        legacy = Path(demo_dir) / "h002-policy.json"
+        source = legacy if arm == "claude" else policy_path(demo_dir, "claude")
+        if arm != "claude" and not source.exists():
+            arm_policy(demo_dir, "claude", journal)
+        start = {**load_policy(source if source.exists() else legacy), "version": 0}
+        path.write_text(json.dumps(start, indent=2))
+        update_policy(path, journal, {}, "system", f"{arm} arm initialised from {source.name}", arm=arm)
+    return load_policy(path)
+
+
+def edit_arm_policy(demo_dir: Path, arm: str, journal: Journal, changes: dict, author: str, reason: str) -> dict:
+    """Only the arm's owner may change it (author is '<agent>/<model>')."""
+    if author.split("/")[0] != ARMS[arm]["owner"]:
+        raise PermissionError(f"{arm} arm belongs to {ARMS[arm]['owner']}; propose the change instead")
+    arm_policy(demo_dir, arm, journal)
+    return update_policy(policy_path(demo_dir, arm), journal, changes, author, reason, arm=arm)
 
 
 # one decision per closed M15 bar --------------------------------------------
@@ -247,7 +286,16 @@ def _t(s):
 
 
 def step(journal: Journal, broker, limits, now: datetime, snap: dict, policy: dict, *,
-         send: bool = True, rng: random.Random | None = None, duty: dict | None = None) -> dict:
+         send: bool = True, rng: random.Random | None = None, duty: dict | None = None,
+         arm: str = "claude") -> dict:
+    """One decision per closed M15 bar for one arm.
+
+    Time-exits the arm's positions that reached max_hold_bars, then opens one
+    position for every matched enabled pattern not already open in this arm
+    (or the best `entries_per_bar`). Each entry passes the risk gate.
+    """
+    cfg = ARMS[arm]
+    name, magic = cfg["arm"], cfg["magic"]
     rng = rng or random.Random()
     if snap["quote"] is None:
         return {"action": "skip", "reason": "no fresh tick"}
@@ -255,79 +303,104 @@ def step(journal: Journal, broker, limits, now: datetime, snap: dict, policy: di
     bars = snap.get("m15_bars") or []
     if not bars or _t(bars[-1]["time"]) != latest:
         return {"action": "skip", "reason": f"latest closed M15 bar is not {latest:%H:%M}Z"}
-    key = f"{STRATEGY_ID}:{latest.isoformat()}"
+    key = f"{name}:{latest.isoformat()}"
     if journal.decided(key):
         return {"action": "skip", "reason": "already decided for this bar", "bar": key}
     a = atr(bars[-15:])
-    base = {"strategy": STRATEGY_ID, "policy_version": policy["version"], "quote": snap["quote"],
+    base = {"strategy": name, "arm": arm, "policy_version": policy["version"], "quote": snap["quote"],
             "signal": {"atr": a, "close": bars[-1]["close"]}}
+    notes, exits, entries, blocked = [], [], [], []
 
-    own = [p for p in snap["positions"] if p.get("magic") == MAGIC]
-    if own:
-        pos = own[0]
+    own = [p for p in snap["positions"] if p.get("magic") == magic]
+    still_open = []
+    for pos in own:
         held = int((latest + timedelta(minutes=15) - _t(pos["time"])).total_seconds() // 900)
         if held < policy["max_hold_bars"]:
-            journal.decide(key, now, "hold", pos["side"], f"H-002 holding {held}/{policy['max_hold_bars']} bars", base)
-            return {"action": "hold", "bar": key}
+            still_open.append(pos)
+            continue
         cid = f"H2X-{pos['ticket']}"
         result = broker.close({"ticket": pos["ticket"], "client_order_id": cid, "symbol": SYMBOL}) if send \
             else {"status": "not_sent"}
         result["rule"] = "max_hold_bars"
         journal.order(cid, now, "exit", "sell" if pos["side"] == "buy" else "buy", pos["volume"], None,
                       result["status"], {}, result)
-        journal.decide(key, now, "exit", pos["side"], f"H-002 time exit after {held} bars", {**base, "order": result})
-        return {"action": "exit", "bar": key, "result": result}
+        exits.append({"ticket": pos["ticket"], "held": held, "status": result["status"]})
+    if exits:
+        notes.append(f"time exit {len(exits)} position(s)")
+    open_patterns = {journal.entry_pattern(p.get("comment", "")) for p in still_open}
 
     hour = latest.hour
-    if hour in policy["avoid_hours_utc"]:
-        journal.decide(key, now, "no_trade", None, f"H-002 avoids {hour}h UTC (policy)", base)
-        return {"action": "no_trade", "bar": key}
     matches = patterns(bars)
-    stats = journal.learning_stats(policy["assumed_cost_pips"])["by_pattern"]
-    chosen = choose(matches, stats, policy, rng)
     base["signal"]["matches"] = matches
-    if chosen is None:
-        journal.decide(key, now, "no_trade", None,
-                       "H-002 no enabled pattern matched" if not matches else f"H-002 matched {sorted(matches)} but disabled",
-                       base)
-        return {"action": "no_trade", "bar": key}
-    side = matches[chosen]
+    if hour in policy["avoid_hours_utc"]:
+        notes.append(f"avoids {hour}h UTC (policy)")
+        candidates = []
+    else:
+        stats = journal.learning_stats(policy["assumed_cost_pips"])["by_pattern"]  # shared knowledge, all arms
+        candidates = [m for m in rank(matches, stats, policy, rng) if m not in open_patterns]
+        if policy.get("entries_per_bar"):
+            candidates = candidates[: int(policy["entries_per_bar"])]
+        if matches and not candidates:
+            notes.append(f"matched {sorted(matches)} but disabled or already open")
+
     q, s, acct = snap["quote"], snap["spec"], snap["account"]
-    entry = q["ask"] if side == "buy" else q["bid"]
-    dist = max(policy["sl_atr"] * a, policy["min_sl_pips"] * PIP)
-    sign = 1 if side == "buy" else -1
-    stop = round(entry - sign * dist, s["digits"])
-    target = round(entry + sign * dist * policy["tp_rr"], s["digits"])
-    cid = f"H2-{latest:%y%m%d%H%M}-{side[0].upper()}"
-    lots = size_lots(policy, acct["equity"], dist, s, limits.max_lots_per_order if limits else 0.0)
-    intent = OrderIntent(cid, STRATEGY_ID, STRATEGY_VERSION, SYMBOL, side, lots, "market",
-                         stop_loss=stop, take_profit=target)
     spec = SymbolSpec(SYMBOL, "mt5-demo-1", s["digits"], s["point"], s["point"] * 10, s["contract_size"],
                       s["volume_min"], s["volume_max"], s["volume_step"], s["quote_currency"])
-    day_start = journal.snapshot_equity(now, acct["balance"], acct["equity"], acct["currency"])
-    decision = risk.evaluate(intent, limits, spec, Quote(SYMBOL, _t(q["time"]), q["bid"], q["ask"]),
-                             AccountSnapshot(now, acct["currency"], acct["equity"], day_start, len(snap["positions"])),
-                             now, journal.order_ids(), risk.kill_switch_active(limits))
-    tags = {"strategy": STRATEGY_ID, "pattern": chosen, "hour_utc": hour, "session": session(hour),
-            "policy_version": policy["version"], "duty_agent": (duty or {}).get("agent"),
-            "duty_model": (duty or {}).get("model"), "features": {"matches": matches, "atr_pips": a / PIP,
-                                                              "sl_pips": dist / PIP, "tp_pips": dist * policy["tp_rr"] / PIP}}
-    details = {**base, "intent": intent.__dict__, "risk": decision.to_dict(), "tags": tags}
-    why = f"H-002 {chosen} {side} at {hour}h UTC ({session(hour)}); SL {dist / PIP:.1f} pips, TP {dist * policy['tp_rr'] / PIP:.1f}"
-    if not decision.approved:
-        journal.order(cid, now, "entry", side, lots, stop, "risk_rejected", decision.to_dict(), {})
-        journal.decide(key, now, "blocked", side, "risk gate: " + ", ".join(decision.reasons), details)
-        return {"action": "blocked", "bar": key, "reasons": decision.reasons}
-    journal.tag_entry(cid, tags)
-    if not send:
-        journal.decide(key, now, "signal_not_sent", side, why + " (dry)", details)
-        return {"action": "signal_not_sent", "bar": key, "pattern": chosen}
-    journal.order(cid, now, "entry", side, lots, stop, "sending", decision.to_dict(), {})
-    try:
-        result = broker.send({"mode": limits.mode, "magic": MAGIC, "intent": intent.__dict__,
-                              "decision": decision.to_dict()})
-    except RuntimeError as e:
-        result = {"status": "error", "reason": str(e)}
-    journal.order(cid, now, "entry", side, lots, stop, result["status"], decision.to_dict(), result)
-    journal.decide(key, now, "entry", side, why, {**details, "order": result})
-    return {"action": "entry", "bar": key, "pattern": chosen, "side": side, "result": result}
+    day_start = journal.snapshot_equity(now, acct["balance"], acct["equity"], acct["currency"]) if candidates else None
+    open_count = len(snap["positions"]) - len(exits)
+    for chosen in candidates:
+        side = matches[chosen]
+        entry = q["ask"] if side == "buy" else q["bid"]
+        dist = max(policy["sl_atr"] * a, policy["min_sl_pips"] * PIP)
+        sign = 1 if side == "buy" else -1
+        stop = round(entry - sign * dist, s["digits"])
+        target = round(entry + sign * dist * policy["tp_rr"], s["digits"])
+        cid = f"H2{cfg['code']}-{latest:%y%m%d%H%M}-{PATTERNS.index(chosen):02d}{side[0].upper()}"
+        lots = size_lots(policy, acct["equity"], dist, s, limits.max_lots_per_order if limits else 0.0)
+        intent = OrderIntent(cid, STRATEGY_ID, STRATEGY_VERSION, SYMBOL, side, lots, "market",
+                             stop_loss=stop, take_profit=target)
+        decision = risk.evaluate(intent, limits, spec, Quote(SYMBOL, _t(q["time"]), q["bid"], q["ask"]),
+                                 AccountSnapshot(now, acct["currency"], acct["equity"], day_start, open_count),
+                                 now, journal.order_ids(), risk.kill_switch_active(limits))
+        if not decision.approved:
+            journal.order(cid, now, "entry", side, lots, stop, "risk_rejected", decision.to_dict(), {})
+            blocked.append({"pattern": chosen, "reasons": decision.reasons})
+            continue
+        journal.tag_entry(cid, {"strategy": STRATEGY_ID, "arm": arm, "pattern": chosen, "hour_utc": hour,
+                                "session": session(hour), "policy_version": policy["version"],
+                                "duty_agent": (duty or {}).get("agent"), "duty_model": (duty or {}).get("model"),
+                                "features": {"matches": matches, "atr_pips": a / PIP, "sl_pips": dist / PIP,
+                                             "tp_pips": dist * policy["tp_rr"] / PIP}})
+        if not send:
+            entries.append({"pattern": chosen, "side": side, "status": "not_sent"})
+            continue
+        journal.order(cid, now, "entry", side, lots, stop, "sending", decision.to_dict(), {})  # persist before send
+        try:
+            result = broker.send({"mode": limits.mode, "magic": magic, "intent": intent.__dict__,
+                                  "decision": decision.to_dict()})
+        except RuntimeError as e:
+            result = {"status": "error", "reason": str(e)}
+        journal.order(cid, now, "entry", side, lots, stop, result["status"], decision.to_dict(), result)
+        entries.append({"pattern": chosen, "side": side, "lots": lots, "sl_pips": round(dist / PIP, 1),
+                        "status": result["status"]})
+        open_count += 1
+
+    if entries:
+        action = "entry"
+        notes.insert(0, "; ".join(f"{e['pattern']} {e['side']}" for e in entries) + f" ({hour}h UTC, {session(hour)})")
+    elif blocked:
+        action = "blocked"
+        notes.append("risk gate: " + ", ".join(sorted({r for b in blocked for r in b["reasons"]})))
+    elif exits:
+        action = "exit"
+    elif still_open:
+        action = "hold"
+        notes.append(f"holding {len(still_open)} position(s)")
+    else:
+        action = "no_trade"
+        if not matches:
+            notes.append("no pattern matched")
+    sides = {e["side"] for e in entries}
+    journal.decide(key, now, action, sides.pop() if len(sides) == 1 else None, f"{name}: " + "; ".join(notes),
+                   {**base, "entries": entries, "exits": exits, "blocked": blocked})
+    return {"action": action, "bar": key, "entries": entries, "exits": exits, "blocked": blocked}
