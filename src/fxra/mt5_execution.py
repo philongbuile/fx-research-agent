@@ -106,7 +106,12 @@ class Bridge:
         }
         if offset is None:
             return out  # without a clock we cannot place bars or quotes in UTC
-        out["quote"] = {"symbol": symbol, "bid": tick.bid, "ask": tick.ask, "time": _utc(tick.time, offset)}
+        # Broker and local clocks differ by up to the offset rounding tolerance; a tick is never
+        # newer than our own observation of it.
+        tick_utc = min(tick.time - offset, now)
+        out["quote"] = {"symbol": symbol, "bid": tick.bid, "ask": tick.ask,
+                        "time": datetime.fromtimestamp(tick_utc, timezone.utc).isoformat(),
+                        "clock_skew_seconds": round(tick.time - offset - now, 1)}
 
         def bars(timeframe, count):
             rates = self.mt5.copy_rates_from_pos(symbol, timeframe, 1, count) if count else None  # 1 = skip open bar

@@ -94,6 +94,14 @@ def test_snapshot_converts_server_time_to_utc_and_hides_identity():
     assert "login" not in str(snap["account"]) and "X-Demo" not in str(snap)
 
 
+def test_quote_time_never_ahead_of_observation():
+    fake = FakeMT5()
+    fake.symbol_info_tick = lambda s: NS(time=int(NOW) + OFFSET + 60, bid=1.1, ask=1.10002)  # broker clock 60 s ahead
+    b, _ = bridge(fake)
+    q = b.snapshot({"h1_bars": 1})["quote"]
+    assert datetime.fromisoformat(q["time"]).timestamp() <= NOW and q["clock_skew_seconds"] > 59
+
+
 def test_live_account_is_refused():
     fake = FakeMT5()
     fake.trade_mode = fake.ACCOUNT_TRADE_MODE_REAL
