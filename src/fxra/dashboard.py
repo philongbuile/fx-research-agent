@@ -256,14 +256,14 @@ details{margin-top:12px}summary{cursor:pointer;color:var(--mute);font-size:13px}
 <section class="card wide"><h2>Open positions</h2><div id="position"></div></section>
 <section class="card wide"><h2>Agent status</h2><div id="step"></div></section>
 <section class="card wide"><h2>Equity</h2><div id="equity"></div></section>
-<section class="card wide"><h2>Trades (broker deals)</h2><div class="scroll"><table id="trades"></table></div></section>
-<section class="card wide"><h2>Decisions, hour by hour</h2><div class="scroll"><table id="decisions"></table></div></section>
+<section class="card wide"><h2>Trades (broker deals)</h2><div class="scroll"><table id="trades"></table></div><div id="trades-more"></div></section>
+<section class="card wide"><h2>Decisions, hour by hour</h2><div class="scroll"><table id="decisions"></table></div><div id="decisions-more"></div></section>
 <section class="card wide"><h2>Model scoreboard</h2><div id="scoreboard"></div></section>
 <section class="card wide"><h2>What H-002 is learning (exploration, after assumed cost)</h2><div id="learning"></div></section>
 <section class="card wide"><h2>Playbook (candidate rules, evidence recounted from trades)</h2><div id="playbook"></div></section>
 <section class="card wide"><h2>Proposals (need the other model's review)</h2><div id="proposals"></div></section>
 <section class="card wide"><h2>Arm policies</h2><div id="policy"></div></section>
-<section class="card wide"><h2>Lessons</h2><div id="lessons"></div></section>
+<section class="card wide"><h2>Lessons</h2><div id="lessons"></div><div id="lessons-more"></div></section>
 </main>
 <script>
 const $=id=>document.getElementById(id);
@@ -421,10 +421,17 @@ async function load(){
         <span class="why">${bar?`<span class="muted">bar ${t(bar)}</span> · `:""}${why}</span></div>`}).join("")+"</div>";
   $("equity").innerHTML=chart(s.equity);
   $("trades").innerHTML="<tr><th>Opened</th><th>Pattern</th><th>Side</th><th>Lots</th><th>Entry</th><th>Closed</th><th>Exit</th><th>Reason</th><th>Gross</th><th>Comm.</th><th>Swap</th><th>Net</th></tr>"+
-    (s.trades.map(r=>`<tr><td>${t(r.open_time)}</td><td>${esc(r.pattern?r.pattern+" · "+r.hour_utc+"h":(r.entry_id||"").startsWith("T3-")?"TECH-0003":"H-001B")}</td><td>${r.side}</td><td>${r.volume}</td><td>${r.open_price}</td><td>${t(r.close_time)}</td><td>${r.close_price??"open"}</td><td>${esc(r.exit_reason??"")}</td><td>${money(r.profit)}</td><td>${money(r.commission)}</td><td>${money(r.swap)}</td><td>${money(r.net,ccy)}</td></tr>`).join("")||'<tr><td colspan="12" class="muted">No trades yet.</td></tr>');
+    (s.trades.slice(0,SHOW.trades).map(r=>`<tr><td>${t(r.open_time)}</td><td>${esc(r.pattern?r.pattern+" · "+r.hour_utc+"h":(r.entry_id||"").startsWith("T3-")?"TECH-0003":"H-001B")}</td><td>${r.side}</td><td>${r.volume}</td><td>${r.open_price}</td><td>${t(r.close_time)}</td><td>${r.close_price??"open"}</td><td>${esc(r.exit_reason??"")}</td><td>${money(r.profit)}</td><td>${money(r.commission)}</td><td>${money(r.swap)}</td><td>${money(r.net,ccy)}</td></tr>`).join("")||'<tr><td colspan="12" class="muted">No trades yet.</td></tr>');
   $("decisions").innerHTML="<tr><th>Bar (UTC)</th><th>Strategy</th><th>Action</th><th>Side</th><th>Why</th><th>ATR</th><th>Close</th></tr>"+
-    (s.decisions.map(d=>{const g=d.details.signal||{},m=d.bar.match(/^(H-002[^:]*):(?:([A-Z]{6}):)?(.*)$/);return `<tr><td>${t(m?m[3]:d.bar)}</td><td>${esc(m?armLabel(m[1]):"H-001B")} · ${esc(m&&m[2]?m[2]:"EURUSD")}${m?" · M15":" · H1"}</td><td><b>${esc(d.action)}</b></td><td>${esc(d.side??"")}</td><td>${esc(d.reason)}</td><td>${g.atr_pips?g.atr_pips.toFixed(1)+" pips":g.atr?(g.atr/0.0001).toFixed(1)+" pips":""}</td><td>${g.close??""}</td></tr>`}).join("")||'<tr><td colspan="7" class="muted">No decisions yet.</td></tr>');
-  $("lessons").innerHTML=s.lessons.map(l=>`<div class="lesson">${esc(l.text)}<br><small>#${l.id} · ${esc(l.author==="agent"?"agent (automatic)":who(l.author))} · ${t(l.at)}${l.hindsight_document?" · Hindsight: "+esc(l.hindsight_document):" · not yet in Hindsight"}</small></div>`).join("")||'<p class="muted">Lessons appear after each closed trade.</p>';
+    (s.decisions.slice(0,SHOW.decisions).map(d=>{const g=d.details.signal||{},m=d.bar.match(/^(H-002[^:]*):(?:([A-Z]{6}):)?(.*)$/);return `<tr><td>${t(m?m[3]:d.bar)}</td><td>${esc(m?armLabel(m[1]):"H-001B")} · ${esc(m&&m[2]?m[2]:"EURUSD")}${m?" · M15":" · H1"}</td><td><b>${esc(d.action)}</b></td><td>${esc(d.side??"")}</td><td>${esc(d.reason)}</td><td>${g.atr_pips?g.atr_pips.toFixed(1)+" pips":g.atr?(g.atr/0.0001).toFixed(1)+" pips":""}</td><td>${g.close??""}</td></tr>`}).join("")||'<tr><td colspan="7" class="muted">No decisions yet.</td></tr>');
+  $("lessons").innerHTML=s.lessons.slice(0,SHOW.lessons).map(l=>`<div class="lesson">${esc(l.text)}<br><small>#${l.id} · ${esc(l.author==="agent"?"agent (automatic)":who(l.author))} · ${t(l.at)}${l.hindsight_document?" · Hindsight: "+esc(l.hindsight_document):" · not yet in Hindsight"}</small></div>`).join("")||'<p class="muted">Lessons appear after each closed trade.</p>';
+  more("trades",s.trades.length,50); more("decisions",s.decisions.length,50); more("lessons",s.lessons.length,10);
 }
+// long lists show the latest items; the button reveals older ones (kept across refreshes)
+const SHOW={trades:50,decisions:50,lessons:10}, BASE={...SHOW};
+function more(key,total,step){const shown=Math.min(SHOW[key],total), left=total-shown;
+  $(key+"-more").innerHTML=(left>0||SHOW[key]>BASE[key])?`<p class="muted" style="margin:8px 0 0">Showing latest ${shown} of ${total}${total>=200?" (journal view keeps the latest 200)":""}`+
+    (left>0?` · <button onclick="SHOW['${key}']+=${step};load()">Show ${Math.min(step,left)} older</button> <button onclick="SHOW['${key}']=1e9;load()">Show all</button>`:"")+
+    (SHOW[key]>BASE[key]?` · <button onclick="SHOW['${key}']=BASE['${key}'];load()">Collapse</button>`:"")+"</p>":""}
 load(); setInterval(load,10000);
 </script></body></html>"""
