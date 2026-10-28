@@ -14,6 +14,11 @@ adapter, immutable ingestion and a recorded **technical** LEAN replay; see
 historical range or constitute a strategy backtest/evidence of edge. Follow the
 remaining workflow before evaluating a strategy.
 
+H-001's owner-selected channel-breakout proposal is merged. Complete-hour
+aggregation and pure signal calculations now have synthetic regression tests;
+the LEAN strategy and real-data evaluation are still pending. See [implementation
+status and remaining prerequisites](h001-implementation.md).
+
 ## Roles and data path
 
 MT5 provides broker/demo-source observations. The restricted MCP supplies
