@@ -439,7 +439,7 @@ async function load(){
     missing:'<span class="muted">calendar not running</span>',error:'<span class="bad">calendar error</span>'};
   $("calsync").innerHTML=CS[cal.status]||esc(cal.status||"");
   const ev=s.events||[], nowT=Date.parse(s.server_time), num=v=>v==null?"–":(+v).toLocaleString(undefined,{maximumFractionDigits:3});
-  $("calendar").innerHTML=cal.status==="missing"?`<p class="muted">The MT5 service <code>FxraCalendarExport</code> is not running yet. Compile <code>mql5/Services/FxraCalendarExport.mq5</code> in MetaEditor, then Navigator → Services → Add service → Start. Trading continues without it; news patterns and news tags wait for it.</p>`:
+  $("calendar").innerHTML=cal.status==="missing"?`<p class="muted">The MT5 service <code>FxraCalendarExport</code> is not running yet. Compile <code>mt5_services/FxraCalendarExport.mq5</code> in MetaEditor, then Navigator → Services → Add service → Start. Trading continues without it; news patterns and news tags wait for it.</p>`:
     ev.length?`<div class="hscroll"><table class="mx"><tr><th>Time</th><th>In</th><th>Ccy</th><th style="text-align:left">Event</th><th>Imp.</th><th>Forecast</th><th>Actual</th><th>Previous</th><th>Impact</th></tr>`+
     ev.map(e=>{const d=(Date.parse(e.time)-nowT)/60000, past=d<0;
       return `<tr style="${past?"opacity:.6":""}"><td class="num">${hhmm(Date.parse(e.time))}</td><td class="num">${past?ago(-d*60000)+" ago":"in "+ago(d*60000)}</td><td>${esc(e.currency)}</td>
