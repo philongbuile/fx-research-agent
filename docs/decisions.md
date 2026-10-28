@@ -197,6 +197,25 @@ gold at 0.1 lot, because 1 lot of gold is 100 USD per 1 USD move.
 - EURUSD keeps its decision keys and client ids. Other symbols add a code
   (`GU`, `UJ`, `AU`, `XA`).
 
+## Model labels and immediate lesson sync (D-35)
+
+Owner request, 2026-10-28: show the model actually running, e.g. "Claude Opus 5.5
+Medium" and "Codex GPT-6.1 Sol Medium", not the agent name, because models will
+change and more models may join.
+
+- `config/duty.toml` `[agents.<name>]` holds `model`, `effort` and `label`.
+  Codex's model id is corrected to `gpt-6.1-sol`; the old `gpt-6-sol` id is
+  displayed with the Codex label.
+- Each H-002 entry stores `arm_model`, the label of the model owning the arm
+  at entry, so results stay attributable after a switch. Pre-D-35 entries were
+  backfilled with the labels in force that day. The scoreboard leads with
+  model vs model.
+- Each closed-trade lesson is retained to Hindsight within one agent tick, when
+  the host supplies `HINDSIGHT_API_KEY` (loopback, never logged). Failed
+  deliveries stay pending and are retried. Trading decisions already use the
+  journal's pattern statistics immediately; Hindsight makes the same lessons
+  available to every model.
+
 ## Open questions
 
 ### Simulation and memory decisions (owner request, 2026-10-27)

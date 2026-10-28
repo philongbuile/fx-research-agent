@@ -13,17 +13,32 @@ from zoneinfo import ZoneInfo
 
 DEFAULT_ROSTER = {
     "timezone": "Asia/Ho_Chi_Minh",
+    # Which model each agent currently runs. Change it here (or in config/duty.toml) when the
+    # agent switches model or effort; trades record the label in force when they were opened.
+    "agents": {
+        "codex": {"model": "gpt-6.1-sol", "effort": "medium", "label": "Codex GPT-6.1 Sol Medium"},
+        "claude": {"model": "claude-opus-5-5", "effort": "medium", "label": "Claude Opus 5.5 Medium"},
+    },
     "shift": [
-        {"agent": "codex", "model": "gpt-6-sol", "start": "00:00", "end": "00:00"},  # 24/7, primary
-        {"agent": "claude", "model": "claude-opus-5-5", "start": "18:00", "end": "08:00"},  # owner can use Claude
+        {"agent": "codex", "start": "00:00", "end": "00:00"},  # 24/7, primary
+        {"agent": "claude", "start": "18:00", "end": "08:00"},  # owner can use Claude
     ],
 }
 
 
 def load_roster(path: Path | None) -> dict:
     if path and Path(path).exists():
-        return tomllib.loads(Path(path).read_text(encoding="utf-8"))
+        roster = tomllib.loads(Path(path).read_text(encoding="utf-8"))
+        return {**roster, "agents": {**DEFAULT_ROSTER["agents"], **roster.get("agents", {})}}
     return DEFAULT_ROSTER
+
+
+def agent_info(roster: dict, agent: str) -> dict:
+    """{model, effort, label} of an agent; unknown agents fall back to their name."""
+    info = roster.get("agents", {}).get(agent, {})
+    model = info.get("model", agent)
+    return {"agent": agent, "model": model, "effort": info.get("effort", ""),
+            "label": info.get("label") or " ".join(x for x in (model, info.get("effort", "")) if x)}
 
 
 def _covers(start: time, end: time, t: time) -> bool:
@@ -43,13 +58,17 @@ def on_duty(roster: dict, now: datetime, override: dict | None = None) -> dict:
             ends = local.replace(hour=end.hour, minute=end.minute, second=0, microsecond=0)
             if ends <= local:
                 ends += timedelta(days=1)
-            matching.append({"agent": s["agent"], "model": s["model"], "source": "schedule",
+            info = agent_info(roster, s["agent"])
+            matching.append({**info, "model": s.get("model", info["model"]), "source": "schedule",
                              "until": ends.isoformat(), "timezone": roster["timezone"]})
     if override and datetime.fromisoformat(override["until"]) > now:
-        matching.insert(0, {"agent": override["agent"], "model": override["model"], "source": "override",
+        info = agent_info(roster, override["agent"])
+        label = info["label"] if override["model"] == info["model"] else override["model"]
+        matching.insert(0, {**info, "model": override["model"], "label": label, "source": "override",
                             "until": override["until"], "reason": override.get("reason", "")})
     if not matching:
-        return {"agent": "unassigned", "model": "unassigned", "source": "schedule", "until": None, "co_duty": []}
+        return {"agent": "unassigned", "model": "unassigned", "label": "unassigned", "source": "schedule",
+                "until": None, "co_duty": []}
     primary = matching[0]
     co = [m for m in matching[1:] if m["agent"] != primary["agent"]]
     return {**primary, "co_duty": co}

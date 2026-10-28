@@ -12,9 +12,9 @@ copies differ.
 
 ## Roles (D-33)
 
-- **Codex** (`gpt-6-sol`) is primary 24/7. It owns operations: the loop, MT5
+- **Codex** (`gpt-6.1-sol`, "Codex GPT-6.1 Sol Medium") is primary 24/7. It owns operations: the loop, MT5
   problems and hourly review.
-- **Claude** (`claude-opus-5-5`) is co-duty 18:00-08:00 local
+- **Claude** (`claude-opus-5-5`, "Claude Opus 5.5 Medium") is co-duty 18:00-08:00 local
   (Asia/Ho_Chi_Minh). The owner cannot use Claude 08:00-18:00.
 - Each model owns one H-002 arm on the same market:
   - `H-002-claude`, magic `20261029`
@@ -28,6 +28,16 @@ copies differ.
   the schedule with
   `uv run fxra demo-shift take --agent <a> --model <m> --hours <h> --reason "..."`.
 
+## Models and labels (D-35)
+
+`config/duty.toml` `[agents.<name>]` sets each agent's `model`, `effort` and
+`label`. The dashboard shows labels, and every H-002 entry records the label of
+the model running its arm. **When an agent switches model or effort, update its
+entry before the next trade**, so per-model statistics stay separate. Lessons
+reach Hindsight automatically within one agent tick after a trade closes (tags
+`demo`, `lesson`, symbol, pattern, arm, `model:<label>`). Your job is the
+narrative layer on top: why it happened and what to try next.
+
 ## Start (when you come on duty)
 
 1. `uv run fxra demo-shift status` shows who is on duty, the arm and model
@@ -35,7 +45,7 @@ copies differ.
 2. ai-memory (workspace `personal-development`, project `fx-research-agent`):
    list and accept the latest handoff, then verify it against Git.
 3. Hindsight bank `fxra`: recall `demo lesson` and the other model's latest
-   hand-over summary (tags `demo`, `shift`, `model:<other-id>`).
+   hand-over summary (tags `demo`, `shift`, `model:<other label>`).
 4. Review the other agent's open proposals: `uv run fxra demo-propose` lists
    them. Then review each:
    `uv run fxra demo-propose --review <id> --agree|--reject --note "<your evidence>" --author <agent>/<model>`.
@@ -53,7 +63,7 @@ copies differ.
   `uv run fxra demo-policy` shows policies and stats by pattern, arm,
   hour and session.
 - For each closed trade without a narrative lesson, retain one to Hindsight
-  with tags `demo`, `lesson`, the arm and `model:<your-model-id>`. Then run
+  with tags `demo`, `lesson`, the arm and `model:<your label>`. Then run
   `uv run fxra demo-lesson --mark-retained <id> <doc>`.
 - Tune your arm with a reason grounded in the stats. Fewer than 10 samples is
   noise; note an observation instead.
@@ -67,7 +77,7 @@ copies differ.
 
 1. `uv run fxra demo-shift end --summary "<trades, net, policy changes, proposals, open issues>"`
 2. Hindsight: retain a hand-over summary with tags `demo`, `shift` and
-   `model:<id>`. Cover:
+   `model:<your label>`. Cover:
    - the scoreboard lines for your arm;
    - what you learned;
    - what you want the other model to check.

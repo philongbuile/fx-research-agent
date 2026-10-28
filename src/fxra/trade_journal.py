@@ -46,7 +46,9 @@ CREATE TABLE IF NOT EXISTS proposals (
     evidence TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', reviewer TEXT, review TEXT, reviewed_at TEXT);
 """
 MIGRATIONS = [("entry_tags", "duty_agent", "TEXT"), ("entry_tags", "duty_model", "TEXT"), ("entry_tags", "arm", "TEXT"),
-              ("entry_tags", "symbol", "TEXT")]
+              ("entry_tags", "symbol", "TEXT"), ("entry_tags", "arm_model", "TEXT")]
+# Entries made before D-35 recorded no model label; these were the models running each arm then.
+ARM_MODEL_BACKFILL = {"claude": "Claude Opus 5.5 Medium", "codex": "Codex GPT-6.1 Sol Medium"}
 
 DAILY_KPI_USD = 50.0  # owner's daily target; shown as progress, never optimised for
 PIP = 0.0001
@@ -56,7 +58,7 @@ PIP_SIZES = {"EURUSD": 0.0001, "GBPUSD": 0.0001, "AUDUSD": 0.0001, "USDJPY": 0.0
 # Before multi-symbol trading every trade was EURUSD.
 TRADES_SQL = ("SELECT t.*, g.strategy, g.pattern, g.hour_utc, g.session, g.policy_version, g.duty_agent, g.duty_model, "
               "CASE WHEN g.strategy = 'H-002' THEN coalesce(g.arm, 'claude') END AS arm, "
-              "coalesce(g.symbol, 'EURUSD') AS symbol "
+              "coalesce(g.symbol, 'EURUSD') AS symbol, g.arm_model "
               "FROM trades t LEFT JOIN entry_tags g ON g.entry_id = t.entry_id")
 
 
@@ -92,6 +94,11 @@ class Journal:
         for table, column, kind in MIGRATIONS:
             if column not in {r[1] for r in self.db.execute(f"PRAGMA table_info({table})")}:
                 self.db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+                if column == "arm_model":
+                    with self.db:
+                        for arm, label in ARM_MODEL_BACKFILL.items():
+                            self.db.execute("UPDATE entry_tags SET arm_model=? WHERE strategy='H-002' AND"
+                                            " coalesce(arm, 'claude')=?", (label, arm))
         with self.db:  # pre-D-33 single-policy history belongs to the Claude arm
             self.db.execute("INSERT OR IGNORE INTO arm_policy_changes SELECT 'claude', version, at, author, reason,"
                             " policy FROM policy_changes")
@@ -173,11 +180,12 @@ class Journal:
     def tag_entry(self, entry_id: str, tags: dict):
         with self.db:
             self.db.execute("INSERT OR REPLACE INTO entry_tags (entry_id, strategy, pattern, hour_utc, session,"
-                            " policy_version, features, duty_agent, duty_model, arm, symbol)"
-                            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                            " policy_version, features, duty_agent, duty_model, arm, symbol, arm_model)"
+                            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                             (entry_id, tags["strategy"], tags.get("pattern"), tags.get("hour_utc"),
                              tags.get("session"), tags.get("policy_version"), json.dumps(tags.get("features", {})),
-                             tags.get("duty_agent"), tags.get("duty_model"), tags.get("arm"), tags.get("symbol")))
+                             tags.get("duty_agent"), tags.get("duty_model"), tags.get("arm"), tags.get("symbol"),
+                             tags.get("arm_model")))
 
     def entry_pattern(self, entry_id: str) -> str | None:
         row = self.db.execute("SELECT pattern FROM entry_tags WHERE entry_id=?", (entry_id,)).fetchone()
@@ -232,6 +240,7 @@ class Journal:
         h002 = [t for t in closed if t["arm"]]
         counts = lambda sql: {r["k"]: r["n"] for r in self._rows(sql)}
         return {
+            "by_arm_model": group(lambda t: t["arm_model"] or ARM_MODEL_BACKFILL.get(t["arm"], t["arm"]), h002),
             "by_arm": group(lambda t: t["arm"], h002),
             "by_arm_session": {f"{a} / {s}": v for (a, s), v in sorted(group(lambda t: (t["arm"], t["session"]), h002).items())},
             "by_arm_symbol": {f"{a} / {s}": v for (a, s), v in sorted(group(lambda t: (t["arm"], t["symbol"]), h002).items())},
