@@ -49,6 +49,24 @@ reviewed implementation and owner-reviewed gate change are required before demo
 execution. No confirmation service, execution adapter or acceptance-test result
 is claimed by this documentation change.
 
+## Restricted MT5 market-data profile (D-29)
+
+Owner approval, 2026-10-28, after merging PR #20: adopt the reviewed
+`vincentwongso/mt5-trading-mcp` commit
+`daa905d36135aa1f00017efccc9b39fba7130c3f` for a first-party, native Windows
+market-data-only stdio profile. Use its reviewed lifecycle client, not its
+all-tools server; deny trading at the backend and expose no raw account
+resources, credential arguments, arbitrary code or execution configuration.
+Attach to the existing authorized demo terminal without copying credentials.
+
+Local installation, restricted protocol tests and real market-data reads passed;
+see [acceptance](local-mt5-mcp-verification.md). Original epochs remain quarantined
+until UTC/DST and calendar verification. This does not implement a trading
+`MarketDataAdapter`, enable execution, change D-10's risk modes, promote a
+strategy or certify native Codex loading before restart. D-28 still governs any
+future execution proposal. Source/artifact and dependency limits are recorded in
+the [review](third-party/mt5-mcp.md).
+
 ## Open questions
 
 ### Simulation and memory decisions (owner request, 2026-10-27)
