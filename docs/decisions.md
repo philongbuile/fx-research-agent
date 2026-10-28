@@ -95,6 +95,13 @@ and all execution/promotion decisions remain separate.
 
 ### Existing research questions
 
+- Q-14 (H-001, opened 2026-10-28): after eligible source history and costs are
+  verified, owner review must fix exact IS/OOS dates, minimum evidence and
+  quantitative stability/cost stresses before the first strategy trial. PR #23
+  supplies a proposed design, not a passed gate. See [implementation status and
+  prerequisites](h001-implementation.md). No dates or thresholds are inferred
+  from quarantined history.
+
 Nothing blocks Phase 1 work now; Q-01 is answered for demo data by D-19. Q-02 is answered by D-17, Q-03 by D-14 and D-16. The rest have defaults that work for now.
 
 | ID | Question | Blocks | Default until answered |
