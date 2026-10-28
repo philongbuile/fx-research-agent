@@ -146,6 +146,12 @@ lighter LLMs) can later be tested against the same memory and knowledge.
 Model comparisons are confounded by the market hours each shift covers and by
 small samples. Read them per strategy and session.
 
+Sizing, same day: the owner chose a **fixed 1 lot** for H-002, about 50 USD lost
+at the usual 5-pip stop and about 75 USD at the 1.5R target.
+`max_lots_per_order = 1.0` in the local `config/risk.toml`; H-002 policy v2
+sets `lots = 1.0`. H-001B stays at 0.01 lot as the frozen control. A
+`risk_per_trade_pct` sizing mode exists but is off.
+
 ## Open questions
 
 ### Simulation and memory decisions (owner request, 2026-10-27)

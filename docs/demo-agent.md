@@ -80,7 +80,10 @@ Each pattern is first tried at least `min_samples` times. After that, an
 epsilon-greedy choice prefers the best average pips after an assumed cost, and
 explores with probability `epsilon`. Stop = max(`sl_atr` × ATR14, `min_sl_pips`).
 Target = `tp_rr` × stop. A time exit fires after `max_hold_bars`. Size is
-`lots` (0.1).
+`lots` (1.0 since policy v2, owner choice).
+
+Duty rotation and the per-model scoreboard follow D-32 and the
+`fxra-demo-duty` skill.
 
 Reflection, by Claude or Codex:
 
