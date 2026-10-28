@@ -185,9 +185,78 @@ def cmd_simulation_recover(a) -> int:
     return 0
 
 
+def _demo_agent(a):
+    from .dashboard import Agent
+    from .demo_agent import SubprocessBroker
+    from .trade_journal import Journal
+
+    broker = SubprocessBroker(a.mt5_python, a.terminal)
+    return Agent(Journal(a.journal), broker, a.limits, send=not a.no_send, interval=a.interval)
+
+
+def cmd_demo_step(a) -> int:
+    print(json.dumps(_demo_agent(a).tick(), indent=2, default=str))
+    return 0
+
+
+def cmd_demo_run(a) -> int:
+    from .dashboard import serve
+
+    serve(_demo_agent(a), a.port, loop=not a.no_loop)
+    return 0
+
+
+def cmd_demo_lesson(a) -> int:
+    """Lessons from Claude/Codex reflection, and bookkeeping of Hindsight retention."""
+    from .trade_journal import Journal
+
+    j = Journal(a.journal)
+    if a.add:
+        lesson = j.add_lesson(datetime.now(timezone.utc), a.trade, a.author, a.add, a.hindsight_document)
+        print(json.dumps({"lesson_id": lesson}))
+    elif a.mark_retained:
+        j.mark_retained(int(a.mark_retained[0]), a.mark_retained[1])
+        print(json.dumps({"lesson_id": a.mark_retained[0], "hindsight_document": a.mark_retained[1]}))
+    else:
+        state = j.state()
+        pending = [l for l in state["lessons"] if not l["hindsight_document"]]
+        print(json.dumps({"summary": state["summary"], "trades": state["trades"][:20],
+                          "lessons_not_in_hindsight": pending, "recent_decisions":
+                          [{k: d[k] for k in ("bar", "action", "side", "reason")} for d in state["decisions"][:24]]},
+                         indent=2, default=str))
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="fxra")
     sub = p.add_subparsers(required=True)
+
+    def demo_args(sp):
+        sp.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
+        sp.add_argument("--limits", type=Path, default=Path("config/risk.toml"))
+        sp.add_argument("--mt5-python", type=Path, default=Path("artifacts/mt5-mcp-runtime/Scripts/python.exe"))
+        sp.add_argument("--terminal", type=Path, default=Path(r"C:\Program Files\MetaTrader 5\terminal64.exe"))
+        sp.add_argument("--no-send", action="store_true", help="decide and journal, but never send orders")
+        sp.add_argument("--interval", type=int, default=30, help="seconds between agent checks")
+
+    ds = sub.add_parser("demo-step", help="one H-001B decision cycle on the MT5 demo account (D-30)")
+    demo_args(ds)
+    ds.set_defaults(fn=cmd_demo_step)
+
+    dr = sub.add_parser("demo-run", help="agent loop + local dashboard on 127.0.0.1")
+    demo_args(dr)
+    dr.add_argument("--port", type=int, default=8765)
+    dr.add_argument("--no-loop", action="store_true", help="dashboard only, no agent steps")
+    dr.set_defaults(fn=cmd_demo_run)
+
+    dl = sub.add_parser("demo-lesson", help="list trades/lessons for reflection, add a lesson, or mark one retained")
+    dl.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
+    dl.add_argument("--add", metavar="TEXT")
+    dl.add_argument("--trade", type=int, help="position id the lesson is about")
+    dl.add_argument("--author", default="claude")
+    dl.add_argument("--hindsight-document")
+    dl.add_argument("--mark-retained", nargs=2, metavar=("LESSON_ID", "DOCUMENT"), type=str)
+    dl.set_defaults(fn=cmd_demo_lesson)
 
     sd = sub.add_parser('simulation-demo', help='synthetic lifecycle demo; no trading or market results')
     sd.add_argument('--config', type=Path, default=Path('config/simulation-demo.example.toml'))
