@@ -394,7 +394,7 @@ async function load(){
     kpi("Closed trades",sm.closed_trades)+
     kpi("Win rate",sm.win_rate==null?"–":(sm.win_rate*100).toFixed(0)+"%")+kpi("Net P&L (closed)",money(sm.net_total,ccy))+
     kpi("Account mode",a.hedging==null?"–":(a.hedging?"hedging":"netting"));
-  const PIPS={EURUSD:0.0001,GBPUSD:0.0001,AUDUSD:0.0001,USDJPY:0.01,XAUUSD:0.1};
+  const PIPS={EURUSD:0.0001,GBPUSD:0.0001,AUDUSD:0.0001,NZDUSD:0.0001,EURGBP:0.0001,USDJPY:0.01,EURJPY:0.01,GBPJPY:0.01,AUDJPY:0.01,XAUUSD:0.1};
   const ps=L.positions||[], nowMs=Date.parse(s.server_time), pipOf=p=>PIPS[p.symbol]||0.0001;
   const patternOf=Object.fromEntries(s.trades.map(r=>[r.entry_id,r.pattern]));
   const ago=ms=>{const m=Math.max(0,Math.round(ms/60000));return m<60?`${m}m`:`${Math.floor(m/60)}h ${m%60}m`};

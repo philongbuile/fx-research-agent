@@ -212,7 +212,9 @@ def test_round_trip(journal: Journal, broker, limits: risk.RiskLimits | None, no
     return {"action": "round_trip", "entry": opened, "exit": closed}
 
 
-SNAPSHOT_REQUEST = {"symbols": ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "XAUUSD"], "h1_bars": 60, "m15_bars": 120}
+SNAPSHOT_REQUEST = {"symbols": ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "XAUUSD",
+                                "EURJPY", "GBPJPY", "AUDJPY", "NZDUSD", "EURGBP"],  # D-41 Asia/London pairs
+                    "h1_bars": 60, "m15_bars": 120}
 
 
 def step(journal: Journal, broker, limits: risk.RiskLimits | None, now: datetime, *, send: bool = True,

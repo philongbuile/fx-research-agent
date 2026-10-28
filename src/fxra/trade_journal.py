@@ -62,7 +62,8 @@ ARM_MODEL_BACKFILL = {"claude": "Claude Opus 5.5 Medium", "codex": "Codex GPT-6.
 DAILY_KPI_USD = 50.0  # owner's daily target; shown as progress, never optimised for
 PIP = 0.0001
 # Pip size per traded symbol, stated explicitly (SymbolSpec.pip_size); gold "pip" = 0.1 USD by convention.
-PIP_SIZES = {"EURUSD": 0.0001, "GBPUSD": 0.0001, "AUDUSD": 0.0001, "USDJPY": 0.01, "XAUUSD": 0.1}
+PIP_SIZES = {"EURUSD": 0.0001, "GBPUSD": 0.0001, "AUDUSD": 0.0001, "USDJPY": 0.01, "XAUUSD": 0.1,
+             "EURJPY": 0.01, "GBPJPY": 0.01, "AUDJPY": 0.01, "NZDUSD": 0.0001, "EURGBP": 0.0001}
 # Trades before D-33 (single H-002) were all opened under the Claude-authored policy line: arm 'claude'.
 # Before multi-symbol trading every trade was EURUSD.
 TRADES_SQL = ("SELECT t.*, g.strategy, g.pattern, g.hour_utc, g.session, g.policy_version, g.duty_agent, g.duty_model, "

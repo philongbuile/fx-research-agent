@@ -21,7 +21,9 @@ from pathlib import Path
 DEFAULT_PATH = (Path(os.environ.get("APPDATA", "")) / "MetaQuotes" / "Terminal" / "Common" / "Files"
                 / "fxra_calendar.json")
 SYMBOL_CURRENCIES = {"EURUSD": ("EUR", "USD"), "GBPUSD": ("GBP", "USD"), "USDJPY": ("USD", "JPY"),
-                     "AUDUSD": ("AUD", "USD"), "XAUUSD": ("XAU", "USD")}
+                     "AUDUSD": ("AUD", "USD"), "XAUUSD": ("XAU", "USD"), "EURJPY": ("EUR", "JPY"),
+                     "GBPJPY": ("GBP", "JPY"), "AUDJPY": ("AUD", "JPY"), "NZDUSD": ("NZD", "USD"),
+                     "EURGBP": ("EUR", "GBP")}
 HIGH, MODERATE = 3, 2
 IMPACT = {1: "positive", 2: "negative"}
 NEWS_PATTERNS = ("news_momentum", "news_surprise", "news_followthrough")

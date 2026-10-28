@@ -1,7 +1,7 @@
 //+------------------------------------------------------------------+
 //| FxraCalendarExport.mq5 - first-party fx-research-agent service   |
 //| Exports the MT5 economic calendar (moderate and high importance) |
-//| for USD, EUR, GBP, JPY and AUD to Common\Files\fxra_calendar.json |
+//| for USD, EUR, GBP, JPY, AUD, NZD to Common\Files\fxra_calendar.json|
 //| every few minutes. Read-only: it never trades and sends nothing. |
 //| D-40. Install: copy to <terminal data>\MQL5\Services, compile in |
 //| MetaEditor; Navigator > Services > Add service > Start.          |
@@ -14,7 +14,7 @@ input int IntervalSeconds = 300;  // export period
 input int DaysBack        = 30;   // history kept for tagging past trades
 input int DaysAhead       = 7;    // upcoming events
 
-string CURRENCIES[] = {"USD", "EUR", "GBP", "JPY", "AUD"};
+string CURRENCIES[] = {"USD", "EUR", "GBP", "JPY", "AUD", "NZD"};
 const string OUT_FILE = "fxra_calendar.json";
 const string TMP_FILE = "fxra_calendar.tmp";
 

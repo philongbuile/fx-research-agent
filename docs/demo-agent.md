@@ -109,10 +109,13 @@ Target = `tp_rr` × stop. A time exit fires after `max_hold_bars`. Size is
 Duty and the per-model scoreboard follow D-32/D-33 and the `fxra-demo-duty`
 skill.
 
-## Symbols (D-34)
+## Symbols (D-34, D-41)
 
-H-002 trades EURUSD, GBPUSD, USDJPY, AUDUSD and XAUUSD; H-001B trades EURUSD
-only. One bridge call reads all five (`markets` in the snapshot).
+H-002 trades EURUSD, GBPUSD, USDJPY, AUDUSD and XAUUSD (D-34), plus the Asia
+and London session pairs EURJPY, GBPJPY, AUDJPY, NZDUSD and EURGBP (D-41);
+H-001B trades EURUSD only. One bridge call reads all ten (`markets` in the
+snapshot). Client ids carry a 2-letter code (EJ, GJ, AJ, NU, EG for the D-41
+pairs); JPY pairs use a 0.01 pip. The calendar export covers NZD too.
 
 - Positions and deals carry `symbol`.
 - Policy keys: `symbols` (enabled list) and `lots_by_symbol` (gold 0.1).
