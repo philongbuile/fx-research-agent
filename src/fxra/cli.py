@@ -198,7 +198,7 @@ def _demo_agent(a):
     # Lessons go to Hindsight as soon as a trade closes when the host provides a key (never logged).
     memory = HindsightLessons.from_env() if os.environ.get("HINDSIGHT_API_KEY") else None
     return Agent(Journal(a.journal), broker, a.limits, send=not a.no_send, interval=a.interval, roster_path=a.duty,
-                 memory=memory)
+                 memory=memory, calendar_path=a.calendar)
 
 
 def _on_duty(journal_path: Path, roster: Path) -> dict:
@@ -319,6 +319,20 @@ def cmd_demo_playbook(a) -> int:
     return 0
 
 
+def cmd_demo_calendar(a) -> int:
+    """Economic calendar (D-40): refresh from the MT5 export, then list recent and upcoming events."""
+    from datetime import timedelta
+
+    from . import econ_calendar
+    from .trade_journal import Journal
+
+    j, now = Journal(a.journal), datetime.now(timezone.utc)
+    status = econ_calendar.refresh(j, a.calendar or econ_calendar.DEFAULT_PATH, now)
+    events = j.events(now - timedelta(hours=a.back), now + timedelta(hours=a.hours))
+    print(json.dumps({"feed": status, "events": [e for e in events if e["importance"] >= a.min_importance]}, indent=2))
+    return 0
+
+
 def cmd_demo_test_order(a) -> int:
     from .demo_agent import test_round_trip
 
@@ -388,6 +402,7 @@ def main(argv=None) -> int:
         sp.add_argument("--no-send", action="store_true", help="decide and journal, but never send orders")
         sp.add_argument("--interval", type=int, default=30, help="seconds between agent checks")
         sp.add_argument("--duty", type=Path, default=Path("config/duty.toml"), help="duty roster (default schedule if absent)")
+        sp.add_argument("--calendar", type=Path, default=None, help="MT5 calendar export (default: terminal Common\\Files)")
 
     ss = sub.add_parser("sync-skills", help="mirror .claude/skills to .agents/skills for Codex")
     ss.set_defaults(fn=cmd_sync_skills)
@@ -442,6 +457,14 @@ def main(argv=None) -> int:
     pb.add_argument("--note")
     pb.add_argument("--author", default="", help="<agent>/<model>")
     pb.set_defaults(fn=cmd_demo_playbook)
+
+    dc = sub.add_parser("demo-calendar", help="economic calendar from the MT5 export: recent and upcoming events")
+    dc.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
+    dc.add_argument("--calendar", type=Path, default=None)
+    dc.add_argument("--hours", type=float, default=24, help="look ahead")
+    dc.add_argument("--back", type=float, default=6, help="look back (actual vs forecast)")
+    dc.add_argument("--min-importance", type=int, default=2, help="2 moderate, 3 high")
+    dc.set_defaults(fn=cmd_demo_calendar)
 
     dt = sub.add_parser("demo-test-order", help="TECH-0003: one risk-gated 0.01-lot buy/close round trip")
     demo_args(dt)

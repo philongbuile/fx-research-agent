@@ -14,8 +14,9 @@ import random
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import risk
+from . import econ_calendar, risk
 from .contracts import AccountSnapshot, OrderIntent, Quote, SymbolSpec
+from .econ_calendar import NEWS_PATTERNS
 from .trade_journal import PIP_SIZES, Journal
 
 STRATEGY_ID = "H-002"
@@ -34,7 +35,7 @@ SYMBOL_CODES = {"EURUSD": "", "GBPUSD": "GU", "USDJPY": "UJ", "AUDUSD": "AU", "X
 PATTERNS = ("breakout20", "ema_pullback", "bb_rsi_reversion", "inside_bar_break",
             "breakout10", "ema_cross_9_21", "macd_cross", "momentum_candle", "engulfing", "pin_bar",
             "rsi_cross_50", "rsi_extreme_fade", "three_bar_momentum", "bb_squeeze_break",
-            "failed_breakout_fade", "ema50_stretch_fade")
+            "failed_breakout_fade", "ema50_stretch_fade") + NEWS_PATTERNS  # news patterns: D-40
 
 DEFAULT_POLICY = {
     "version": 1,
@@ -385,6 +386,8 @@ def _step_symbol(journal: Journal, broker, limits, now: datetime, snap: dict, ma
 
     hour = latest.hour
     matches = patterns(bars)
+    events = snap.get("events") or []  # economic calendar (D-40); empty when the MT5 export is not running
+    matches.update(econ_calendar.news_patterns(events, symbol, latest, bars))
     base["signal"]["matches"] = matches
     if hour in policy["avoid_hours_utc"]:
         notes.append(f"avoids {hour}h UTC (policy)")
@@ -401,7 +404,8 @@ def _step_symbol(journal: Journal, broker, limits, now: datetime, snap: dict, ma
     spec = SymbolSpec(symbol, "mt5-demo-1", s["digits"], s["point"], pip, s["contract_size"],
                       s["volume_min"], s["volume_max"], s["volume_step"], s["quote_currency"])
     day_start = journal.snapshot_equity(now, acct["balance"], acct["equity"], acct["currency"]) if candidates else None
-    context = market_context(bars, market.get("h1_bars") or [], q, pip, latest) if candidates else {}
+    context = {**market_context(bars, market.get("h1_bars") or [], q, pip, latest),
+               **econ_calendar.context(events, symbol, latest + timedelta(minutes=15))} if candidates else {}
     open_count = len(snap["positions"]) - len(exits)
     for chosen in candidates:
         side = matches[chosen]

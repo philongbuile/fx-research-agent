@@ -51,6 +51,11 @@ narrative layer on top: why it happened and what to try next.
    (`outcome:`, `exit:`, `hour:`, `dow:`, `vol:`, `h1_trend:`) for narrow recall.
    Also read the playbook: `uv run fxra demo-playbook` (Hindsight document
    `fxra-playbook`, tag `playbook`). Read it before any policy change.
+   Then check the news: `uv run fxra demo-calendar` (D-40). For each high
+   importance event in the next 24 hours, retain a short outlook to Hindsight
+   (tags `demo`, `news`, `model:<your label>`): what the release could do to
+   USD and the pairs, and which news patterns may fire. After the release,
+   compare actual vs forecast with what price did.
 4. Review the other agent's open proposals: `uv run fxra demo-propose` lists
    them. Then review each:
    `uv run fxra demo-propose --review <id> --agree|--reject --note "<your evidence>" --author <agent>/<model>`.
@@ -81,7 +86,7 @@ narrative layer on top: why it happened and what to try next.
   rules with a trade filter and a confirmation threshold:
   `uv run fxra demo-playbook --add "<title>" --action avoid|prefer|watch --when pattern=breakout10,breakout20 --when hour=18 --why "<lesson or numbers>" --confirm-n 30 --author <agent>/<model>`.
   Filter fields: pattern, symbol, session, hour, side, arm, vol, h1_trend,
-  dow, confluence. Evidence is recounted from the journal every time and counts
+  dow, confluence, event (`pre high`, `release high`, `post moderate`, `none`). Evidence is recounted from the journal every time and counts
   unique entry events (symbol, bar, side), not raw trades: the two arms and
   co-firing patterns are copies of one event. When a
   rule shows `ready to propose`, propose it (next bullet) and record

@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS insight_docs (
 CREATE TABLE IF NOT EXISTS proposals (
     id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, author TEXT NOT NULL, text TEXT NOT NULL,
     evidence TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', reviewer TEXT, review TEXT, reviewed_at TEXT);
+CREATE TABLE IF NOT EXISTS econ_events (
+    id INTEGER PRIMARY KEY, time TEXT NOT NULL, exact INTEGER NOT NULL, currency TEXT NOT NULL, name TEXT NOT NULL,
+    code TEXT, importance INTEGER NOT NULL, actual REAL, forecast REAL, previous REAL, impact INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS playbook (
     id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, author TEXT NOT NULL, title TEXT NOT NULL,
     action TEXT NOT NULL, filter TEXT NOT NULL, rationale TEXT NOT NULL, confirm_n INTEGER NOT NULL,
@@ -232,6 +235,19 @@ class Journal:
             self.db.execute("UPDATE proposals SET status=?, reviewer=?, review=?, reviewed_at=? WHERE id=?",
                             ("agreed" if agree else "rejected", reviewer, note, at.isoformat(), proposal_id))
         return self._rows("SELECT * FROM proposals WHERE id=?", proposal_id)[0]
+
+    # economic calendar (D-40): kept so past trades stay taggable after the export window moves on
+    def store_events(self, events: list[dict]):
+        with self.db:
+            self.db.executemany("INSERT OR REPLACE INTO econ_events VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                                [(e["id"], e["time"], int(e["exact"]), e["currency"], e["name"], e.get("code"),
+                                  e["importance"], e.get("actual"), e.get("forecast"), e.get("previous"),
+                                  e.get("impact") or 0) for e in events])
+
+    def events(self, since: datetime | None = None, until: datetime | None = None) -> list[dict]:
+        rows = self._rows("SELECT * FROM econ_events WHERE time >= ? AND time <= ? ORDER BY time",
+                          since.isoformat() if since else "", until.isoformat() if until else "9999")
+        return [{**r, "exact": bool(r["exact"])} for r in rows]
 
     # playbook: candidate rules whose evidence is recounted from trades ------
     def add_rule(self, at: datetime, author: str, title: str, action: str, filter_: dict, rationale: str,

@@ -273,6 +273,24 @@ proposed through `demo-propose`; only an agreed proposal changes an arm policy.
 Agents read the playbook at shift start and before any policy change, and the
 hourly digest retains it to Hindsight as `fxra-playbook`.
 
+## Economic calendar and news patterns (D-40)
+
+Owner decision, 2026-10-29, after the FOMC lesson: the agents must know when
+key news is due and learn to trade it, not only avoid it. Source chosen: the
+MT5 terminal's built-in economic calendar, so no new third-party code or
+service. A first-party, read-only MQL5 service
+(`mql5/Services/FxraCalendarExport.mq5`) exports moderate and high importance
+events for USD, EUR, GBP, JPY and AUD (time, forecast, actual, previous, and
+MT5's good/bad impact flag) to the terminal's Common\Files folder; the owner
+compiles and starts it once. The agent loop stores the events in the journal,
+tags each H-002 entry with the nearest event (`pre`/`release`/`post` +
+importance), and adds three exploration patterns: `news_momentum`,
+`news_surprise` and `news_followthrough`. Stats, lessons, the playbook (field
+`event`) and the dashboard show the news context. Without the export, trading
+continues unchanged and the dashboard says the calendar is not running.
+Calendar timing is the broker server clock converted with the offset in the
+export; it is not verified against an independent source.
+
 ## Open questions
 
 ### Simulation and memory decisions (owner request, 2026-10-27)

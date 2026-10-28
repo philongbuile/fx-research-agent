@@ -144,6 +144,10 @@ def _lesson_text(trade: dict, market: dict, currency: str, info: dict | None = N
         setup.append("other signals that bar: " + ", ".join(f"{k} {v}" for k, v in sorted(others.items())))
     if trade.get("pattern") and confluence(f, trade["side"]):
         setup.append(f"confluence {confluence(f, trade['side'])}")
+    if f.get("event") not in (None, "none"):
+        impact = f", {f['event_impact']} for {f.get('event_currency')}" if f.get("event_impact") else ""
+        setup.append(f"news {f['event']}: {f.get('event_currency')} {f.get('event_name')} "
+                     f"({f.get('event_minutes', 0):+d} min from release{impact})")
     if trade.get("policy_version") is not None:
         setup.append(f"policy v{trade['policy_version']}")
     return (f"{head} "

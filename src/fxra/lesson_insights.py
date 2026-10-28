@@ -10,11 +10,12 @@ exploratory in-sample observations, never evidence of edge.
 import hashlib
 from datetime import datetime
 
+from . import econ_calendar
 from .trade_journal import PIP_SIZES, TRADES_SQL, Journal, confluence
 
 DIMENSIONS = (("session", "By session"), ("symbol", "By symbol"), ("hour", "By UTC hour"), ("vol", "By volatility"),
               ("h1_trend", "By H1 trend"), ("dow", "By weekday"), ("arm", "By arm"),
-              ("confluence", "By signal agreement"))
+              ("confluence", "By signal agreement"), ("event", "By news event"))
 DOW = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
 
@@ -24,7 +25,7 @@ def label(n: int) -> str:
 
 def closed_trades(journal: Journal, assumed_cost_pips: float) -> list[dict]:
     """Closed H-002 trades with entry conditions and result in R after the assumed cost."""
-    out = []
+    out, events = [], journal.events()  # trades before D-40 are tagged from the stored calendar
     for t in journal._rows(TRADES_SQL + " WHERE t.net IS NOT NULL AND g.pattern IS NOT NULL ORDER BY t.close_time"):
         info = journal.entry_info(t["entry_id"])
         f, pip = info["features"], PIP_SIZES.get(t["symbol"], 0.0001)
@@ -34,6 +35,8 @@ def closed_trades(journal: Journal, assumed_cost_pips: float) -> list[dict]:
         out.append({**t, "r": moved / risk_dist if risk_dist else None, "vol": f.get("vol"),
                     "h1_trend": f.get("h1_trend"), "dow": f.get("dow") or open_dow,
                     "confluence": confluence(f, t["side"]),
+                    "event": f.get("event") or (econ_calendar.context(events, t["symbol"], datetime.fromisoformat(t["open_time"]))["event"]
+                                                 if events else None),
                     "hour": f"{t['hour_utc']:02d}" if t["hour_utc"] is not None else None})
     return out
 
