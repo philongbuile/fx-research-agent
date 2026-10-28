@@ -106,6 +106,15 @@ Target = `tp_rr` × stop. A time exit fires after `max_hold_bars`. Size is
 Duty and the per-model scoreboard follow D-32/D-33 and the `fxra-demo-duty`
 skill.
 
+## Symbols (D-34)
+
+H-002 trades EURUSD, GBPUSD, USDJPY, AUDUSD and XAUUSD; H-001B trades EURUSD
+only. One bridge call reads all five (`markets` in the snapshot).
+
+- Positions and deals carry `symbol`.
+- Policy keys: `symbols` (enabled list) and `lots_by_symbol` (gold 0.1).
+- Client ids for non-EURUSD symbols add a code, e.g. `H2CX-UJ-2610281600-07B`.
+
 ## Two arms (D-33)
 
 H-002 runs as two arms on the same bars, `H-002-claude` (magic `20261029`) and

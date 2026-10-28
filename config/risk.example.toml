@@ -12,3 +12,7 @@ max_quote_age_seconds = 5
 max_account_age_seconds = 30
 require_stop_loss = true
 kill_switch_file = "artifacts/KILL_SWITCH"   # create this file to block every order
+
+# Optional per-symbol spread limits in points; points differ by instrument (e.g. gold point = 0.01).
+# [risk.max_spread_points_by_symbol]
+# XAUUSD = 60

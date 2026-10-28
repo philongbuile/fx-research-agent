@@ -45,13 +45,18 @@ CREATE TABLE IF NOT EXISTS proposals (
     id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, author TEXT NOT NULL, text TEXT NOT NULL,
     evidence TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', reviewer TEXT, review TEXT, reviewed_at TEXT);
 """
-MIGRATIONS = [("entry_tags", "duty_agent", "TEXT"), ("entry_tags", "duty_model", "TEXT"), ("entry_tags", "arm", "TEXT")]
+MIGRATIONS = [("entry_tags", "duty_agent", "TEXT"), ("entry_tags", "duty_model", "TEXT"), ("entry_tags", "arm", "TEXT"),
+              ("entry_tags", "symbol", "TEXT")]
 
 DAILY_KPI_USD = 50.0  # owner's daily target; shown as progress, never optimised for
 PIP = 0.0001
+# Pip size per traded symbol, stated explicitly (SymbolSpec.pip_size); gold "pip" = 0.1 USD by convention.
+PIP_SIZES = {"EURUSD": 0.0001, "GBPUSD": 0.0001, "AUDUSD": 0.0001, "USDJPY": 0.01, "XAUUSD": 0.1}
 # Trades before D-33 (single H-002) were all opened under the Claude-authored policy line: arm 'claude'.
+# Before multi-symbol trading every trade was EURUSD.
 TRADES_SQL = ("SELECT t.*, g.strategy, g.pattern, g.hour_utc, g.session, g.policy_version, g.duty_agent, g.duty_model, "
-              "CASE WHEN g.strategy = 'H-002' THEN coalesce(g.arm, 'claude') END AS arm "
+              "CASE WHEN g.strategy = 'H-002' THEN coalesce(g.arm, 'claude') END AS arm, "
+              "coalesce(g.symbol, 'EURUSD') AS symbol "
               "FROM trades t LEFT JOIN entry_tags g ON g.entry_id = t.entry_id")
 
 
@@ -59,7 +64,8 @@ def _group(rows: list[dict], key, assumed_cost_pips: float) -> dict:
     """n, wins, losses, win rate, net, profit factor and average pips after an assumed cost, per key."""
     out: dict = {}
     for t in rows:
-        pips = (t["close_price"] - t["open_price"]) / PIP * (1 if t["side"] == "buy" else -1)
+        pip = PIP_SIZES.get(t.get("symbol") or "EURUSD", PIP)
+        pips = (t["close_price"] - t["open_price"]) / pip * (1 if t["side"] == "buy" else -1)
         g = out.setdefault(key(t), {"n": 0, "wins": 0, "losses": 0, "net": 0.0, "gross_win": 0.0,
                                     "gross_loss": 0.0, "pips": 0.0})
         g["n"] += 1
@@ -167,10 +173,11 @@ class Journal:
     def tag_entry(self, entry_id: str, tags: dict):
         with self.db:
             self.db.execute("INSERT OR REPLACE INTO entry_tags (entry_id, strategy, pattern, hour_utc, session,"
-                            " policy_version, features, duty_agent, duty_model, arm) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                            " policy_version, features, duty_agent, duty_model, arm, symbol)"
+                            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                             (entry_id, tags["strategy"], tags.get("pattern"), tags.get("hour_utc"),
                              tags.get("session"), tags.get("policy_version"), json.dumps(tags.get("features", {})),
-                             tags.get("duty_agent"), tags.get("duty_model"), tags.get("arm")))
+                             tags.get("duty_agent"), tags.get("duty_model"), tags.get("arm"), tags.get("symbol")))
 
     def entry_pattern(self, entry_id: str) -> str | None:
         row = self.db.execute("SELECT pattern FROM entry_tags WHERE entry_id=?", (entry_id,)).fetchone()
@@ -227,6 +234,7 @@ class Journal:
         return {
             "by_arm": group(lambda t: t["arm"], h002),
             "by_arm_session": {f"{a} / {s}": v for (a, s), v in sorted(group(lambda t: (t["arm"], t["session"]), h002).items())},
+            "by_arm_symbol": {f"{a} / {s}": v for (a, s), v in sorted(group(lambda t: (t["arm"], t["symbol"]), h002).items())},
             "by_model": group(lambda t: t["duty_model"], on_duty),
             "by_model_strategy": {f"{m} / {s}": v for (m, s), v in
                                   sorted(group(lambda t: (t["duty_model"], t["strategy"]), on_duty).items())},
@@ -256,6 +264,9 @@ class Journal:
         closed = [t for t in self._rows(TRADES_SQL + " WHERE t.net IS NOT NULL AND g.pattern IS NOT NULL")]
         group = lambda key: _group(closed, key, assumed_cost_pips)
         return {"by_pattern": group(lambda t: t["pattern"]),
+                "by_symbol": group(lambda t: t["symbol"]),
+                "by_symbol_pattern": {f"{s} / {p}": v for (s, p), v in
+                                      sorted(group(lambda t: (t["symbol"], t["pattern"])).items())},
                 "by_arm_pattern": {f"{a} / {p}": v for (a, p), v in
                                    sorted(group(lambda t: (t["arm"], t["pattern"])).items())},
                 "by_hour": {str(k): v for k, v in sorted(group(lambda t: t["hour_utc"]).items())},
