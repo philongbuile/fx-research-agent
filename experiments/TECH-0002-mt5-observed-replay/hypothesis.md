@@ -43,3 +43,24 @@ Frozen inputs for the first trial:
 - Research config: `lean/MT5DataReplay/research.toml`; no variant selection or OOS.
 
 Outcome and exact run ID will be recorded after the frozen implementation runs.
+
+## Initialization failure and next frozen transport trial
+
+`20261028T104052Z-e392aa1e` failed during initialization: the pinned engine clamps
+end dates to yesterday in the algorithm calendar. Same-day UTC observations
+therefore cannot initialize under a UTC algorithm calendar. No market evaluation
+or OOS result was seen, and the failed trial is retained.
+
+The next transport trial uses NodaTime's fixed-offset `UTC+13:15` algorithm
+calendar, whose already-closed local day contains the original observed UTC window.
+Source timestamps, bar-open/end-time checks, requested data dates and stored
+provenance remain UTC; neither the engine nor the host clock is changed. Reject
+an observation outside that closed local day. This is calendar configuration for
+a technical replay, not a new strategy or evidence of edge.
+
+The original capture refs and exported observations above remain frozen. This
+calendar was chosen only to put the technical test's day boundary after those
+closed UTC bars. It is not a geographic/source timezone, a DST model, or a
+strategy setting; do not reuse it as a broker calendar. The data subscription
+retains its UTC data/exchange time and replay checks use `utc_time`. The engine's
+normal end-date clamp remains active and a too-recent window is rejected.
