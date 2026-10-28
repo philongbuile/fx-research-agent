@@ -3,11 +3,13 @@
 A rule names a trade filter, e.g. {"pattern": ["breakout10", "breakout20"], "hour": ["18"]}, and an
 action: "avoid" (these trades lose), "prefer" (these trades win) or "watch" (an open question). Its
 evidence is recomputed from closed H-002 trades on every read, so a rule never cites stale numbers.
-When the matched trades reach the rule's `confirm_n` and the numbers support it, the rule is "ready":
+Samples are unique entry events (symbol, bar, side), so paired arm copies and patterns firing together
+count once. When the matched events reach the rule's `confirm_n` and the numbers support it, the rule is "ready":
 its author turns it into a `demo-propose` for the other model, and only an agreed proposal changes a
 policy. The playbook never changes trading by itself.
 """
 
+import re
 from datetime import datetime
 
 from .lesson_insights import closed_trades, label, stats
@@ -37,12 +39,35 @@ def matches(filter_: dict, trade: dict) -> bool:
     return all(str(trade.get(k)) in v for k, v in filter_.items())
 
 
+def event_key(trade: dict) -> tuple:
+    """One market event = symbol, entry bar and side. Both arms, and every pattern that fired on that
+    bar the same way, open copies of the same trade, so their results are not independent samples."""
+    m = re.match(r"H2C[LX]-(?:[A-Z]{2}-)?(\d{10})", trade.get("entry_id") or "")
+    return trade.get("symbol"), m.group(1) if m else (trade.get("open_time") or "")[:16], trade["side"]
+
+
+def event_stats(rows: list[dict]) -> dict:
+    """Stats over unique events (mean R and summed net per event), plus the raw trade count."""
+    events: dict = {}
+    for t in rows:
+        events.setdefault(event_key(t), []).append(t)
+    rs = [sum(rr) / len(rr) for e in events.values() if (rr := [t["r"] for t in e if t["r"] is not None])]
+    nets = [sum(t["net"] for t in e) for e in events.values()]
+    return {"n": len(events), "trades": len(rows), "win_rate": sum(n > 0 for n in nets) / len(nets),
+            "avg_r": sum(rs) / len(rs) if rs else None, "net": sum(nets)}
+
+
 def evaluate(rule: dict, rows: list[dict]) -> dict:
-    """Matched vs other trades, a sample-size label and whether the numbers back the rule."""
+    """Matched vs other events, a sample-size label and whether the numbers back the rule.
+
+    Samples are unique events (see `event_key`), never raw trades; per-arm trade stats are shown too."""
     inside = [t for t in rows if matches(rule["filter"], t)]
     outside = [t for t in rows if not matches(rule["filter"], t)]
-    s_in = stats(inside) if inside else None
-    s_out = stats(outside) if outside else None
+    s_in = event_stats(inside) if inside else None
+    s_out = event_stats(outside) if outside else None
+    by_arm = {}
+    for t in inside:
+        by_arm.setdefault(t.get("arm") or "claude", []).append(t)
     r_in = s_in and s_in["avg_r"]
     r_out = s_out and s_out["avg_r"]
     if not s_in or r_in is None or rule["action"] == "watch":
@@ -54,6 +79,7 @@ def evaluate(rule: dict, rows: list[dict]) -> dict:
     n = s_in["n"] if s_in else 0
     ready = rule["status"] == "candidate" and n >= rule["confirm_n"] and verdict == "supported"
     return {**rule, "evidence": {"matched": s_in, "others": s_out, "label": label(n), "verdict": verdict,
+                                 "by_arm": {a: stats(v) for a, v in sorted(by_arm.items())},
                                  "progress": f"{n}/{rule['confirm_n']}", "ready_to_propose": ready}}
 
 
@@ -69,7 +95,7 @@ def _fmt(s: dict | None) -> str:
     if not s:
         return "no trades"
     avg = f"{s['avg_r']:+.2f}R" if s["avg_r"] is not None else "n/a R"
-    return f"n={s['n']}, win {s['win_rate']:.0%}, avg {avg}, net {s['net']:+.2f} USD"
+    return f"{s['n']} events ({s['trades']} trades), win {s['win_rate']:.0%}, avg {avg}, net {s['net']:+.2f} USD"
 
 
 def document(journal: Journal, rows: list[dict] | None = None) -> dict | None:

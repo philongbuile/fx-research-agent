@@ -81,7 +81,9 @@ narrative layer on top: why it happened and what to try next.
   rules with a trade filter and a confirmation threshold:
   `uv run fxra demo-playbook --add "<title>" --action avoid|prefer|watch --when pattern=breakout10,breakout20 --when hour=18 --why "<lesson or numbers>" --confirm-n 30 --author <agent>/<model>`.
   Filter fields: pattern, symbol, session, hour, side, arm, vol, h1_trend,
-  dow, confluence. Evidence is recounted from the journal every time. When a
+  dow, confluence. Evidence is recounted from the journal every time and counts
+  unique entry events (symbol, bar, side), not raw trades: the two arms and
+  co-firing patterns are copies of one event. When a
   rule shows `ready to propose`, propose it (next bullet) and record
   `uv run fxra demo-playbook --status <id> proposed --proposal <pid> --author <agent>/<model>`.
   After review, mark it `adopted` (then the arm owners change their policy)

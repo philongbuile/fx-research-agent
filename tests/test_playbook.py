@@ -13,10 +13,11 @@ def journal(tmp_path):
     return Journal(tmp_path / "j.sqlite")
 
 
-def trade(journal, pid, pattern, hour, win, side="buy"):
-    cid = f"H2CL-{pid}"
+def trade(journal, pid, pattern, hour, win, side="buy", arm="claude", minute=None):
+    minute = pid % 60 if minute is None else minute
+    cid = f"H2C{'L' if arm == 'claude' else 'X'}-261028{hour:02d}{minute:02d}-{pid:03d}"
     journal.tag_entry(cid, {"strategy": "H-002", "pattern": pattern, "hour_utc": hour, "session": "late_ny",
-                            "arm": "claude", "symbol": "EURUSD", "features": {"matches": {pattern: side}}})
+                            "arm": arm, "symbol": "EURUSD", "features": {"matches": {pattern: side}}})
     journal.order(cid, NOW, "entry", side, 1.0, 1.0990 if side == "buy" else 1.1010, "filled", {}, {})
     out = "sell" if side == "buy" else "buy"
     close = 1.1010 if win else 1.0990
@@ -59,6 +60,26 @@ def test_rule_evidence_is_recounted_and_gated(journal):
     doc = playbook.document(journal)
     assert doc["document"] == "fxra-playbook" and "#1 [proposed] AVOID" in doc["content"]
     assert any(d["document"] == "fxra-playbook" for d in lesson_insights.digest(journal))
+
+
+def test_paired_arm_copies_count_as_one_event(journal):
+    for i in range(10):
+        trade(journal, i + 1, "engulfing", 9, win=i < 2, arm="claude", minute=i)
+        trade(journal, i + 100, "engulfing", 9, win=i < 2, arm="codex", minute=i)  # same bar, same side
+    playbook.add(journal, NOW, "claude/claude-opus-5-5", "Avoid engulfing", "avoid", ["pattern=engulfing"], "x", 20)
+    e = playbook.report(journal)[0]["evidence"]
+    assert (e["matched"]["n"], e["matched"]["trades"], e["progress"]) == (10, 20, "10/20")
+    assert not e["ready_to_propose"] and set(e["by_arm"]) == {"claude", "codex"}
+    assert e["by_arm"]["codex"]["n"] == 10
+
+
+def test_only_the_author_withdraws_an_open_proposal(journal):
+    pid = journal.propose(NOW, "claude/claude-opus-5-5", "x", "y")
+    with pytest.raises(PermissionError):
+        journal.withdraw(pid, NOW, "codex/gpt-6.1-sol", "no")
+    assert journal.withdraw(pid, NOW, "claude/claude-opus-5-5", "evidence weaker")["status"] == "withdrawn"
+    with pytest.raises(ValueError):
+        journal.withdraw(pid, NOW, "claude/claude-opus-5-5", "again")
 
 
 def test_contradicted_prefer_rule(journal):
