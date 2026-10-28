@@ -5,7 +5,7 @@ This roadmap orders outcomes by dependency, without speculative calendar dates. 
 | Milestone | Status | Scope | Exit gate |
 |---|---|---|---|
 | S0 — Durable synthetic foundation | Implemented locally | Separate memory responsibilities, controller-owned life/job/ledgers, continuous journal/outbox, time-scoped reads, recoverable handoff, bounded final capability and offline demo | Regression suite and demo pass; deployed/runner limitations remain explicit |
-| S1 — Verified memory infrastructure | Local Hindsight transport/restore verified; ai-memory scope and single-primary topology settled (D-26/D-27); artifact review and two-machine deployment/acceptance remain | Restore authenticated Hindsight access, verify actual document transport/restore, activate ai-memory after artifact checks, test both coding clients and machine routing | V-01..V-03 and A-01..A-03 plus D-27 cutover checks pass with sanitized evidence |
+| S1 — Verified memory infrastructure | Local Hindsight transport/restore verified; ai-memory scope and single-primary topology settled (D-26/D-27); pinned ai-memory installed locally; real client and two-machine acceptance remain | Restore authenticated Hindsight access, verify actual document transport/restore, activate ai-memory after artifact checks, test both coding clients and machine routing | V-01..V-03 and A-01..A-03 plus D-27 cutover checks pass with sanitized evidence |
 | S2 — Agreed business policy | Owner decisions pending | KPI/review schedule, reassessment/rehire, personal economy and initial balances | Q-10..Q-12 settled with testable examples and versioned policies |
 | S3 — Supervised character agents | Not implemented | Real runner, tool/permission isolation, independent expiry scheduler, process timeout, small multi-character exercise | R-01..R-03 demonstrate that agents cannot alter controller state or bypass memory isolation |
 | S4 — Reproducible research replay | Future | Connect simulation chronology to LEAN runs and evidence-qualified professional learning | L-01 proves temporal eligibility, provenance and hypothesis/trial accounting; no claim of edge from fixtures or in-sample results |
@@ -24,8 +24,9 @@ restart. Identity/time isolation, exact document integrity, persisted departure
 and expired-session recovery passed. See the [repeatable drill and sanitized
 evidence](simulation-restore-verification.md). The owner's subsequent delegated
 decisions close the adoption/topology questions Q-09/Q-13 through D-26/D-27.
-Exact-artifact checks, installation and [two-machine cutover acceptance](memory-topology.md)
-remain; S1 is incomplete.
+A-01 exact-artifact checks and local installation passed on 2026-10-28; see
+[local MCP verification](local-memory-mcp.md). A-03 real client acceptance and
+[two-machine cutover acceptance](memory-topology.md) remain; S1 is incomplete.
 
 ## Workstream boundaries
 

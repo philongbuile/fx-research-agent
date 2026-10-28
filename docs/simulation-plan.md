@@ -8,7 +8,7 @@ Read `AGENTS.md`, architecture and decisions first; then [design](simulation-des
 
 When ai-memory tools are available, use the actual discovered tool schemas with workspace `personal-development` and project `fx-research-agent`. Retrieve the current scoped development handoff, verify it against Git, and publish a curated handoff at the end: implementation paths, validation, limitations and next steps. Link this plan and decision IDs instead of copying the full specification. Never transfer character memory or secrets into that handoff.
 
-At present ai-memory is not installed/connected. Repository instructions provide the shared reading path for both clients; they are canonical documentation, not a claim that an external memory write succeeded. Do not use Serena memory, Hindsight or another local memory system as a substitute. D-26 authorizes adoption and bounded installation; activation still requires A-01's exact-artifact checks and the real Claude↔Codex acceptance test. D-27 settles the single-primary topology; [cutover acceptance](memory-topology.md) remains.
+The pinned ai-memory service is installed locally and both coding clients have MCP registrations; see [installation/protocol evidence](local-memory-mcp.md). A-01 passes; A-02 has local registration and backend evidence, while A-03 still needs actual Claude↔Codex sessions after client restart. Do not use Serena memory, Hindsight or another local memory system as a substitute. D-27's second-machine cutover remains deferred. Canonical rules remain in Git.
 
 ## Delivered foundation
 
@@ -31,8 +31,8 @@ Implementation: `src/fxra/simulation.py`, `simulation_memory.py`, `simulation_de
 | V-01 | Identify the actual Hindsight host; apply replacement API/UI credentials without changing the database password | Host location/access | Old API credential rejected, new credential accepted, bank and stored data preserved; no credentials in logs |
 | V-02 | Exercise authenticated synchronous retain and exact-document read against deployed Hindsight | V-01; existing approved server | Sanitized transport results, restart/retry evidence and simulation isolation checks |
 | V-03 | Verified locally: coordinated SQLite/Hindsight backup and isolated restore; [drill and evidence](simulation-restore-verification.md) | V-02 | Same simulation UUID, event history, pending departure and document integrity; expired sessions recovered; isolated service restart passed |
-| A-01 | Complete ai-memory artifact/digest, dependency/license and permission checks within D-26's owner-authorized installation scope | D-26 scope settled; exact artifact not yet verified | Review note identifies a verified exact artifact and permitted features; no claim that scope authorization completes technical review |
-| A-02 | Configure the two coding clients on the same authenticated development backend using discovered schemas | A-01 | Same explicit workspace/project; no character endpoint or automatic transcript capture |
+| A-01 | Passed 2026-10-28 for pinned Linux/amd64 ai-memory 3.2.8 | D-26 | [Review](third-party/ai-memory.md): release/image executable match, lockfile/checksums/licenses, bounded permissions |
+| A-02 | Local service installed; Codex/Claude user registrations written; runtime reload still required | A-01 passed | [Protocol checks](local-memory-mcp.md): same authenticated backend, explicit scope, no hooks/capture; actual clients not yet tested |
 | A-03 | Run Claude→Codex→Claude canary and claim-once handoff tests plus wrong-scope checks | A-02 | Actual client versions and sanitized canary/handoff evidence, not only parsed configuration |
 | P-01 | Specify KPI, schedule and missed-review behavior | Q-10 | Owner-approved policy with evidence source and boundary examples |
 | P-02 | Specify learning/reassessment eligibility, reviewer and waiting period | Q-11 | Owner-approved rehire cases and rejection cases |
@@ -59,7 +59,7 @@ V-01 remains open for the other host's access/credential verification and D-27 c
 | Missing farewell remains missing | Demo and regression tests | Actual agent unavailable/stalled path |
 | Personal memories remain isolated; successor starts fresh | Local dispatcher/document tests | Multi-agent runner with denied raw endpoints |
 | No future knowledge or later-message leakage | Local revision/cutoff/release tests | LEAN replay bridge |
-| Coding clients share development memory and handoffs | Prepared marker and documentation only | A-03, both clients |
+| Coding clients share development memory and handoffs | Installed service, both registrations and independent protocol clients; claim-once/readback pass | A-03 with actual Claude/Codex sessions |
 
 ## Delivery and stop conditions
 

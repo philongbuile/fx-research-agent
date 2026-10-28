@@ -10,7 +10,7 @@ Build a research simulation in which distinct characters can work as traders, le
 
 | Layer | Purpose | Persistence and access |
 |---|---|---|
-| Development | Architecture context, implementation progress, technical lessons and Claude/Codex handoffs | ai-memory, workspace `personal-development`, project `fx-research-agent`; D-26 scope authorized, exact-artifact checks, installation and two-client test remain |
+| Development | Architecture context, implementation progress, technical lessons and Claude/Codex handoffs | ai-memory, workspace `personal-development`, project `fx-research-agent`; D-26 artifact checks and local installation pass; real two-client test remains ([evidence](local-memory-mcp.md)) |
 | Personal | One character's experiences and interpretation of events | Hindsight documents, selected by the controller for that identity and simulation time |
 | Professional | Evidence-qualified knowledge shared across successors | Append-only SQLite revisions plus Hindsight narratives; explicit evidence/status and time eligibility |
 | Executable skills | Reusable code or procedures, with applicability conditions | Versioned Git source plus registry references and verification commands; no execution from memory text |

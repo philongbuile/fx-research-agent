@@ -42,7 +42,7 @@
 
 | ID | Question | Blocks | Default until answered |
 |---|---|---|---|
-| Q-09 | Answered by D-26: adopt ai-memory with bounded MCP-only installation authorization after exact-artifact checks. | A-01 technical review, A-02 deployment and A-03 acceptance remain | No executable installed or backend claimed active until those checks pass |
+| Q-09 | Answered by D-26: adopt ai-memory with bounded MCP-only installation authorization after exact-artifact checks. | A-01 passes and service/user registrations are installed locally; A-03 actual client acceptance remains | [Local evidence](local-memory-mcp.md); do not claim completed S1 or second-machine acceptance |
 | Q-10 | Which KPI metric, evidence source, pass threshold, evaluation interval and missed-review handling should employment use? | Business KPI automation | Unset; no automatic dismissal; demo uses explicit synthetic fixtures |
 | Q-11 | What learning/reassessment evidence, reviewer and waiting period qualify a dismissed character for rehire? | Business rehire automation | Unset; opt-in controller-attestation mechanism exists, without invented eligibility rules |
 | Q-12 | What creates/repays personal debt: living costs, salary, borrowing, interest and schedule? What funds initial balances? | Economic simulation | Unset; opt-in evidenced controller adjustments only; trading loss is never personal debt |

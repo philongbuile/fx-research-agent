@@ -1,0 +1,44 @@
+name: fxra-ai-memory
+
+services:
+  memory:
+    image: akitaonrails/ai-memory@sha256:271ae16138d052b970d0bb7c9d83b2a32713d2722b8655228f20561c690207ca
+    container_name: fxra-ai-memory
+    restart: unless-stopped
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 128
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
+    volumes:
+      - memory_data:/data
+    # Upstream ignores a missing config path; fail before it can use defaults.
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - 'test -s /data/config.toml && test -s /data/auth.token && exec /usr/local/bin/ai-memory "$$@"'
+      - fxra-ai-memory
+    command:
+      - --data-dir
+      - /data
+      - --config
+      - /data/config.toml
+      - serve
+      - --transport
+      - http
+      - --bind
+      - 127.0.0.1:49374
+      - --no-watcher
+      - --workspace
+      - personal-development
+      - --project
+      - fx-research-agent
+
+volumes:
+  memory_data:
+    external: true
+    name: fxra_ai_memory_data
