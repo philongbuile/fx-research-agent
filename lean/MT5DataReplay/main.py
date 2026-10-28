@@ -1,6 +1,7 @@
 # TECHNICAL DATA REPLAY ONLY. No strategy, signals, order submissions or edge.
 import json
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from AlgorithmImports import *
 from NodaTime import DateTimeZone, Offset
@@ -38,10 +39,14 @@ class MT5DataReplay(QCAlgorithm):
         if not data.contains_key(self.symbol):
             return
         bar = data[self.symbol]
-        stamp = bar.time
+        # LEAN reads UTC files, then exposes QuoteBar.Time in the exchange zone.
+        # Convert that exchange-local label back to UTC before comparing source.
+        exchange_zone = ZoneInfo(self.securities[self.symbol].exchange.time_zone.Id)
+        stamp = bar.time.replace(tzinfo=exchange_zone).astimezone(timezone.utc).replace(tzinfo=None)
+        end = bar.end_time.replace(tzinfo=exchange_zone).astimezone(timezone.utc).replace(tzinfo=None)
         if stamp not in self.expected or stamp in self.seen:
             raise ValueError("unexpected or duplicate replay bar")
-        if bar.end_time != stamp + timedelta(minutes=1) or self.utc_time < bar.end_time:
+        if end != stamp + timedelta(minutes=1) or self.utc_time < end:
             raise ValueError("bar timing/look-ahead violation")
         expected = self.expected[stamp]
         for field in ("open", "high", "low", "close"):

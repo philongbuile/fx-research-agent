@@ -64,3 +64,11 @@ closed UTC bars. It is not a geographic/source timezone, a DST model, or a
 strategy setting; do not reuse it as a broker calendar. The data subscription
 retains its UTC data/exchange time and replay checks use `utc_time`. The engine's
 normal end-date clamp remains active and a too-recent window is rejected.
+
+`20261028T104814Z-09503c1c` reached data delivery but failed the first timestamp
+comparison. Inspection of the pinned image's market-hours database confirmed
+`dataTimeZone=UTC` and `exchangeTimeZone=America/New_York` for OANDA forex.
+QuoteBar labels must be converted from the exchange zone back to UTC before
+comparison; this does not change source/export timestamps. Retain the failed
+trial. The next trial corrects this harness comparison with unchanged input,
+calendar, costs and no orders; no strategy or OOS result was evaluated.
