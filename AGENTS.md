@@ -42,6 +42,12 @@ For memory or simulation work, also read `docs/simulation-design.md`, `docs/simu
 - Missing ai-memory tools: continue without development memory and report the limitation. Do not use Hindsight as a fallback. See `docs/memory-and-simulation.md` for activation and the two-client acceptance test.
 - At session start, retrieve the scoped development handoff when ai-memory is available and verify it against Git. At handoff, store curated implementation paths, validation, limitations and next steps with links to the plan/roadmap and decision IDs. Do not duplicate the full canonical documents or claim an external memory update when no write succeeded.
 
+## Demo duty rotation (Claude and Codex)
+
+- Codex (`gpt-6-sol`) is on duty 08:00-18:00 and Claude (`claude-opus-5-5`) 18:00-08:00, local Asia/Ho_Chi_Minh. The roster is configurable in `config/duty.toml`; anyone may take over with `fxra demo-shift take`. Single machine; no multi-machine routing.
+- Follow `.claude/skills/fxra-demo-duty/SKILL.md` (mirrored for Codex in `.agents/skills/`) at every shift start and end. Hindsight holds trading lessons and shift summaries tagged `model:<id>`. ai-memory holds development handoffs. Docs and skills are updated in the same PR as the code they describe.
+- Trades, policy versions and lessons are attributed to the model on duty, so results can be compared across models.
+
 ## Research and character memory (Hindsight)
 
 - Bank: `fxra`, single-bank MCP endpoint `/mcp/fxra/`.

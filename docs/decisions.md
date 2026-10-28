@@ -132,6 +132,20 @@ Owner also set 0.1 lot for the new strategy and a daily KPI of 50 USD.
   exploration becomes a new frozen hypothesis id and must be tested on data that
   arrives after it is frozen. H-001B stays frozen as the control.
 
+## Demo duty rotation and model comparison (D-32)
+
+Owner direction, 2026-10-28: Codex (`gpt-6-sol`) is on duty 08:00-18:00 and
+Claude (`claude-opus-5-5`) 18:00-08:00, local time, on one machine. Duty is
+flexible: `config/duty.toml` or `fxra demo-shift take`. Memory, docs and skills
+must stay continuously current across shifts; see
+`.claude/skills/fxra-demo-duty/SKILL.md` (mirrored to `.agents/skills/` by
+`fxra sync-skills`). Every trade, policy version, lesson and shift is attributed
+to the model on duty. `fxra demo-shift status` and the dashboard report win
+rate, net, profit factor and average pips per model, so other models (including
+lighter LLMs) can later be tested against the same memory and knowledge.
+Model comparisons are confounded by the market hours each shift covers and by
+small samples. Read them per strategy and session.
+
 ## Open questions
 
 ### Simulation and memory decisions (owner request, 2026-10-27)

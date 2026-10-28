@@ -32,11 +32,18 @@ CREATE TABLE IF NOT EXISTS entry_tags (
     policy_version INTEGER, features TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS policy_changes (
     version INTEGER PRIMARY KEY, at TEXT NOT NULL, author TEXT NOT NULL, reason TEXT NOT NULL, policy TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS duty_overrides (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, agent TEXT NOT NULL, model TEXT NOT NULL,
+    until TEXT NOT NULL, reason TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS shift_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, agent TEXT NOT NULL, model TEXT NOT NULL,
+    kind TEXT NOT NULL, summary TEXT NOT NULL);
 """
+MIGRATIONS = [("entry_tags", "duty_agent", "TEXT"), ("entry_tags", "duty_model", "TEXT")]
 
 DAILY_KPI_USD = 50.0  # owner's daily target; shown as progress, never optimised for
 PIP = 0.0001
-TRADES_SQL = ("SELECT t.*, g.strategy, g.pattern, g.hour_utc, g.session, g.policy_version "
+TRADES_SQL = ("SELECT t.*, g.strategy, g.pattern, g.hour_utc, g.session, g.policy_version, g.duty_agent, g.duty_model "
               "FROM trades t LEFT JOIN entry_tags g ON g.entry_id = t.entry_id")
 
 
@@ -47,6 +54,9 @@ class Journal:
         self.db = sqlite3.connect(self.path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        for table, column, kind in MIGRATIONS:
+            if column not in {r[1] for r in self.db.execute(f"PRAGMA table_info({table})")}:
+                self.db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
 
     def close(self):
         self.db.close()
@@ -124,9 +134,66 @@ class Journal:
     # exploration bookkeeping ---------------------------------------------
     def tag_entry(self, entry_id: str, tags: dict):
         with self.db:
-            self.db.execute("INSERT OR REPLACE INTO entry_tags VALUES (?,?,?,?,?,?,?)",
+            self.db.execute("INSERT OR REPLACE INTO entry_tags (entry_id, strategy, pattern, hour_utc, session,"
+                            " policy_version, features, duty_agent, duty_model) VALUES (?,?,?,?,?,?,?,?,?)",
                             (entry_id, tags["strategy"], tags.get("pattern"), tags.get("hour_utc"),
-                             tags.get("session"), tags.get("policy_version"), json.dumps(tags.get("features", {}))))
+                             tags.get("session"), tags.get("policy_version"), json.dumps(tags.get("features", {})),
+                             tags.get("duty_agent"), tags.get("duty_model")))
+
+    # duty rotation ---------------------------------------------------------
+    def latest_override(self) -> dict | None:
+        rows = self._rows("SELECT agent, model, until, reason FROM duty_overrides ORDER BY id DESC LIMIT 1")
+        return rows[0] if rows else None
+
+    def take_duty(self, at: datetime, agent: str, model: str, until: datetime, reason: str):
+        with self.db:
+            self.db.execute("INSERT INTO duty_overrides (at, agent, model, until, reason) VALUES (?,?,?,?,?)",
+                            (at.isoformat(), agent, model, until.isoformat(), reason))
+
+    def log_shift(self, at: datetime, agent: str, model: str, kind: str, summary: str):
+        with self.db:
+            self.db.execute("INSERT INTO shift_log (at, agent, model, kind, summary) VALUES (?,?,?,?,?)",
+                            (at.isoformat(), agent, model, kind, summary))
+
+    def model_scoreboard(self, assumed_cost_pips: float = 0.8) -> dict:
+        """Per AI model on duty: trades opened on its watch, policy versions and lessons it authored.
+
+        Trades are attributed to the model on duty at entry (the policy then in force
+        may be another model's); `by_policy_author` gives the other view.
+        """
+        closed = self._rows(TRADES_SQL + " WHERE t.net IS NOT NULL AND g.duty_model IS NOT NULL")
+
+        def group(key):
+            out: dict = {}
+            for t in closed:
+                pips = (t["close_price"] - t["open_price"]) / PIP * (1 if t["side"] == "buy" else -1)
+                g = out.setdefault(key(t), {"n": 0, "wins": 0, "losses": 0, "net": 0.0, "gross_win": 0.0,
+                                            "gross_loss": 0.0, "pips": 0.0})
+                g["n"] += 1
+                g["wins"] += t["net"] > 0
+                g["losses"] += t["net"] < 0
+                g["net"] += t["net"]
+                g["gross_win" if t["net"] > 0 else "gross_loss"] += t["net"]
+                g["pips"] += pips - assumed_cost_pips
+            for g in out.values():
+                g["win_rate"] = round(g["wins"] / g["n"], 3)
+                g["profit_factor"] = round(g["gross_win"] / -g["gross_loss"], 2) if g["gross_loss"] else None
+                g["avg_pips_after_cost"] = round(g.pop("pips") / g["n"], 2)
+                g["net"], g["gross_win"], g["gross_loss"] = (round(g[k], 2) for k in ("net", "gross_win", "gross_loss"))
+            return out
+
+        policy_by_version = {r["version"]: r["author"] for r in self._rows("SELECT version, author FROM policy_changes")}
+        counts = lambda sql: {r["k"]: r["n"] for r in self._rows(sql)}
+        return {
+            "by_model": group(lambda t: t["duty_model"]),
+            "by_model_strategy": {f"{m} / {s}": v for (m, s), v in
+                                  sorted(group(lambda t: (t["duty_model"], t["strategy"])).items())},
+            "by_policy_author": group(lambda t: policy_by_version.get(t["policy_version"], "default-policy")),
+            "lessons_by_author": counts("SELECT author k, count(*) n FROM lessons GROUP BY author"),
+            "policy_changes_by_author": counts("SELECT author k, count(*) n FROM policy_changes GROUP BY author"),
+            "shifts": self._rows("SELECT at, agent, model, kind, summary FROM shift_log ORDER BY id DESC LIMIT 20"),
+            "assumed_cost_pips": assumed_cost_pips,
+        }
 
     def policy_change(self, version: int, at: datetime, author: str, reason: str, policy: dict):
         with self.db:
@@ -190,6 +257,7 @@ class Journal:
             "kpi": {"day_utc": today, "target_usd": DAILY_KPI_USD, "net_today": round(today_net, 2),
                     "progress": round(today_net / DAILY_KPI_USD, 3)},
             "learning": self.learning_stats(),
+            "scoreboard": self.model_scoreboard(),
             "policy_changes": self._rows("SELECT version, at, author, reason FROM policy_changes ORDER BY version DESC"),
             "decisions": [dict(r, details=json.loads(r["details"]))
                           for r in self._rows("SELECT * FROM decisions ORDER BY at DESC LIMIT ?", limit)],

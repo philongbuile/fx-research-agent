@@ -191,7 +191,51 @@ def _demo_agent(a):
     from .trade_journal import Journal
 
     broker = SubprocessBroker(a.mt5_python, a.terminal)
-    return Agent(Journal(a.journal), broker, a.limits, send=not a.no_send, interval=a.interval)
+    return Agent(Journal(a.journal), broker, a.limits, send=not a.no_send, interval=a.interval, roster_path=a.duty)
+
+
+def _on_duty(journal_path: Path, roster: Path) -> dict:
+    from . import duty
+    from .trade_journal import Journal
+
+    return duty.on_duty(duty.load_roster(roster), datetime.now(timezone.utc), Journal(journal_path).latest_override())
+
+
+SKILL_SOURCE, SKILL_MIRROR = Path(".claude/skills"), Path(".agents/skills")
+
+
+def cmd_sync_skills(a) -> int:
+    """Mirror Claude skills to `.agents/skills` so Codex reads the same instructions."""
+    import shutil
+
+    copied = []
+    for skill in sorted(p for p in SKILL_SOURCE.iterdir() if (p / "SKILL.md").exists()):
+        dest = SKILL_MIRROR / skill.name
+        if dest.exists():
+            shutil.rmtree(dest)
+        shutil.copytree(skill, dest)
+        copied.append(skill.name)
+    print(json.dumps({"synced": copied, "to": str(SKILL_MIRROR)}))
+    return 0
+
+
+def cmd_demo_shift(a) -> int:
+    """Duty rotation: who is on, take over, and log shift start/end summaries."""
+    from datetime import timedelta
+
+    from .trade_journal import Journal
+
+    j, now = Journal(a.journal), datetime.now(timezone.utc)
+    if a.action == "take":
+        if not (a.agent and a.model and a.reason):
+            raise SystemExit("take needs --agent, --model and --reason")
+        j.take_duty(now, a.agent, a.model, now + timedelta(hours=a.hours), a.reason)
+    elif a.action in ("start", "end"):
+        on = _on_duty(a.journal, a.duty)
+        j.log_shift(now, a.agent or on["agent"], a.model or on["model"], a.action, a.summary or "")
+    print(json.dumps({"on_duty": _on_duty(a.journal, a.duty), "scoreboard": j.model_scoreboard()},
+                     indent=2, default=str))
+    return 0
 
 
 def cmd_demo_step(a) -> int:
@@ -269,6 +313,21 @@ def main(argv=None) -> int:
         sp.add_argument("--terminal", type=Path, default=Path(r"C:\Program Files\MetaTrader 5\terminal64.exe"))
         sp.add_argument("--no-send", action="store_true", help="decide and journal, but never send orders")
         sp.add_argument("--interval", type=int, default=30, help="seconds between agent checks")
+        sp.add_argument("--duty", type=Path, default=Path("config/duty.toml"), help="duty roster (default schedule if absent)")
+
+    ss = sub.add_parser("sync-skills", help="mirror .claude/skills to .agents/skills for Codex")
+    ss.set_defaults(fn=cmd_sync_skills)
+
+    sh = sub.add_parser("demo-shift", help="duty rotation: status, take over, log shift start/end")
+    sh.add_argument("action", choices=["status", "take", "start", "end"])
+    sh.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
+    sh.add_argument("--duty", type=Path, default=Path("config/duty.toml"))
+    sh.add_argument("--agent")
+    sh.add_argument("--model")
+    sh.add_argument("--hours", type=float, default=4.0)
+    sh.add_argument("--reason")
+    sh.add_argument("--summary")
+    sh.set_defaults(fn=cmd_demo_shift)
 
     ds = sub.add_parser("demo-step", help="one H-001B decision cycle on the MT5 demo account (D-30)")
     demo_args(ds)

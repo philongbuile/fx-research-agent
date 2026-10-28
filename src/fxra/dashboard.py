@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import demo_agent, h002, risk
+from . import demo_agent, duty, h002, risk
 from .trade_journal import Journal
 
 
@@ -37,11 +37,17 @@ class CachingBroker:
 
 
 class Agent:
-    def __init__(self, journal: Journal, broker, limits_path: Path, *, send=True, interval=30):
+    def __init__(self, journal: Journal, broker, limits_path: Path, *, send=True, interval=30,
+                 roster_path: Path | None = None):
         self.journal, self.broker = journal, CachingBroker(broker)
         self.limits_path, self.send, self.interval = Path(limits_path), send, interval
+        self.roster_path = roster_path
         self.lock = threading.Lock()
         self.last_step = None
+
+    def duty(self, now=None):
+        return duty.on_duty(duty.load_roster(self.roster_path), now or datetime.now(timezone.utc),
+                            self.journal.latest_override())
 
     def limits(self):
         try:
@@ -62,11 +68,12 @@ class Agent:
             except Exception as e:
                 self.last_step = {"at": now.isoformat(), "action": "error", "reason": str(e)}
                 return self.last_step
-            results = {}
+            results, on = {}, self.duty(now)
             for name, run in (("H-001B", lambda: demo_agent.step(self.journal, self.broker, limits, now,
-                                                                   send=self.send, snap=snap)),
+                                                                   send=self.send, snap=snap, duty=on)),
                               ("H-002", lambda: h002.step(self.journal, self.broker, limits, now, snap,
-                                                          h002.load_policy(self.policy_path), send=self.send))):
+                                                          h002.load_policy(self.policy_path), send=self.send,
+                                                          duty=on))):
                 try:
                     results[name] = run()
                 except Exception as e:  # one strategy failing must not stop the other
@@ -87,7 +94,7 @@ class Agent:
         data.update(live=self.broker.last, live_error=self.broker.error, last_step=self.last_step,
                     kill_switch=risk.kill_switch_active(limits), mode=limits.mode if limits else None,
                     strategies={i: bool(limits and i in limits.approved_strategies) for i in ids},
-                    policy=h002.load_policy(self.policy_path),
+                    policy=h002.load_policy(self.policy_path), duty=self.duty(),
                     server_time=datetime.now(timezone.utc).isoformat())
         return data
 
@@ -148,7 +155,7 @@ th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertic
 .lesson{border-left:3px solid var(--accent);padding:6px 10px;margin:0 0 10px}.lesson small{color:var(--mute)}
 svg{width:100%;height:160px}.muted{color:var(--mute)}
 </style></head><body>
-<header><h1>FX Demo Agent</h1><span id="strategy" class="pill"></span><span id="mode" class="pill"></span>
+<header><h1>FX Demo Agent</h1><span id="duty" class="pill"></span><span id="strategy" class="pill"></span><span id="mode" class="pill"></span>
 <span id="kill" class="pill"></span><span id="conn" class="pill"></span><span id="updated" class="muted"></span></header>
 <main>
 <section class="card wide"><h2>Account &amp; market</h2><div class="kpis" id="kpis"></div></section>
@@ -158,6 +165,7 @@ svg{width:100%;height:160px}.muted{color:var(--mute)}
 <section class="card wide"><h2>Equity</h2><div id="equity"></div></section>
 <section class="card wide"><h2>Trades (broker deals)</h2><div class="scroll"><table id="trades"></table></div></section>
 <section class="card wide"><h2>Decisions, hour by hour</h2><div class="scroll"><table id="decisions"></table></div></section>
+<section class="card wide"><h2>Model scoreboard (who was on duty)</h2><div id="scoreboard"></div></section>
 <section class="card wide"><h2>What H-002 is learning (exploration, after assumed cost)</h2><div id="learning"></div></section>
 <section class="card wide"><h2>H-002 policy</h2><div id="policy" class="mono"></div></section>
 <section class="card wide"><h2>Lessons</h2><div id="lessons"></div></section>
@@ -184,6 +192,13 @@ async function load(){
     <p class="muted">Tracked, not optimised: the agent never sizes up to chase it.</p>`;
   const grp=(o,label)=>{const r=Object.entries(o);return r.length?`<table><tr><th>${label}</th><th>n</th><th>Win</th><th>Net USD</th><th>Avg pips after cost</th></tr>`+
     r.map(([n,g])=>`<tr><td>${esc(n)}</td><td>${g.n}${g.n<10?' <span class="muted">(few)</span>':""}</td><td>${(g.win_rate*100).toFixed(0)}%</td><td>${money(g.net)}</td><td>${money(g.avg_pips_after_cost)}</td></tr>`).join("")+"</table>":""};
+  const d=s.duty; $("duty").innerHTML=`on duty: <b>${esc(d.agent)}</b> · ${esc(d.model)} <span class="muted">(${esc(d.source)} until ${esc((d.until||"").slice(11,16))})</span>`;
+  const sb=s.scoreboard, mrow=o=>Object.entries(o);
+  const sbt=(o,label)=>mrow(o).length?`<table><tr><th>${label}</th><th>n</th><th>Win rate</th><th>Net USD</th><th>Profit factor</th><th>Avg pips after cost</th></tr>`+
+    mrow(o).map(([n,g])=>`<tr><td>${esc(n)}</td><td>${g.n}${g.n<30?' <span class="muted">(small)</span>':""}</td><td>${(g.win_rate*100).toFixed(0)}% <span class="muted">${g.wins}W/${g.losses}L</span></td><td>${money(g.net)}</td><td>${g.profit_factor??"–"}</td><td>${money(g.avg_pips_after_cost)}</td></tr>`).join("")+"</table>":"";
+  $("scoreboard").innerHTML=(mrow(sb.by_model).length?sbt(sb.by_model,"Model on duty at entry")+"<br>"+sbt(sb.by_model_strategy,"Model / strategy")+"<br>"+sbt(sb.by_policy_author,"Policy author"):'<p class="muted">No closed trades attributed to a model yet.</p>')+
+    `<p class="muted">Lessons: ${esc(JSON.stringify(sb.lessons_by_author))} · Policy changes: ${esc(JSON.stringify(sb.policy_changes_by_author))}</p>`+
+    (sb.shifts.length?"<p>"+sb.shifts.map(x=>`${t(x.at)} · <b>${esc(x.agent)}</b> ${esc(x.kind)}: ${esc(x.summary)}`).join("<br>")+"</p>":"");
   const ls=s.learning;
   $("learning").innerHTML=ls.closed_trades?`<p class="muted">${ls.closed_trades} closed exploration trades; assumed cost ${ls.assumed_cost_pips} pip per trade.</p>`+
     grp(ls.by_pattern,"Pattern")+"<br>"+grp(ls.by_hour,"Hour UTC")+"<br>"+grp(ls.by_pattern_session,"Pattern / session"):'<p class="muted">No closed H-002 trades yet. Every pattern gets explored first.</p>';

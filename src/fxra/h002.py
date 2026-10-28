@@ -28,6 +28,7 @@ PATTERNS = ("breakout20", "ema_pullback", "bb_rsi_reversion", "inside_bar_break"
 DEFAULT_POLICY = {
     "version": 1,
     "lots": 0.1,
+    "risk_per_trade_pct": None,  # when set, size = equity * pct / stop distance, capped by risk.toml max lots
     "enabled": list(PATTERNS),
     "sl_atr": 1.0, "min_sl_pips": 5.0, "tp_rr": 1.5, "max_hold_bars": 8,
     "avoid_hours_utc": [21],  # daily rollover: wide spreads, thin book
@@ -110,6 +111,21 @@ def choose(matches: dict[str, str], stats: dict[str, dict], policy: dict, rng: r
     return max(names, key=lambda m: stats[m]["avg_pips_after_cost"])
 
 
+def size_lots(policy: dict, equity: float, stop_distance: float, spec: dict, max_lots: float) -> float:
+    """Fixed `lots`, or risk-based: lose about risk_per_trade_pct of equity at the stop.
+
+    Uses SymbolSpec contract size (quote currency = account currency for EURUSD/USD);
+    rounded down to the volume step, never below volume_min, capped by the risk gate limit.
+    """
+    pct = policy.get("risk_per_trade_pct")
+    if not pct:
+        return float(policy["lots"])
+    raw = equity * pct / 100 / (stop_distance * spec["contract_size"])
+    step = spec["volume_step"]
+    lots = max(spec["volume_min"], int(raw / step + 1e-9) * step)
+    return round(min(lots, max_lots) if max_lots else lots, 2)
+
+
 # policy ----------------------------------------------------------------------
 def load_policy(path: Path) -> dict:
     try:
@@ -138,7 +154,7 @@ def _t(s):
 
 
 def step(journal: Journal, broker, limits, now: datetime, snap: dict, policy: dict, *,
-         send: bool = True, rng: random.Random | None = None) -> dict:
+         send: bool = True, rng: random.Random | None = None, duty: dict | None = None) -> dict:
     rng = rng or random.Random()
     if snap["quote"] is None:
         return {"action": "skip", "reason": "no fresh tick"}
@@ -190,7 +206,7 @@ def step(journal: Journal, broker, limits, now: datetime, snap: dict, policy: di
     stop = round(entry - sign * dist, s["digits"])
     target = round(entry + sign * dist * policy["tp_rr"], s["digits"])
     cid = f"H2-{latest:%y%m%d%H%M}-{side[0].upper()}"
-    lots = float(policy["lots"])
+    lots = size_lots(policy, acct["equity"], dist, s, limits.max_lots_per_order if limits else 0.0)
     intent = OrderIntent(cid, STRATEGY_ID, STRATEGY_VERSION, SYMBOL, side, lots, "market",
                          stop_loss=stop, take_profit=target)
     spec = SymbolSpec(SYMBOL, "mt5-demo-1", s["digits"], s["point"], s["point"] * 10, s["contract_size"],
@@ -200,7 +216,8 @@ def step(journal: Journal, broker, limits, now: datetime, snap: dict, policy: di
                              AccountSnapshot(now, acct["currency"], acct["equity"], day_start, len(snap["positions"])),
                              now, journal.order_ids(), risk.kill_switch_active(limits))
     tags = {"strategy": STRATEGY_ID, "pattern": chosen, "hour_utc": hour, "session": session(hour),
-            "policy_version": policy["version"], "features": {"matches": matches, "atr_pips": a / PIP,
+            "policy_version": policy["version"], "duty_agent": (duty or {}).get("agent"),
+            "duty_model": (duty or {}).get("model"), "features": {"matches": matches, "atr_pips": a / PIP,
                                                               "sl_pips": dist / PIP, "tp_pips": dist * policy["tp_rr"] / PIP}}
     details = {**base, "intent": intent.__dict__, "risk": decision.to_dict(), "tags": tags}
     why = f"H-002 {chosen} {side} at {hour}h UTC ({session(hour)}); SL {dist / PIP:.1f} pips, TP {dist * policy['tp_rr'] / PIP:.1f}"

@@ -161,7 +161,7 @@ SNAPSHOT_REQUEST = {"symbol": SYMBOL, "h1_bars": 60, "m15_bars": 120}
 
 
 def step(journal: Journal, broker, limits: risk.RiskLimits | None, now: datetime, *, send: bool = True,
-         snap: dict | None = None) -> dict:
+         snap: dict | None = None, duty: dict | None = None) -> dict:
     """Run one decision cycle. Returns what happened, also stored in the journal.
 
     Also syncs broker deals for every demo strategy into trades and lessons.
@@ -248,6 +248,9 @@ def step(journal: Journal, broker, limits: risk.RiskLimits | None, now: datetime
     if not send:
         journal.decide(bar_key, now, "signal_not_sent", sig.side, "dry step: order not sent", details)
         return {"action": "signal_not_sent", "bar": bar_key, "intent": intent.__dict__}
+    journal.tag_entry(cid, {"strategy": STRATEGY_ID, "hour_utc": latest.hour,
+                            "duty_agent": (duty or {}).get("agent"), "duty_model": (duty or {}).get("model"),
+                            "features": signal})
     journal.order(cid, now, "entry", sig.side, LOTS, stop, "sending", decision.to_dict(), {})  # persist before send
     try:
         result = broker.send({"mode": limits.mode, "intent": intent.__dict__, "decision": decision.to_dict()})

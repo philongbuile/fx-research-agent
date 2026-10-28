@@ -1,0 +1,16 @@
+# Demo duty roster. Copy to config/duty.toml (gitignored) to change it; without it the
+# defaults below apply. Times are local to `timezone`; a shift may wrap midnight.
+# Take over outside the schedule with: uv run fxra demo-shift take --agent <a> --model <m> --hours <h> --reason "..."
+timezone = "Asia/Ho_Chi_Minh"
+
+[[shift]]
+agent = "codex"
+model = "gpt-6-sol"
+start = "08:00"
+end = "18:00"
+
+[[shift]]
+agent = "claude"
+model = "claude-opus-5-5"
+start = "18:00"
+end = "08:00"
