@@ -291,6 +291,18 @@ continues unchanged and the dashboard says the calendar is not running.
 Calendar timing is the broker server clock converted with the offset in the
 export; it is not verified against an independent source.
 
+## Asia and London session pairs (D-41)
+
+Owner request, 2026-10-29: the scoreboard had no Asia or London results, and
+the owner wants pairs that are active in those sessions. Added for both H-002
+arms: EURJPY, GBPJPY, AUDJPY and NZDUSD (Tokyo/Sydney hours) and EURGBP
+(London). The bridge whitelist, the local `config/risk.toml` allowed symbols,
+pip sizes (0.01 for JPY pairs), client-id codes and the calendar currencies
+(NZD) were extended. Lots stay at the arm policies' 1 lot; P&L is converted to
+the account currency by the broker. Note: the agent started at 14:00 UTC on
+2026-10-28, so the first Asia session (00:00-07:00 UTC) had not happened yet
+when the request was made.
+
 ## Open questions
 
 ### Simulation and memory decisions (owner request, 2026-10-27)

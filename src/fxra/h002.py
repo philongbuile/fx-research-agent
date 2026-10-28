@@ -31,7 +31,9 @@ ARMS = {
 SYMBOL = "EURUSD"
 PIP = 0.0001
 # Owner's choice, 2026-10-28. EURUSD keeps its original ids/decision keys; others carry a 2-letter code.
-SYMBOL_CODES = {"EURUSD": "", "GBPUSD": "GU", "USDJPY": "UJ", "AUDUSD": "AU", "XAUUSD": "XA"}
+SYMBOL_CODES = {"EURUSD": "", "GBPUSD": "GU", "USDJPY": "UJ", "AUDUSD": "AU", "XAUUSD": "XA",
+                # owner 2026-10-29 (D-41): Asia and London session pairs
+                "EURJPY": "EJ", "GBPJPY": "GJ", "AUDJPY": "AJ", "NZDUSD": "NU", "EURGBP": "EG"}
 PATTERNS = ("breakout20", "ema_pullback", "bb_rsi_reversion", "inside_bar_break",
             "breakout10", "ema_cross_9_21", "macd_cross", "momentum_candle", "engulfing", "pin_bar",
             "rsi_cross_50", "rsi_extreme_fade", "three_bar_momentum", "bb_squeeze_break",
