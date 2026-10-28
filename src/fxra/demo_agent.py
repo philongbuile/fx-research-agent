@@ -91,7 +91,8 @@ def _lesson_text(trade: dict, bars: list[dict], currency: str) -> str:
     pips = lambda x: "n/a" if x is None else f"{x / 0.0001:.1f} pips"
     held = (c - o).total_seconds() / 3600
     verdict = "win" if trade["net"] > 0 else "loss" if trade["net"] < 0 else "flat"
-    return (f"{STRATEGY_ID} {trade['side']} {trade['volume']} lot: {verdict} {trade['net']:+.2f} {currency} "
+    label = "TECH-0003 execution check" if (trade["entry_id"] or "").startswith("T3-") else STRATEGY_ID
+    return (f"{label} {trade['side']} {trade['volume']} lot: {verdict} {trade['net']:+.2f} {currency} "
             f"(gross {trade['profit']:+.2f}, commission {trade['commission']:+.2f}, swap {trade['swap']:+.2f}). "
             f"Entry {trade['open_price']} at {o:%Y-%m-%d %H:%M}Z, exit {trade['close_price']} at {c:%Y-%m-%d %H:%M}Z "
             f"after {held:.1f} h, reason {trade['exit_reason'] or 'unknown'}. "
@@ -100,12 +101,54 @@ def _lesson_text(trade: dict, bars: list[dict], currency: str) -> str:
 
 
 def _exit_reason(trade: dict, journal: Journal) -> str:
-    if trade["exit_id"] and trade["exit_id"].startswith("H1B-X-"):
+    if trade["exit_id"] and trade["exit_id"].startswith(("H1B-X-", "T3X-")):
         row = journal.db.execute("SELECT result FROM orders WHERE client_order_id=?", (trade["exit_id"],)).fetchone()
         return json.loads(row[0]).get("rule", "rule_exit") if row else "rule_exit"
     if (trade["exit_id"] or "").lower().startswith("[sl"):  # MT5 marks stop-outs "[sl <price>]"
         return "stop_loss"
     return "broker_or_manual"
+
+
+def test_round_trip(journal: Journal, broker, limits: risk.RiskLimits | None, now: datetime, *,
+                    hold_seconds: int = 60, sleep=None) -> dict:
+    """TECH-0003: one owner-requested 0.01-lot buy with a 30-pip stop, closed after hold_seconds.
+
+    Proves the bridge, risk gate, journal and dashboard end to end. Not a strategy trade.
+    """
+    import time
+    snap = broker.snapshot({"symbol": SYMBOL, "h1_bars": 1})
+    if snap["quote"] is None:
+        return {"action": "skip", "reason": "no fresh tick: market closed"}
+    if snap["positions"]:
+        return {"action": "skip", "reason": "agent already has an open position"}
+    acct, s, q = snap["account"], snap["spec"], snap["quote"]
+    day_start = journal.snapshot_equity(now, acct["balance"], acct["equity"], acct["currency"])
+    cid = f"T3-{now:%y%m%d%H%M%S}"
+    stop = round(q["ask"] - 0.0030, s["digits"])
+    intent = OrderIntent(cid, "TECH-0003", "exec-check-v1", SYMBOL, "buy", LOTS, "market", stop_loss=stop)
+    spec = SymbolSpec(SYMBOL, "mt5-demo-1", s["digits"], s["point"], s["point"] * 10, s["contract_size"],
+                      s["volume_min"], s["volume_max"], s["volume_step"], s["quote_currency"])
+    decision = risk.evaluate(intent, limits, spec, Quote(SYMBOL, _t(q["time"]), q["bid"], q["ask"]),
+                             AccountSnapshot(now, acct["currency"], acct["equity"], day_start, 0),
+                             now, journal.order_ids(), risk.kill_switch_active(limits))
+    if not decision.approved:
+        journal.order(cid, now, "entry", "buy", LOTS, stop, "risk_rejected", decision.to_dict(), {})
+        return {"action": "blocked", "reasons": decision.reasons}
+    journal.order(cid, now, "entry", "buy", LOTS, stop, "sending", decision.to_dict(), {})
+    opened = broker.send({"mode": limits.mode, "intent": intent.__dict__, "decision": decision.to_dict()})
+    journal.order(cid, now, "entry", "buy", LOTS, stop, opened["status"], decision.to_dict(), opened)
+    if opened["status"] != "filled":
+        return {"action": "entry_failed", "result": opened}
+    (sleep or time.sleep)(hold_seconds)
+    positions = [p for p in broker.snapshot({"symbol": SYMBOL, "h1_bars": 1})["positions"]
+                 if p["comment"] == cid or p["ticket"] == opened.get("order")]  # brokers may rewrite comments
+    if not positions:
+        return {"action": "entry_only", "reason": "position already gone (stop hit?)", "entry": opened}
+    xid = f"T3X-{positions[0]['ticket']}"
+    closed = broker.close({"ticket": positions[0]["ticket"], "client_order_id": xid, "symbol": SYMBOL})
+    closed["rule"] = "tech_check_timed_close"
+    journal.order(xid, datetime.now(timezone.utc), "exit", "sell", LOTS, None, closed["status"], {}, closed)
+    return {"action": "round_trip", "entry": opened, "exit": closed}
 
 
 def step(journal: Journal, broker, limits: risk.RiskLimits | None, now: datetime, *, send: bool = True) -> dict:

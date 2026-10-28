@@ -155,6 +155,19 @@ def test_closed_deals_become_trade_with_broker_pnl_and_lesson(journal, tmp_path)
     assert len(journal.recent_lessons()) == 1  # a trade closes once
 
 
+def test_tech_round_trip_needs_its_own_approval(journal, tmp_path):
+    broker = FakeBroker(bars())
+    out = demo_agent.test_round_trip(journal, broker, limits(tmp_path), NOW, sleep=lambda s: None)
+    assert out["action"] == "blocked" and "strategy_version_not_approved" in out["reasons"] and broker.sent == []
+
+    ok = limits(tmp_path, approved_strategies=frozenset({"TECH-0003@exec-check-v1"}))
+    broker.snapshot = lambda p, s=broker.snapshot: {**s(p), "positions": [
+        {"ticket": 9, "comment": broker.sent[-1]["intent"]["client_order_id"]}] if broker.sent else []}
+    out = demo_agent.test_round_trip(journal, broker, ok, NOW + timedelta(seconds=1), sleep=lambda s: None)
+    assert out["action"] == "round_trip" and broker.sent[0]["intent"]["stop_loss"] < 1.10032
+    assert broker.closed[0] == {"ticket": 9, "client_order_id": "T3X-9", "symbol": "EURUSD"}
+
+
 def test_dashboard_state_and_page(journal, tmp_path):
     (tmp_path / "risk.toml").write_text(
         '[risk]\nmode="demo"\nallowed_symbols=["EURUSD"]\napproved_strategies=["H-001B@h001b-v1"]\n'

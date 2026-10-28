@@ -199,6 +199,17 @@ def cmd_demo_step(a) -> int:
     return 0
 
 
+def cmd_demo_test_order(a) -> int:
+    from .demo_agent import test_round_trip
+
+    agent = _demo_agent(a)
+    with agent.lock:
+        result = test_round_trip(agent.journal, agent.broker, agent.limits(), datetime.now(timezone.utc),
+                                 hold_seconds=a.hold_seconds)
+    print(json.dumps(result, indent=2, default=str))
+    return 0 if result["action"] == "round_trip" else 2
+
+
 def cmd_demo_run(a) -> int:
     from .dashboard import serve
 
@@ -242,6 +253,11 @@ def main(argv=None) -> int:
     ds = sub.add_parser("demo-step", help="one H-001B decision cycle on the MT5 demo account (D-30)")
     demo_args(ds)
     ds.set_defaults(fn=cmd_demo_step)
+
+    dt = sub.add_parser("demo-test-order", help="TECH-0003: one risk-gated 0.01-lot buy/close round trip")
+    demo_args(dt)
+    dt.add_argument("--hold-seconds", type=int, default=60)
+    dt.set_defaults(fn=cmd_demo_test_order)
 
     dr = sub.add_parser("demo-run", help="agent loop + local dashboard on 127.0.0.1")
     demo_args(dr)
