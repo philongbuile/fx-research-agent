@@ -153,6 +153,22 @@ any pattern pointed the other way (`· opposed`), from `entry_tags.features.matc
 dashboard shows them under "Signal agreement", and lessons state the bucket.
 This is recorded for learning only and does not change how entries are taken.
 
+Playbook (D-39): candidate rules distilled from lessons live in the journal's
+`playbook` table. Each rule has an action (`avoid`, `prefer`, `watch`), a trade
+filter over pattern, symbol, session, hour, side, arm, vol, h1_trend, dow and
+confluence, a rationale and a confirmation threshold `confirm_n` (at least 10).
+`fxra demo-playbook` recounts each rule's matched-vs-other trades (n, win rate,
+average R, net) and labels it supported, contradicted or unclear. A supported
+rule that reaches `confirm_n` is "ready to propose"; it changes a policy only
+after a `demo-propose` agreed by the other model. The dashboard shows the
+playbook and the hourly digest retains it to Hindsight as `fxra-playbook`.
+
+```powershell
+uv run fxra demo-playbook
+uv run fxra demo-playbook --add "Avoid breakouts in the FOMC hour" --action avoid --when pattern=breakout10,breakout20 --when hour=18 --why "FOMC 2026-10-28 lesson" --confirm-n 30 --author claude/claude-opus-5-5
+uv run fxra demo-playbook --status 1 proposed --proposal 2 --author claude/claude-opus-5-5
+```
+
 ## Lessons and memory
 
 - `fxra demo-step` writes a factual lesson row for each closed trade. It leads

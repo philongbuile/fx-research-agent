@@ -294,6 +294,29 @@ def cmd_demo_propose(a) -> int:
     return 0
 
 
+def cmd_demo_playbook(a) -> int:
+    """List playbook rules with recounted evidence, add a candidate rule, or change a rule's status."""
+    from . import playbook
+    from .trade_journal import Journal
+
+    j, now = Journal(a.journal), datetime.now(timezone.utc)
+    if a.add:
+        try:
+            rid = playbook.add(j, now, a.author, a.add, a.action, a.when, a.why or "", a.confirm_n)
+        except ValueError as e:
+            raise SystemExit(str(e))
+        print(json.dumps({"rule_id": rid}))
+    elif a.status:
+        rid, status = a.status
+        if status not in playbook.STATUSES:
+            raise SystemExit(f"status must be one of {playbook.STATUSES}")
+        j.set_rule_status(int(rid), now, status, f"{a.author}: {a.note or ''}".strip(), a.proposal)
+        print(json.dumps({"rule_id": int(rid), "status": status}))
+    else:
+        print(json.dumps(playbook.report(j), indent=2, default=str))
+    return 0
+
+
 def cmd_demo_test_order(a) -> int:
     from .demo_agent import test_round_trip
 
@@ -402,6 +425,20 @@ def main(argv=None) -> int:
     pr.add_argument("--note")
     pr.add_argument("--author", default="", help="<agent>/<model>")
     pr.set_defaults(fn=cmd_demo_propose)
+
+    pb = sub.add_parser("demo-playbook", help="playbook rules distilled from lessons, with evidence from the journal")
+    pb.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
+    pb.add_argument("--add", metavar="TITLE", help="add a candidate rule")
+    pb.add_argument("--action", choices=["avoid", "prefer", "watch"], default="watch")
+    pb.add_argument("--when", action="append", metavar="FIELD=V1,V2",
+                    help="trade filter, e.g. pattern=breakout10,breakout20 or hour=18 (repeat for AND)")
+    pb.add_argument("--why", help="the lesson or numbers behind the rule")
+    pb.add_argument("--confirm-n", type=int, default=30, help="matched trades needed before proposing")
+    pb.add_argument("--status", nargs=2, metavar=("ID", "STATUS"), help="candidate|proposed|adopted|retired")
+    pb.add_argument("--proposal", type=int, help="demo-propose id when status becomes proposed")
+    pb.add_argument("--note")
+    pb.add_argument("--author", default="", help="<agent>/<model>")
+    pb.set_defaults(fn=cmd_demo_playbook)
 
     dt = sub.add_parser("demo-test-order", help="TECH-0003: one risk-gated 0.01-lot buy/close round trip")
     demo_args(dt)

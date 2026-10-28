@@ -10,10 +10,11 @@ exploratory in-sample observations, never evidence of edge.
 import hashlib
 from datetime import datetime
 
-from .trade_journal import PIP_SIZES, TRADES_SQL, Journal
+from .trade_journal import PIP_SIZES, TRADES_SQL, Journal, confluence
 
 DIMENSIONS = (("session", "By session"), ("symbol", "By symbol"), ("hour", "By UTC hour"), ("vol", "By volatility"),
-              ("h1_trend", "By H1 trend"), ("dow", "By weekday"), ("arm", "By arm"))
+              ("h1_trend", "By H1 trend"), ("dow", "By weekday"), ("arm", "By arm"),
+              ("confluence", "By signal agreement"))
 DOW = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
 
@@ -32,6 +33,7 @@ def closed_trades(journal: Journal, assumed_cost_pips: float) -> list[dict]:
         open_dow = datetime.fromisoformat(t["open_time"]).strftime("%a")
         out.append({**t, "r": moved / risk_dist if risk_dist else None, "vol": f.get("vol"),
                     "h1_trend": f.get("h1_trend"), "dow": f.get("dow") or open_dow,
+                    "confluence": confluence(f, t["side"]),
                     "hour": f"{t['hour_utc']:02d}" if t["hour_utc"] is not None else None})
     return out
 
@@ -86,6 +88,9 @@ def digest(journal: Journal, assumed_cost_pips: float = 0.8) -> list[dict]:
                    + sections(rs, DIMENSIONS))
         docs.append({"document": f"fxra-insight-pattern-{pattern.replace('_', '-')}", "content": content,
                      "tags": ["demo", "insight", "H-002", pattern]})
+    from .playbook import document  # the playbook counts from the same rows
+    if (pb := document(journal, rows)) is not None:
+        docs.append(pb)
     return docs
 
 

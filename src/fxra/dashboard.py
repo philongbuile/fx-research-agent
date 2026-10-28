@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import demo_agent, duty, h002, lesson_insights, lesson_memory, risk
+from . import demo_agent, duty, h002, lesson_insights, lesson_memory, playbook, risk
 from .trade_journal import Journal
 
 
@@ -137,6 +137,7 @@ class Agent:
         limits = self.limits()
         with self.lock:
             data = self.journal.state()
+            data["playbook"] = playbook.report(self.journal)
         ids = [f"{demo_agent.STRATEGY_ID}@{demo_agent.STRATEGY_VERSION}", f"{h002.STRATEGY_ID}@{h002.STRATEGY_VERSION}"]
         data.update(live=self.broker.last, live_error=self.broker.error, last_step=self.last_step,
                     kill_switch=risk.kill_switch_active(limits), mode=limits.mode if limits else None,
@@ -259,6 +260,7 @@ details{margin-top:12px}summary{cursor:pointer;color:var(--mute);font-size:13px}
 <section class="card wide"><h2>Decisions, hour by hour</h2><div class="scroll"><table id="decisions"></table></div></section>
 <section class="card wide"><h2>Model scoreboard</h2><div id="scoreboard"></div></section>
 <section class="card wide"><h2>What H-002 is learning (exploration, after assumed cost)</h2><div id="learning"></div></section>
+<section class="card wide"><h2>Playbook (candidate rules, evidence recounted from trades)</h2><div id="playbook"></div></section>
 <section class="card wide"><h2>Proposals (need the other model's review)</h2><div id="proposals"></div></section>
 <section class="card wide"><h2>Arm policies</h2><div id="policy"></div></section>
 <section class="card wide"><h2>Lessons</h2><div id="lessons"></div></section>
@@ -352,6 +354,18 @@ async function load(){
       <details><summary>Raw policy JSON</summary><pre class="mono" style="white-space:pre-wrap;font-size:12px">${esc(JSON.stringify(p,null,1))}</pre></details></div>`}).join("")+"</div>"+
     (ch.length?`<h3>Change history</h3><div class="scroll"><table class="mx"><tr><th>When</th><th>Model (arm)</th><th>Version</th><th>Author</th><th style="text-align:left">Reason</th></tr>`+
       ch.map(c=>`<tr><td class="num">${t(c.at)}</td><td>${esc(armLabel("H-002-"+c.arm))}</td><td>v${c.version}</td><td>${esc(c.author==="system"?"system":who(c.author))}</td><td style="text-align:left;white-space:normal">${esc(c.reason)}</td></tr>`).join("")+"</table></div>":"");
+  const VB={supported:"b-entry",contradicted:"b-exit",unclear:"b-hold",observing:"b-hold","no data":""};
+  const fmtS=g=>g?`n ${g.n} · win ${pc(g.win_rate)} · ${g.avg_r==null?"–":(g.avg_r>0?"+":"")+g.avg_r.toFixed(2)+"R"} · ${money(g.net)}`:"no trades";
+  $("playbook").innerHTML=(s.playbook||[]).length?`<div class="cards">`+s.playbook.map(r=>{const e=r.evidence, n=e.matched?e.matched.n:0, w=Math.min(100,n/r.confirm_n*100);
+    return `<div class="mcard"><h4>#${r.id} ${esc(r.title)}</h4>
+      <div class="sub"><span class="badge ${r.action==="avoid"?"b-exit":r.action==="prefer"?"b-entry":"b-hold"}">${esc(r.action)}</span> <span class="badge">${esc(r.status)}</span>
+        <span class="badge ${VB[e.verdict]||""}">${esc(e.verdict)}</span>${e.ready_to_propose?' <span class="badge b-entry">ready to propose</span>':""}</div>
+      <div class="chips" style="margin:6px 0">${Object.entries(r.filter).map(([k,v])=>`<span class="chip">${esc(k)} = ${esc(v.join(", "))}</span>`).join("")}</div>
+      <div class="wl"><i style="flex:${w}"></i><s style="flex:${100-w}"></s></div>
+      <div class="stats"><span>evidence <b>${esc(e.progress)}</b> [${esc(e.label)}]</span></div>
+      <p style="margin:8px 0 4px;font-size:13px"><b>Matched:</b> ${fmtS(e.matched)}<br><span class="muted"><b>Others:</b> ${fmtS(e.others)}</span></p>
+      <p class="muted" style="margin:4px 0 0;font-size:12px">${esc(r.rationale)} · ${esc(who(r.author))}${r.proposal_id?` · proposal #${r.proposal_id}`:""}${r.note?` · ${esc(r.note)}`:""}</p></div>`}).join("")+"</div>"
+    :'<p class="muted">No rules yet. Each shift, Claude and Codex distill candidate rules from Hindsight lessons with <code>fxra demo-playbook --add</code>.</p>';
   $("proposals").innerHTML=s.proposals.length?`<table><tr><th>#</th><th>By</th><th>Proposal</th><th>Evidence</th><th>Status</th><th>Review</th></tr>`+
     s.proposals.map(p=>`<tr><td>${p.id}</td><td>${esc(who(p.author))}</td><td>${esc(p.text)}</td><td>${esc(p.evidence)}</td><td><b>${esc(p.status)}</b></td><td>${esc(p.reviewer?who(p.reviewer)+": "+p.review:"")}</td></tr>`).join("")+"</table>":'<p class="muted">No proposals yet. A rule is distilled only when the other model agrees.</p>';
   $("mode").textContent="mode: "+(s.mode||"no risk.toml");
