@@ -16,7 +16,7 @@ from pathlib import Path
 
 from . import risk
 from .contracts import AccountSnapshot, OrderIntent, Quote, SymbolSpec
-from .trade_journal import Journal
+from .trade_journal import PIP_SIZES, Journal
 
 STRATEGY_ID = "H-002"
 STRATEGY_VERSION = "explore"  # risk.toml approves "H-002@explore"; arm and policy version are tracked per trade
@@ -29,6 +29,8 @@ ARMS = {
 }
 SYMBOL = "EURUSD"
 PIP = 0.0001
+# Owner's choice, 2026-10-28. EURUSD keeps its original ids/decision keys; others carry a 2-letter code.
+SYMBOL_CODES = {"EURUSD": "", "GBPUSD": "GU", "USDJPY": "UJ", "AUDUSD": "AU", "XAUUSD": "XA"}
 PATTERNS = ("breakout20", "ema_pullback", "bb_rsi_reversion", "inside_bar_break",
             "breakout10", "ema_cross_9_21", "macd_cross", "momentum_candle", "engulfing", "pin_bar",
             "rsi_cross_50", "rsi_extreme_fade", "three_bar_momentum", "bb_squeeze_break",
@@ -37,6 +39,8 @@ PATTERNS = ("breakout20", "ema_pullback", "bb_rsi_reversion", "inside_bar_break"
 DEFAULT_POLICY = {
     "version": 1,
     "lots": 0.1,
+    "lots_by_symbol": {"XAUUSD": 0.1},  # gold: 1 lot = 100 USD per 1 USD move
+    "symbols": list(SYMBOL_CODES),
     "risk_per_trade_pct": None,  # when set, size = equity * pct / stop distance, capped by risk.toml max lots
     "enabled": list(PATTERNS),
     "sl_atr": 1.0, "min_sl_pips": 5.0, "tp_rr": 1.5, "max_hold_bars": 8,
@@ -216,14 +220,16 @@ def rank(matches: dict[str, str], stats: dict[str, dict], policy: dict, rng: ran
 
 
 def size_lots(policy: dict, equity: float, stop_distance: float, spec: dict, max_lots: float) -> float:
-    """Fixed `lots`, or risk-based: lose about risk_per_trade_pct of equity at the stop.
+    """Fixed lots (`lots_by_symbol` overrides `lots`), or risk-based: lose about risk_per_trade_pct at the stop.
 
-    Uses SymbolSpec contract size (quote currency = account currency for EURUSD/USD);
-    rounded down to the volume step, never below volume_min, capped by the risk gate limit.
+    Risk-based sizing assumes the quote currency is the account currency (USD); for
+    other quote currencies (USDJPY) it falls back to fixed lots. Rounded down to the
+    volume step, never below volume_min, capped by the risk gate limit.
     """
+    fixed = float((policy.get("lots_by_symbol") or {}).get(spec.get("symbol"), policy["lots"]))
     pct = policy.get("risk_per_trade_pct")
-    if not pct:
-        return float(policy["lots"])
+    if not pct or spec.get("quote_currency", "USD") != "USD":
+        return fixed
     raw = equity * pct / 100 / (stop_distance * spec["contract_size"])
     step = spec["volume_step"]
     lots = max(spec["volume_min"], int(raw / step + 1e-9) * step)
@@ -287,33 +293,61 @@ def _t(s):
     return datetime.fromisoformat(s).astimezone(timezone.utc)
 
 
+ACTION_RANK = ("entry", "blocked", "exit", "hold", "no_trade", "skip", "error")
+
+
 def step(journal: Journal, broker, limits, now: datetime, snap: dict, policy: dict, *,
          send: bool = True, rng: random.Random | None = None, duty: dict | None = None,
          arm: str = "claude") -> dict:
-    """One decision per closed M15 bar for one arm.
+    """One decision per closed M15 bar, per enabled symbol, for one arm.
 
-    Time-exits the arm's positions that reached max_hold_bars, then opens one
-    position for every matched enabled pattern not already open in this arm
-    (or the best `entries_per_bar`). Each entry passes the risk gate.
+    Per symbol: time-exits the arm's positions that reached max_hold_bars, then
+    opens one position for every matched enabled pattern not already open in this
+    arm on that symbol (or the best `entries_per_bar`). Each entry passes the risk gate.
     """
-    cfg = ARMS[arm]
-    name, magic = cfg["arm"], cfg["magic"]
     rng = rng or random.Random()
-    if snap["quote"] is None:
+    markets = snap.get("markets") or {SYMBOL: snap}
+    results = {}
+    for symbol in policy.get("symbols") or [SYMBOL]:
+        if symbol not in markets:
+            continue
+        try:
+            results[symbol] = _step_symbol(journal, broker, limits, now, snap, markets[symbol], symbol, policy,
+                                           send=send, rng=rng, duty=duty, arm=arm)
+        except Exception as e:  # one symbol failing must not stop the others
+            results[symbol] = {"action": "error", "reason": f"{type(e).__name__}: {e}"}
+        snap = {**snap, "positions": snap["positions"] + [
+            {"magic": ARMS[arm]["magic"], "symbol": symbol, "placeholder": True}
+            for e in results[symbol].get("entries", []) if e.get("status") == "filled"]}  # count new positions
+    if not results:
+        return {"action": "skip", "reason": "no enabled symbol in snapshot"}
+    combined = min(results.values(), key=lambda r: ACTION_RANK.index(r["action"]) if r["action"] in ACTION_RANK else 99)
+    tagged = lambda k: [{**x, "symbol": s} for s, r in results.items() for x in r.get(k, [])]
+    return {"action": combined["action"], "bar": combined.get("bar", ""), "reason": combined.get("reason", ""),
+            "entries": tagged("entries"), "exits": tagged("exits"), "blocked": tagged("blocked"), "symbols": results}
+
+
+def _step_symbol(journal: Journal, broker, limits, now: datetime, snap: dict, market: dict, symbol: str,
+                 policy: dict, *, send: bool, rng: random.Random, duty: dict | None, arm: str) -> dict:
+    cfg = ARMS[arm]
+    name, magic, code = cfg["arm"], cfg["magic"], SYMBOL_CODES.get(symbol, symbol[:2])
+    pip = PIP_SIZES[symbol]
+    if market["quote"] is None:
         return {"action": "skip", "reason": "no fresh tick"}
     latest = now.replace(minute=now.minute - now.minute % 15, second=0, microsecond=0) - timedelta(minutes=15)
-    bars = snap.get("m15_bars") or []
+    bars = market.get("m15_bars") or []
     if not bars or _t(bars[-1]["time"]) != latest:
         return {"action": "skip", "reason": f"latest closed M15 bar is not {latest:%H:%M}Z"}
-    key = f"{name}:{latest.isoformat()}"
+    key = f"{name}:{latest.isoformat()}" if not code else f"{name}:{symbol}:{latest.isoformat()}"
     if journal.decided(key):
         return {"action": "skip", "reason": "already decided for this bar", "bar": key}
     a = atr(bars[-15:])
-    base = {"strategy": name, "arm": arm, "policy_version": policy["version"], "quote": snap["quote"],
-            "signal": {"atr": a, "close": bars[-1]["close"]}}
+    base = {"strategy": name, "arm": arm, "symbol": symbol, "policy_version": policy["version"],
+            "quote": market["quote"], "signal": {"atr": a, "atr_pips": a / pip, "close": bars[-1]["close"]}}
     notes, exits, entries, blocked = [], [], [], []
 
-    own = [p for p in snap["positions"] if p.get("magic") == magic]
+    own = [p for p in snap["positions"]
+           if p.get("magic") == magic and p.get("symbol", SYMBOL) == symbol and not p.get("placeholder")]
     still_open = []
     for pos in own:
         held = int((latest + timedelta(minutes=15) - _t(pos["time"])).total_seconds() // 900)
@@ -321,7 +355,7 @@ def step(journal: Journal, broker, limits, now: datetime, snap: dict, policy: di
             still_open.append(pos)
             continue
         cid = f"H2X-{pos['ticket']}"
-        result = broker.close({"ticket": pos["ticket"], "client_order_id": cid, "symbol": SYMBOL}) if send \
+        result = broker.close({"ticket": pos["ticket"], "client_order_id": cid, "symbol": symbol}) if send \
             else {"status": "not_sent"}
         result["rule"] = "max_hold_bars"
         journal.order(cid, now, "exit", "sell" if pos["side"] == "buy" else "buy", pos["volume"], None,
@@ -338,41 +372,42 @@ def step(journal: Journal, broker, limits, now: datetime, snap: dict, policy: di
         notes.append(f"avoids {hour}h UTC (policy)")
         candidates = []
     else:
-        stats = journal.learning_stats(policy["assumed_cost_pips"])["by_pattern"]  # shared knowledge, all arms
+        stats = journal.learning_stats(policy["assumed_cost_pips"])["by_pattern"]  # shared knowledge, all arms/symbols
         candidates = [m for m in rank(matches, stats, policy, rng) if m not in open_patterns]
         if policy.get("entries_per_bar"):
             candidates = candidates[: int(policy["entries_per_bar"])]
         if matches and not candidates:
             notes.append(f"matched {sorted(matches)} but disabled or already open")
 
-    q, s, acct = snap["quote"], snap["spec"], snap["account"]
-    spec = SymbolSpec(SYMBOL, "mt5-demo-1", s["digits"], s["point"], s["point"] * 10, s["contract_size"],
+    q, s, acct = market["quote"], {**market["spec"], "symbol": symbol}, snap["account"]
+    spec = SymbolSpec(symbol, "mt5-demo-1", s["digits"], s["point"], pip, s["contract_size"],
                       s["volume_min"], s["volume_max"], s["volume_step"], s["quote_currency"])
     day_start = journal.snapshot_equity(now, acct["balance"], acct["equity"], acct["currency"]) if candidates else None
     open_count = len(snap["positions"]) - len(exits)
     for chosen in candidates:
         side = matches[chosen]
         entry = q["ask"] if side == "buy" else q["bid"]
-        dist = max(policy["sl_atr"] * a, policy["min_sl_pips"] * PIP)
+        dist = max(policy["sl_atr"] * a, policy["min_sl_pips"] * pip)
         sign = 1 if side == "buy" else -1
         stop = round(entry - sign * dist, s["digits"])
         target = round(entry + sign * dist * policy["tp_rr"], s["digits"])
-        cid = f"H2{cfg['code']}-{latest:%y%m%d%H%M}-{PATTERNS.index(chosen):02d}{side[0].upper()}"
+        prefix = f"H2{cfg['code']}-" + (f"{code}-" if code else "")
+        cid = f"{prefix}{latest:%y%m%d%H%M}-{PATTERNS.index(chosen):02d}{side[0].upper()}"
         lots = size_lots(policy, acct["equity"], dist, s, limits.max_lots_per_order if limits else 0.0)
-        intent = OrderIntent(cid, STRATEGY_ID, STRATEGY_VERSION, SYMBOL, side, lots, "market",
+        intent = OrderIntent(cid, STRATEGY_ID, STRATEGY_VERSION, symbol, side, lots, "market",
                              stop_loss=stop, take_profit=target)
-        decision = risk.evaluate(intent, limits, spec, Quote(SYMBOL, _t(q["time"]), q["bid"], q["ask"]),
+        decision = risk.evaluate(intent, limits, spec, Quote(symbol, _t(q["time"]), q["bid"], q["ask"]),
                                  AccountSnapshot(now, acct["currency"], acct["equity"], day_start, open_count),
                                  now, journal.order_ids(), risk.kill_switch_active(limits))
         if not decision.approved:
             journal.order(cid, now, "entry", side, lots, stop, "risk_rejected", decision.to_dict(), {})
             blocked.append({"pattern": chosen, "reasons": decision.reasons})
             continue
-        journal.tag_entry(cid, {"strategy": STRATEGY_ID, "arm": arm, "pattern": chosen, "hour_utc": hour,
-                                "session": session(hour), "policy_version": policy["version"],
+        journal.tag_entry(cid, {"strategy": STRATEGY_ID, "arm": arm, "symbol": symbol, "pattern": chosen,
+                                "hour_utc": hour, "session": session(hour), "policy_version": policy["version"],
                                 "duty_agent": (duty or {}).get("agent"), "duty_model": (duty or {}).get("model"),
-                                "features": {"matches": matches, "atr_pips": a / PIP, "sl_pips": dist / PIP,
-                                             "tp_pips": dist * policy["tp_rr"] / PIP}})
+                                "features": {"matches": matches, "atr_pips": a / pip, "sl_pips": dist / pip,
+                                             "tp_pips": dist * policy["tp_rr"] / pip}})
         if not send:
             entries.append({"pattern": chosen, "side": side, "status": "not_sent"})
             continue
@@ -383,7 +418,7 @@ def step(journal: Journal, broker, limits, now: datetime, snap: dict, policy: di
         except RuntimeError as e:
             result = {"status": "error", "reason": str(e)}
         journal.order(cid, now, "entry", side, lots, stop, result["status"], decision.to_dict(), result)
-        entries.append({"pattern": chosen, "side": side, "lots": lots, "sl_pips": round(dist / PIP, 1),
+        entries.append({"pattern": chosen, "side": side, "lots": lots, "sl_pips": round(dist / pip, 1),
                         "status": result["status"]})
         open_count += 1
 
@@ -403,6 +438,6 @@ def step(journal: Journal, broker, limits, now: datetime, snap: dict, policy: di
         if not matches:
             notes.append("no pattern matched")
     sides = {e["side"] for e in entries}
-    journal.decide(key, now, action, sides.pop() if len(sides) == 1 else None, f"{name}: " + "; ".join(notes),
+    journal.decide(key, now, action, sides.pop() if len(sides) == 1 else None, f"{name} {symbol}: " + "; ".join(notes),
                    {**base, "entries": entries, "exits": exits, "blocked": blocked})
     return {"action": action, "bar": key, "entries": entries, "exits": exits, "blocked": blocked}

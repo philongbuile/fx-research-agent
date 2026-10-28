@@ -9,7 +9,7 @@ Rules:
 
 import math
 import tomllib
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 
@@ -31,6 +31,8 @@ class RiskLimits:
     max_account_age_seconds: float
     require_stop_loss: bool
     kill_switch_file: str
+    # Points differ by instrument (gold point = 0.01 USD); a symbol listed here overrides max_spread_points.
+    max_spread_points_by_symbol: dict = field(default_factory=dict)
 
     @classmethod
     def load(cls, path: Path) -> "RiskLimits":
@@ -47,6 +49,7 @@ class RiskLimits:
             max_account_age_seconds=float(raw["max_account_age_seconds"]),
             require_stop_loss=bool(raw["require_stop_loss"]),
             kill_switch_file=str(raw["kill_switch_file"]),
+            max_spread_points_by_symbol={str(k): int(v) for k, v in raw.get("max_spread_points_by_symbol", {}).items()},
         )
 
 
@@ -129,7 +132,8 @@ def _check(intent, limits, spec, quote, account, now, seen, kill_switch_active) 
         r.append("quote_invalid")
     else:
         spread_points = (quote.ask - quote.bid) / spec.point
-        if spread_points > limits.max_spread_points + 1e-9:
+        max_spread = limits.max_spread_points_by_symbol.get(intent.symbol, limits.max_spread_points)
+        if spread_points > max_spread + 1e-9:
             r.append(f"spread_too_wide:{spread_points:.1f}")
     if quote.time.tzinfo is None or (now - quote.time).total_seconds() > limits.max_quote_age_seconds:
         r.append("quote_stale_or_naive")

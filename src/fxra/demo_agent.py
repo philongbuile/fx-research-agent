@@ -16,7 +16,7 @@ from pathlib import Path
 from . import risk
 from .breakout import signal_from_hours
 from .contracts import AccountSnapshot, OrderIntent, Quote, SymbolSpec
-from .trade_journal import Journal
+from .trade_journal import PIP_SIZES, Journal
 
 STRATEGY_ID = "H-001B"
 STRATEGY_VERSION = "h001b-v1"  # bump on any rule change; risk.toml approves "H-001B@h001b-v1"
@@ -89,12 +89,14 @@ def _lesson_text(trade: dict, bars: list[dict], currency: str) -> str:
         hi, lo = max(b["high"] for b in window), min(b["low"] for b in window)
         mfe = (hi - trade["open_price"]) if long else (trade["open_price"] - lo)
         mae = (trade["open_price"] - lo) if long else (hi - trade["open_price"])
-    pips = lambda x: "n/a" if x is None else f"{x / 0.0001:.1f} pips"
+    pip = PIP_SIZES.get(trade.get("symbol") or SYMBOL, 0.0001)
+    pips = lambda x: "n/a" if x is None else f"{x / pip:.1f} pips"
     held = (c - o).total_seconds() / 3600
     verdict = "win" if trade["net"] > 0 else "loss" if trade["net"] < 0 else "flat"
     eid = trade["entry_id"] or ""
     label = ("TECH-0003 execution check" if eid.startswith("T3-")
-             else f"H-002-{trade.get('arm') or 'claude'} {trade.get('pattern') or ''} @ {trade.get('hour_utc')}h UTC"
+             else f"H-002-{trade.get('arm') or 'claude'} {trade.get('symbol') or SYMBOL} {trade.get('pattern') or ''}"
+                  f" @ {trade.get('hour_utc')}h UTC"
              if eid.startswith("H2") else STRATEGY_ID)
     return (f"{label} {trade['side']} {trade['volume']} lot: {verdict} {trade['net']:+.2f} {currency} "
             f"(gross {trade['profit']:+.2f}, commission {trade['commission']:+.2f}, swap {trade['swap']:+.2f}). "
@@ -157,7 +159,7 @@ def test_round_trip(journal: Journal, broker, limits: risk.RiskLimits | None, no
     return {"action": "round_trip", "entry": opened, "exit": closed}
 
 
-SNAPSHOT_REQUEST = {"symbol": SYMBOL, "h1_bars": 60, "m15_bars": 120}
+SNAPSHOT_REQUEST = {"symbols": ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "XAUUSD"], "h1_bars": 60, "m15_bars": 120}
 
 
 def step(journal: Journal, broker, limits: risk.RiskLimits | None, now: datetime, *, send: bool = True,
@@ -174,7 +176,8 @@ def step(journal: Journal, broker, limits: risk.RiskLimits | None, now: datetime
         reason = _exit_reason(trade, journal)
         journal.set_exit_reason(trade["position_id"], reason)
         trade["exit_reason"] = reason
-        journal.add_lesson(now, trade["position_id"], "agent", _lesson_text(trade, snap["h1_bars"], acct["currency"]))
+        market = (snap.get("markets") or {}).get(trade.get("symbol") or SYMBOL, snap)
+        journal.add_lesson(now, trade["position_id"], "agent", _lesson_text(trade, market["h1_bars"], acct["currency"]))
 
     if snap["quote"] is None:
         return {"action": "skip", "reason": "no fresh tick: market closed or broker clock unknown"}

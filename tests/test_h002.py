@@ -175,6 +175,50 @@ def test_claude_arm_continues_legacy_version_line(journal, tmp_path):
     assert new["version"] == 5 and new["tp_rr"] == 2.0
 
 
+def test_multi_symbol_uses_each_symbols_pip_ids_and_lots(journal, tmp_path):
+    b = Broker()
+    jpy = [{**r, **{k: r[k] * 136.36 for k in ("open", "high", "low", "close")}} for r in m15(1.1020)]
+    gold = [{**r, **{k: r[k] * 3636.36 for k in ("open", "high", "low", "close")}} for r in m15(1.1020)]
+    base = snap(m15(1.1000))
+    mk = lambda bars, bid, ask, digits, point: {"quote": {**base["quote"], "bid": bid, "ask": ask},
+                                                "m15_bars": bars, "h1_bars": [],
+                                                "spec": {**base["spec"], "digits": digits, "point": point,
+                                                         "quote_currency": "JPY" if digits == 3 else "USD"}}
+    s = {**base, "markets": {"EURUSD": {k: base[k] for k in ("quote", "m15_bars", "h1_bars", "spec")},
+                             "USDJPY": mk(jpy, 150.300, 150.302, 3, 0.001),
+                             "XAUUSD": mk(gold, 4007.10, 4007.30, 2, 0.01)}}
+    lim = limits(tmp_path, max_open_positions=50, allowed_symbols=frozenset({"EURUSD", "USDJPY", "XAUUSD"}),
+                 max_lots_per_order=1.0, max_spread_points_by_symbol={"XAUUSD": 60})
+    pol = {**h002.DEFAULT_POLICY, "lots": 1.0, "symbols": ["EURUSD", "USDJPY", "XAUUSD"]}
+    out = h002.step(journal, b, lim, NOW, s, pol, rng=random.Random(0))
+    by_symbol = {}
+    for sent in b.sent:
+        by_symbol.setdefault(sent["intent"]["symbol"], []).append(sent["intent"])
+    assert set(by_symbol) == {"USDJPY", "XAUUSD"} and not out["symbols"]["EURUSD"]["entries"]
+    uj = by_symbol["USDJPY"][0]
+    assert uj["client_order_id"].startswith("H2CL-UJ-") and uj["quantity_lots"] == 1.0
+    entry = 150.302 if uj["side"] == "buy" else 150.300
+    assert abs(entry - uj["stop_loss"]) >= 0.05 - 1e-9  # min stop = 5 JPY pips (0.01 each)
+    xa = by_symbol["XAUUSD"][0]
+    assert xa["client_order_id"].startswith("H2CL-XA-") and xa["quantity_lots"] == 0.1
+    assert journal.decided(f"H-002-claude:USDJPY:{LATEST.isoformat()}")
+    assert journal.decided(f"H-002-claude:{LATEST.isoformat()}")  # EURUSD keeps the original key
+    tags = dict(journal.db.execute("SELECT entry_id, symbol FROM entry_tags").fetchall())
+    assert tags[uj["client_order_id"]] == "USDJPY"
+
+
+def test_gold_spread_limit_is_per_symbol(tmp_path):
+    from fxra.contracts import AccountSnapshot, OrderIntent, Quote, SymbolSpec
+    spec = SymbolSpec("XAUUSD", "t", 2, 0.01, 0.1, 100, 0.01, 100, 0.01, "USD")
+    q = Quote("XAUUSD", NOW, 4007.00, 4007.30)  # 30 points
+    intent = OrderIntent("x1", "H-002", "explore", "XAUUSD", "buy", 0.1, "market", stop_loss=4000.0)
+    acct = AccountSnapshot(NOW, "USD", 1e5, 1e5, 0)
+    base = limits(tmp_path, allowed_symbols=frozenset({"XAUUSD"}))
+    assert "spread_too_wide:30.0" in risk.evaluate(intent, base, spec, q, acct, NOW, set(), False).reasons
+    wide = limits(tmp_path, allowed_symbols=frozenset({"XAUUSD"}), max_spread_points_by_symbol={"XAUUSD": 60})
+    assert risk.evaluate(intent, wide, spec, q, acct, NOW, set(), False).approved
+
+
 def test_proposal_needs_the_other_agent(journal):
     pid = journal.propose(NOW, "codex/gpt-6-sol", "disable pin_bar in asia", "pin_bar/asia n=14 avg -1.9 pips")
     with pytest.raises(PermissionError):

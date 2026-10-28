@@ -182,6 +182,21 @@ scoreboard remain.
   the *other* agent. New pattern code still goes through a PR that the other
   agent reviews.
 
+## More symbols for exploration (D-34)
+
+Owner choice, 2026-10-28: to learn faster, H-002 (both arms) also trades
+GBPUSD, USDJPY, AUDUSD and XAUUSD alongside EURUSD. Lot sizes: 1 lot, except
+gold at 0.1 lot, because 1 lot of gold is 100 USD per 1 USD move.
+
+- Pip sizes are explicit per symbol (`trade_journal.PIP_SIZES`; gold 0.1).
+- Statistics are reported by symbol and by symbol and pattern.
+- Arm policies carry `symbols` and `lots_by_symbol`.
+- The risk gate accepts `max_spread_points_by_symbol` (gold 60 points);
+  `allowed_symbols` lists all five.
+- H-001B stays EURUSD-only as the frozen control.
+- EURUSD keeps its decision keys and client ids. Other symbols add a code
+  (`GU`, `UJ`, `AU`, `XA`).
+
 ## Open questions
 
 ### Simulation and memory decisions (owner request, 2026-10-27)

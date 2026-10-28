@@ -102,6 +102,24 @@ def test_quote_time_never_ahead_of_observation():
     assert datetime.fromisoformat(q["time"]).timestamp() <= NOW and q["clock_skew_seconds"] > 59
 
 
+def test_snapshot_reads_several_symbols_in_one_call():
+    b, fake = bridge()
+    fake.positions = [NS(ticket=3, magic=20261030, comment="H2CX-UJ-x", type=1, volume=1.0, symbol="USDJPY",
+                         price_open=150.0, sl=150.1, tp=149.8, price_current=149.9, profit=6.0, swap=0.0,
+                         time=int(NOW) + OFFSET - 600),
+                      NS(ticket=4, magic=999, comment="manual", type=0, volume=1.0, symbol="USDJPY")]
+    snap = b.snapshot({"symbols": ["EURUSD", "USDJPY", "XAUUSD"], "h1_bars": 2, "m15_bars": 2})
+    assert set(snap["markets"]) == {"EURUSD", "USDJPY", "XAUUSD"}
+    assert snap["quote"] == snap["markets"]["EURUSD"]["quote"] and snap["markets"]["XAUUSD"]["m15_bars"]
+    assert [(p["ticket"], p["symbol"], p["strategy"]) for p in snap["positions"]] == [(3, "USDJPY", "H-002-codex")]
+    with pytest.raises(ValueError, match="OUTSIDE_SCOPE"):
+        b.snapshot({"symbols": ["BTCUSD"]})
+    real = fake.symbol_info_tick
+    fake.symbol_info_tick = lambda s: NS(time=0, bid=0.0, ask=0.0) if s == "XAUUSD" else real(s)
+    snap = b.snapshot({"symbols": ["EURUSD", "XAUUSD"]})
+    assert snap["markets"]["XAUUSD"]["quote"] is None and snap["server_offset_seconds"] == OFFSET
+
+
 def test_live_account_is_refused():
     fake = FakeMT5()
     fake.trade_mode = fake.ACCOUNT_TRADE_MODE_REAL
@@ -156,7 +174,7 @@ def test_lost_response_reconciles_instead_of_resending():
 def test_close_only_own_position_and_opposite_side():
     b, fake = bridge()
     assert b.close({"ticket": 7, "client_order_id": "H1B-X-7"})["status"] == "no_such_position"
-    fake.positions = [NS(ticket=7, magic=mx.MAGIC, comment="H1B-26102813-B", type=0, volume=0.01)]
+    fake.positions = [NS(ticket=7, magic=mx.MAGIC, comment="H1B-26102813-B", type=0, volume=0.01, symbol="EURUSD")]
     assert b.close({"ticket": 7, "client_order_id": "H1B-X-7"})["status"] == "filled"
     req = fake.sent[0]
     assert req["type"] == fake.ORDER_TYPE_SELL and req["position"] == 7 and req["price"] == 1.10000

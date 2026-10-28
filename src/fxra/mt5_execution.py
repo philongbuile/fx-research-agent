@@ -21,7 +21,7 @@ from pathlib import Path
 
 MAGIC = 20261028  # H-001B (and the TECH-0003 check)
 MAGICS = {MAGIC: "H-001B", 20261029: "H-002-claude", 20261030: "H-002-codex"}  # one per demo strategy/arm
-SYMBOLS = frozenset({"EURUSD"})
+SYMBOLS = frozenset({"EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "XAUUSD"})  # owner's choice, 2026-10-28
 MAX_DEVIATION_POINTS = 20
 COMMENT_MAX = 31  # MT5 order comment limit
 
@@ -82,14 +82,23 @@ class Bridge:
         return info
 
     def snapshot(self, req):
-        symbol, hours, quarters = req.get("symbol", "EURUSD"), int(req.get("h1_bars", 40)), int(req.get("m15_bars", 0))
+        """Account, per-symbol market data, and every agent position/deal.
+
+        `symbols` (default [`symbol`]) are read in one call; the first one's market
+        data is also returned at top level for single-symbol callers (H-001B).
+        """
+        symbols = list(req.get("symbols") or [req.get("symbol", "EURUSD")])
+        hours, quarters = int(req.get("h1_bars", 40)), int(req.get("m15_bars", 0))
         if not 1 <= hours <= 500 or not 0 <= quarters <= 500:
             raise ValueError("BAR_COUNT_OUT_OF_BOUNDS")
         account = self.b.check()
-        info = self._symbol(symbol)
-        tick = self.mt5.symbol_info_tick(symbol)
+        infos = {s: self._symbol(s) for s in symbols}
+        # A symbol just added to Market Watch can return an empty tick (time 0, prices 0): no quote.
+        ticks = {s: t if t and t.time > 0 and 0 < t.bid <= t.ask else None
+                 for s, t in ((s, self.mt5.symbol_info_tick(s)) for s in symbols)}
         now = self.clock()
-        offset = server_offset(int(tick.time), now) if tick else None
+        fresh = [int(t.time) for t in ticks.values() if t]
+        offset = server_offset(max(fresh), now) if fresh else None  # the freshest tick tells the clock
         out = {
             "observed_at_utc": datetime.fromtimestamp(now, timezone.utc).isoformat(),
             "server_offset_seconds": offset,
@@ -97,34 +106,41 @@ class Bridge:
                         "balance": account.balance, "equity": account.equity,
                         "margin_free": account.margin_free, "leverage": account.leverage,
                         "hedging": account.margin_mode == self.mt5.ACCOUNT_MARGIN_MODE_RETAIL_HEDGING},
-            "spec": {"symbol": symbol, "digits": info.digits, "point": info.point,
-                     "contract_size": info.trade_contract_size, "volume_min": info.volume_min,
-                     "volume_max": info.volume_max, "volume_step": info.volume_step,
-                     "quote_currency": info.currency_profit, "stops_level": info.trade_stops_level,
-                     "swap_long": info.swap_long, "swap_short": info.swap_short},
-            "quote": None, "h1_bars": [], "m15_bars": [], "positions": [], "deals": [],
+            "markets": {}, "positions": [], "deals": [],
         }
-        if offset is None:
-            return out  # without a clock we cannot place bars or quotes in UTC
-        # Broker and local clocks differ by up to the offset rounding tolerance; a tick is never
-        # newer than our own observation of it.
-        tick_utc = min(tick.time - offset, now)
-        out["quote"] = {"symbol": symbol, "bid": tick.bid, "ask": tick.ask,
-                        "time": datetime.fromtimestamp(tick_utc, timezone.utc).isoformat(),
-                        "clock_skew_seconds": round(tick.time - offset - now, 1)}
 
-        def bars(timeframe, count):
+        def bars(symbol, timeframe, count):
             rates = self.mt5.copy_rates_from_pos(symbol, timeframe, 1, count) if count else None  # 1 = skip open bar
             return [{"time": _utc(int(r["time"]), offset), "open": float(r["open"]),
                      "high": float(r["high"]), "low": float(r["low"]), "close": float(r["close"]),
                      "tick_volume": int(r["tick_volume"]), "spread_points": int(r["spread"])}
                     for r in (rates if rates is not None else [])]
-        out["h1_bars"] = bars(self.mt5.TIMEFRAME_H1, hours)
-        out["m15_bars"] = bars(self.mt5.TIMEFRAME_M15, quarters)
-        for p in self.mt5.positions_get(symbol=symbol) or ():
-            if p.magic in MAGICS:
+
+        for symbol in symbols:
+            info, tick = infos[symbol], ticks[symbol]
+            m = {"spec": {"symbol": symbol, "digits": info.digits, "point": info.point,
+                          "contract_size": info.trade_contract_size, "volume_min": info.volume_min,
+                          "volume_max": info.volume_max, "volume_step": info.volume_step,
+                          "quote_currency": info.currency_profit, "stops_level": info.trade_stops_level,
+                          "swap_long": info.swap_long, "swap_short": info.swap_short},
+                 "quote": None, "h1_bars": [], "m15_bars": []}
+            if offset is not None and tick:
+                # Broker and local clocks differ within the offset rounding tolerance; a tick is
+                # never newer than our own observation of it.
+                tick_utc = min(tick.time - offset, now)
+                m["quote"] = {"symbol": symbol, "bid": tick.bid, "ask": tick.ask,
+                              "time": datetime.fromtimestamp(tick_utc, timezone.utc).isoformat(),
+                              "clock_skew_seconds": round(tick.time - offset - now, 1)}
+                m["h1_bars"] = bars(symbol, self.mt5.TIMEFRAME_H1, hours)
+                m["m15_bars"] = bars(symbol, self.mt5.TIMEFRAME_M15, quarters)
+            out["markets"][symbol] = m
+        out.update(out["markets"][symbols[0]])
+        if offset is None:
+            return out  # without a clock we cannot place bars, positions or deals in UTC
+        for p in self.mt5.positions_get() or ():
+            if p.magic in MAGICS and p.symbol in SYMBOLS:
                 out["positions"].append({
-                    "ticket": p.ticket, "magic": p.magic, "strategy": MAGICS[p.magic],
+                    "ticket": p.ticket, "magic": p.magic, "strategy": MAGICS[p.magic], "symbol": p.symbol,
                     "side": "buy" if p.type == self.mt5.POSITION_TYPE_BUY else "sell",
                     "volume": p.volume, "price_open": p.price_open, "sl": p.sl, "tp": p.tp,
                     "price_current": p.price_current, "profit": p.profit, "swap": p.swap,
@@ -132,10 +148,10 @@ class Bridge:
         since = datetime.fromtimestamp(now - 30 * 86400, timezone.utc)
         until = datetime.fromtimestamp(now + 86400, timezone.utc)
         for d in self.mt5.history_deals_get(since, until) or ():
-            if d.magic in MAGICS and d.symbol == symbol:
+            if d.magic in MAGICS and d.symbol in SYMBOLS:
                 out["deals"].append({
                     "ticket": d.ticket, "order": d.order, "position_id": d.position_id,
-                    "magic": d.magic, "strategy": MAGICS[d.magic],
+                    "magic": d.magic, "strategy": MAGICS[d.magic], "symbol": d.symbol,
                     "time": _utc(d.time, offset),
                     "side": "buy" if d.type == self.mt5.DEAL_TYPE_BUY else "sell",
                     "entry": {self.mt5.DEAL_ENTRY_IN: "in", self.mt5.DEAL_ENTRY_OUT: "out"}.get(d.entry, "other"),
@@ -145,8 +161,8 @@ class Bridge:
         return out
 
     def _already_sent(self, symbol, comment):
-        """Reconciliation: an order with this id exists as a position or a deal."""
-        for p in self.mt5.positions_get(symbol=symbol) or ():
+        """Reconciliation: an order with this id exists as a position or a deal (ids are unique across symbols)."""
+        for p in self.mt5.positions_get() or ():
             if p.magic in MAGICS and p.comment == comment:
                 return {"status": "already_open", "ticket": p.ticket}
         now = self.clock()
@@ -220,18 +236,19 @@ class Bridge:
 
     def close(self, req):
         """Close a whole position opened by this agent. Never opens reverse exposure."""
-        ticket, cid, symbol = int(req["ticket"]), req["client_order_id"], req.get("symbol", "EURUSD")
+        ticket, cid = int(req["ticket"]), req["client_order_id"]
         if not cid or len(cid) > COMMENT_MAX:
             raise ValueError("CLIENT_ORDER_ID_INVALID")
         self.b.check()
-        info = self._symbol(symbol)
-        found = self._already_sent(symbol, cid)
+        found = self._already_sent(req.get("symbol", "EURUSD"), cid)
         if found:
             return found
         positions = [p for p in self.mt5.positions_get(ticket=ticket) or () if p.magic in MAGICS]
         if len(positions) != 1:
             return {"status": "no_such_position", "ticket": ticket}
         p = positions[0]
+        symbol = p.symbol  # the position, not the caller, decides what is closed
+        info = self._symbol(symbol)
         tick = self.mt5.symbol_info_tick(symbol)
         long = p.type == self.mt5.POSITION_TYPE_BUY
         request = {"action": self.mt5.TRADE_ACTION_DEAL, "symbol": symbol, "volume": p.volume,
