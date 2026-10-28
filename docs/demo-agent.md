@@ -76,6 +76,27 @@ Every closed M15 bar, `h002.step` checks four patterns:
 - `bb_rsi_reversion`: close outside the 2σ Bollinger band with RSI14 below 30 or above 70.
 - `inside_bar_break`: close breaks the mother bar of an inside bar.
 
+Twelve more exploration patterns were added on 2026-10-28, because the owner
+asked for as many as possible: wins and losses both count as data.
+
+- `breakout10`
+- `ema_cross_9_21`
+- `macd_cross`
+- `momentum_candle` (body > 1.5×ATR)
+- `engulfing`
+- `pin_bar`
+- `rsi_cross_50`
+- `rsi_extreme_fade` (RSI < 25 or > 75)
+- `three_bar_momentum`
+- `bb_squeeze_break`
+- `failed_breakout_fade`
+- `ema50_stretch_fade` (close more than 2×ATR from EMA50)
+
+Some contradict each other (trend vs fade) on purpose. On 9 days of
+quarantined M1 data aggregated to M15, at least one pattern matched on about
+513 of 613 evaluated bars. That counts frequency only. A pattern starts trading
+only once it is in the policy's `enabled` list.
+
 Each pattern is first tried at least `min_samples` times. After that, an
 epsilon-greedy choice prefers the best average pips after an assumed cost, and
 explores with probability `epsilon`. Stop = max(`sl_atr` × ATR14, `min_sl_pips`).

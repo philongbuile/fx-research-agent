@@ -131,6 +131,10 @@ Owner also set 0.1 lot for the new strategy and a daily KPI of 50 USD.
   Learning statistics subtract an assumed 0.8-pip cost. A rule distilled from
   exploration becomes a new frozen hypothesis id and must be tested on data that
   arrives after it is frozen. H-001B stays frozen as the control.
+- Owner addendum, same day: losing trades are acceptable; learning volume
+  matters most and every profit or loss is knowledge. H-002 therefore carries
+  16 patterns, including contradictory trend and fade setups, and the
+  explorer's statistics decide which survive.
 
 ## Demo duty rotation and model comparison (D-32)
 
