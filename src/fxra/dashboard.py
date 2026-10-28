@@ -186,7 +186,7 @@ main{padding:16px 20px;display:grid;gap:16px;grid-template-columns:repeat(auto-f
 .wide{grid-column:1/-1}.kpis{display:flex;flex-wrap:wrap;gap:18px}.kpi b{display:block;font-size:20px}
 .kpi span{color:var(--mute);font-size:12px}table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--mute);font-weight:500}
-.scroll{overflow-x:auto;max-height:420px;overflow-y:auto}.mono{font-family:ui-monospace,Consolas,monospace}
+.scroll{overflow-x:auto;max-height:420px;overflow-y:auto}.hscroll{overflow-x:auto}.mono{font-family:ui-monospace,Consolas,monospace}
 .lesson{border-left:3px solid var(--accent);padding:6px 10px;margin:0 0 10px}.lesson small{color:var(--mute)}
 svg{width:100%;height:160px}.muted{color:var(--mute)}
 .num{font-variant-numeric:tabular-nums;white-space:nowrap}.right{text-align:right}
@@ -202,6 +202,30 @@ svg{width:100%;height:160px}.muted{color:var(--mute)}
 .steps{display:grid;gap:8px}.steprow{display:grid;grid-template-columns:minmax(110px,auto) auto 1fr;gap:4px 12px;align-items:baseline;
   padding:8px 0;border-bottom:1px solid var(--line)}.steprow:last-child{border-bottom:0}
 @media (max-width:640px){.steprow{grid-template-columns:1fr auto}.steprow .why{grid-column:1/-1}}
+h3{font-size:13px;margin:16px 0 8px}h3:first-child{margin-top:0}
+.cards{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))}
+.mcard{border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
+.mcard h4{margin:0;font-size:15px}.mcard .sub{color:var(--mute);font-size:12px;margin-bottom:6px}.big{font-size:24px;font-weight:600}
+.mini{padding:8px 12px}.mini .big{font-size:18px}
+.wl{display:flex;height:6px;border-radius:99px;overflow:hidden;background:var(--line);margin:8px 0 6px;min-width:60px}
+.wl i{background:var(--up)}.wl u{background:var(--down)}
+.stats{display:flex;flex-wrap:wrap;gap:2px 14px;font-size:12px;color:var(--mute)}.stats b{color:var(--ink);font-weight:600}
+.cols{display:grid;gap:8px 20px;grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr))}.cols>*{min-width:0}
+table.mx{width:auto;min-width:100%}.mx th,.mx td{text-align:center;white-space:nowrap}.mx th:first-child,.mx td:first-child{text-align:left}.mx th{white-space:normal}
+.cell{display:block;border-radius:6px;padding:3px 8px;font-size:12px;font-variant-numeric:tabular-nums}.cell small{display:block;color:var(--mute);font-size:10px}
+.hours{display:grid;grid-template-columns:repeat(24,minmax(0,1fr));gap:3px}
+@media (max-width:640px){.hours{grid-template-columns:repeat(12,minmax(0,1fr))}}
+.hours div{border-radius:5px;padding:4px 0;text-align:center;font-size:10px;color:var(--mute);border:1px solid var(--line)}.hours div b{display:block;font-size:11px;color:var(--ink)}
+.netbar{position:relative;height:6px;width:120px;background:var(--line);border-radius:99px;display:inline-block;vertical-align:middle;margin-right:8px}
+.netbar i{position:absolute;top:0;bottom:0;border-radius:99px}.netbar:after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--mute)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}.chip{padding:1px 8px;border-radius:99px;font-size:12px;border:1px solid var(--line)}
+.chip.off{text-decoration:line-through;color:var(--mute)}
+.params{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:10px 0}
+.params div{border:1px solid var(--line);border-radius:8px;padding:6px 8px}.params span{display:block;color:var(--mute);font-size:11px}
+.params .diff{border-color:var(--accent)}.params .diff span:after{content:" · differs";color:var(--accent)}
+details{margin-top:12px}summary{cursor:pointer;color:var(--mute);font-size:13px}
+.tl{display:grid;grid-template-columns:auto auto 1fr;gap:4px 12px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line)}
+.tl:last-child{border-bottom:0}@media (max-width:640px){.tl{grid-template-columns:1fr auto}.tl>:last-child{grid-column:1/-1}}
 </style></head><body>
 <header><h1>FX Demo Agent</h1><span id="duty" class="pill"></span><span id="memsync" class="pill"></span><span id="strategy" class="pill"></span><span id="mode" class="pill"></span>
 <span id="kill" class="pill"></span><span id="conn" class="pill"></span><span id="updated" class="muted"></span></header>
@@ -213,10 +237,10 @@ svg{width:100%;height:160px}.muted{color:var(--mute)}
 <section class="card wide"><h2>Equity</h2><div id="equity"></div></section>
 <section class="card wide"><h2>Trades (broker deals)</h2><div class="scroll"><table id="trades"></table></div></section>
 <section class="card wide"><h2>Decisions, hour by hour</h2><div class="scroll"><table id="decisions"></table></div></section>
-<section class="card wide"><h2>Model scoreboard (who was on duty)</h2><div id="scoreboard"></div></section>
+<section class="card wide"><h2>Model scoreboard</h2><div id="scoreboard"></div></section>
 <section class="card wide"><h2>What H-002 is learning (exploration, after assumed cost)</h2><div id="learning"></div></section>
 <section class="card wide"><h2>Proposals (need the other model's review)</h2><div id="proposals"></div></section>
-<section class="card wide"><h2>Arm policies</h2><div id="policy" class="mono"></div></section>
+<section class="card wide"><h2>Arm policies</h2><div id="policy"></div></section>
 <section class="card wide"><h2>Lessons</h2><div id="lessons"></div></section>
 </main>
 <script>
@@ -239,29 +263,71 @@ async function load(){
   $("kpi").innerHTML=`<div class="kpis">${kpi("Net today",money(k.net_today,"USD"))}${kpi("Target",k.target_usd+" USD")}${kpi("Progress",(k.progress*100).toFixed(0)+"%")}</div>
     <div style="height:10px;background:var(--line);border-radius:99px;margin-top:10px"><div style="height:10px;width:${pct}%;background:${k.net_today<0?"var(--down)":"var(--up)"};border-radius:99px"></div></div>
     <p class="muted">Tracked, not optimised: the agent never sizes up to chase it.</p>`;
-  const grp=(o,label)=>{const r=Object.entries(o);return r.length?`<table><tr><th>${label}</th><th>n</th><th>Win</th><th>Net USD</th><th>Avg pips after cost</th></tr>`+
-    r.map(([n,g])=>`<tr><td>${esc(n)}</td><td>${g.n}${g.n<10?' <span class="muted">(few)</span>':""}</td><td>${(g.win_rate*100).toFixed(0)}%</td><td>${money(g.net)}</td><td>${money(g.avg_pips_after_cost)}</td></tr>`).join("")+"</table>":""};
   const AL=s.arm_labels||{}, ML=s.model_labels||{};
   const armLabel=n=>AL[n]?`${AL[n]}`:n;  // H-002-claude -> "Claude Opus 5.5 Medium"
   const who=a=>{if(!a)return "";const [ag,m]=String(a).split("/");return ML[m]||ML[ag]||a};
-  const rl=k=>String(k).replace(/^(claude|codex)(?= \/|$)/,x=>AL["H-002-"+x]||x);
   const d=s.duty; $("duty").innerHTML=`on duty: <b>${esc(d.label||d.model)}</b>`+(d.co_duty||[]).map(c=>` + <b>${esc(c.label||c.model)}</b> <span class="muted">until ${esc((c.until||"").slice(11,16))}</span>`).join("");
   const mem=s.memory||{}; $("memsync").innerHTML=!mem.enabled?'<span class="muted">Hindsight sync off</span>':mem.error||mem.failed?`<span class="bad">Hindsight sync failing${mem.pending?` · ${mem.pending} pending`:""}</span>`:`<span class="ok">Hindsight synced</span>${mem.pending?` · ${mem.pending} pending`:""}`;
-  const sb=s.scoreboard, mrow=o=>Object.entries(o);
-  const sbt=(o,label)=>mrow(o).length?`<table><tr><th>${label}</th><th>n</th><th>Win rate</th><th>Net USD</th><th>Profit factor</th><th>Avg pips after cost</th></tr>`+
-    mrow(o).map(([n,g])=>`<tr><td>${esc(n)}</td><td>${g.n}${g.n<30?' <span class="muted">(small)</span>':""}</td><td>${(g.win_rate*100).toFixed(0)}% <span class="muted">${g.wins}W/${g.losses}L</span></td><td>${money(g.net)}</td><td>${g.profit_factor??"–"}</td><td>${money(g.avg_pips_after_cost)}</td></tr>`).join("")+"</table>":"";
+  // shared pieces for the scoreboard, learning and policy cards
+  const SESS=["asia","london","overlap_ny","late_ny"], pc=v=>(v*100).toFixed(0)+"%";
+  const P=s.policies, arms=Object.keys(P), ls=s.learning, sb=s.scoreboard;
+  const syms=[...new Set([...arms.flatMap(a=>P[a].symbols||[]),...Object.keys(ls.by_symbol||{})])];
+  const allPat=[...new Set([...arms.flatMap(a=>P[a].enabled||[]),...Object.keys(ls.by_pattern||{})])];
+  const stats=(g,small)=>`<div class="wl"><i style="flex:${g.wins}"></i><u style="flex:${g.losses}"></u><s style="flex:${g.n-g.wins-g.losses}"></s></div>
+    <div class="stats"><span><b>${g.n}</b> trade${g.n==1?"":"s"}${g.n<small?" (small)":""}</span><span><b>${pc(g.win_rate)}</b> win · ${g.wins}W/${g.losses}L</span><span>PF <b>${g.profit_factor??"–"}</b></span><span><b>${money(g.avg_pips_after_cost)}</b> pips/trade</span></div>`;
+  const maxAbs=o=>Math.max(1,...Object.values(o||{}).map(g=>Math.abs(g.net)));
+  const tint=(v,mx)=>`background:color-mix(in srgb,var(${v>=0?"--up":"--down"}) ${Math.round(12+50*Math.min(1,Math.abs(v)/mx))}%,transparent)`;
+  const heat=(g,mx)=>g?`<span class="cell" style="${tint(g.net,mx)}">${g.net>0?"+":""}${g.net.toFixed(0)}<small>${g.n} · ${g.wins}W/${g.losses}L</small></span>`:'<span class="cell muted">·</span>';
+  // rows x cols grid over "a / b" keys; swap when the key is "col / row"
+  const matrix=(o,rows,cols,cl,corner,swap)=>{const m=maxAbs(o);return `<table class="mx"><tr><th>${corner}</th>${cols.map(c=>`<th>${esc(cl(c))}</th>`).join("")}</tr>`+
+    rows.map(r=>`<tr><td>${esc(r)}</td>${cols.map(c=>`<td>${heat((o||{})[swap?c+" / "+r:r+" / "+c],m)}</td>`).join("")}</tr>`).join("")+"</table>"};
   const relabel=(o,f)=>Object.fromEntries(Object.entries(o||{}).map(([k,v])=>[f(k),v]));
   const ids=k=>String(k).split(" / ").map(x=>ML[x]||who(x)).join(" / ");
-  $("scoreboard").innerHTML=(mrow(sb.by_arm_model||sb.by_arm).length?"<h3>Model vs model (H-002 arms: same market, same bars)</h3>"+
-      sbt(sb.by_arm_model||relabel(sb.by_arm,rl),"Model running the arm")+"<br>"+sbt(relabel(sb.by_arm_session,rl),"Model / session")+"<br>"+sbt(relabel(sb.by_arm_symbol,rl),"Model / symbol")+"<br>":"")+
-    (mrow(sb.by_model).length?sbt(relabel(sb.by_model,ids),"Model on duty at entry")+"<br>"+sbt(relabel(sb.by_model_strategy,ids),"Model on duty / strategy")+"<br>"+sbt(relabel(sb.by_policy_author,ids),"Policy author"):'<p class="muted">No closed trades attributed to a model yet.</p>')+
-    `<p class="muted">Lessons: ${esc(Object.entries(sb.lessons_by_author).map(([a,n])=>`${who(a)} ${n}`).join(", "))} · Policy changes: ${esc(Object.entries(sb.policy_changes_by_author).map(([a,n])=>`${who(a)} ${n}`).join(", "))}</p>`+
-    (sb.shifts.length?"<p>"+sb.shifts.map(x=>`${t(x.at)} · <b>${esc(x.agent)}</b> ${esc(x.kind)}: ${esc(x.summary)}`).join("<br>")+"</p>":"");
-  const ls=s.learning;
-  $("learning").innerHTML=ls.closed_trades?`<p class="muted">${ls.closed_trades} closed exploration trades; assumed cost ${ls.assumed_cost_pips} pip per trade.</p>`+
-    grp(ls.by_symbol||{},"Symbol")+"<br>"+grp(ls.by_pattern,"Pattern")+"<br>"+grp(ls.by_symbol_pattern||{},"Symbol / pattern")+"<br>"+grp(ls.by_hour,"Hour UTC")+"<br>"+grp(ls.by_pattern_session,"Pattern / session"):'<p class="muted">No closed H-002 trades yet. Every pattern gets explored first.</p>';
-  $("policy").innerHTML=Object.entries(s.policies).map(([a,p])=>`<b>${esc(armLabel("H-002-"+a))}</b> (arm ${esc(a)}) v${p.version}: ${esc(JSON.stringify(p))}`).join("<br><br>")+
-    (s.policy_changes.length?"<br><br>"+s.policy_changes.map(c=>`${esc(armLabel("H-002-"+c.arm))} v${c.version} · ${esc(who(c.author))} · ${t(c.at)} · ${esc(c.reason)}`).join("<br>"):"");
+  const sbt=(o,label)=>{const r=Object.entries(o||{});return `<div><h3>${label}</h3>`+(r.length?`<table class="mx"><tr><th></th><th>n</th><th>Win</th><th>Net USD</th><th>PF</th><th>Pips/trade</th></tr>`+
+    r.map(([n,g])=>`<tr><td>${esc(n)}</td><td>${g.n}</td><td>${pc(g.win_rate)} <span class="muted">${g.wins}W/${g.losses}L</span></td><td>${money(g.net)}</td><td>${g.profit_factor??"–"}</td><td>${money(g.avg_pips_after_cost)}</td></tr>`).join("")+"</table>":'<p class="muted">none yet</p>')+"</div>"};
+  const cnt=o=>Object.entries(o||{}).map(([a,n])=>`<span class="chip">${esc(a==="agent"?"automatic":who(a))} · ${n}</span>`).join("")||'<span class="muted">none yet</span>';
+  const shift=x=>`<div class="tl"><span class="num muted">${t(x.at)}</span><span class="badge b-${x.kind==="end"?"hold":"entry"}">${esc(ML[x.model]||x.agent)} · ${esc(x.kind)}</span><span>${esc(x.summary)}</span></div>`;
+  const byModel=sb.by_arm_model||{}, armOf=Object.fromEntries(arms.map(a=>[armLabel("H-002-"+a),a]));
+  const models=[...new Set([...Object.keys(armOf),...Object.keys(byModel)])];
+  const lead=Object.keys(byModel).length>1?Object.entries(byModel).sort((x,y)=>y[1].net-x[1].net)[0][0]:null;
+  $("scoreboard").innerHTML=`<h3>Model vs model · both H-002 arms trade the same market and bars</h3><div class="cards">`+
+    models.map(m=>{const g=byModel[m];return `<div class="mcard"><h4>${esc(m)}${m===lead?' <span class="badge b-entry">leading</span>':""}</h4>
+      <div class="sub">${armOf[m]?"arm "+esc(armOf[m])+" · running now":"earlier model"}</div>
+      ${g?`<div class="big">${money(g.net,"USD")}</div>${stats(g,30)}`:'<div class="big muted">–</div><div class="stats">no closed trades yet</div>'}</div>`}).join("")+"</div>"+
+    `<div class="cols"><div><h3>By session · net USD</h3><div class="hscroll">${matrix(sb.by_arm_session,SESS,arms,a=>armLabel("H-002-"+a),"Session",true)}</div></div>
+      <div><h3>By symbol · net USD</h3><div class="hscroll">${matrix(sb.by_arm_symbol,syms,arms,a=>armLabel("H-002-"+a),"Symbol",true)}</div></div></div>`+
+    `<div class="cols"><div><h3>Lessons written</h3><div class="chips">${cnt(sb.lessons_by_author)}</div></div><div><h3>Policy changes</h3><div class="chips">${cnt(sb.policy_changes_by_author)}</div></div></div>`+
+    `<details><summary>Attribution by who was on duty at entry (includes H-001B)</summary><div class="cols">`+
+      sbt(relabel(sb.by_model,ids),"Model on duty")+sbt(relabel(sb.by_model_strategy,ids),"Model / strategy")+sbt(relabel(sb.by_policy_author,ids),"Policy author")+"</div></details>"+
+    (sb.shifts.length?`<h3>Shift log</h3>`+sb.shifts.slice(0,5).map(shift).join("")+
+      (sb.shifts.length>5?`<details><summary>${sb.shifts.length-5} older entries</summary>${sb.shifts.slice(5).map(shift).join("")}</details>`:""):"");
+  const bp=ls.by_pattern||{}, tried=Object.entries(bp).sort((x,y)=>y[1].net-x[1].net), untried=allPat.filter(p=>!bp[p]), pm=maxAbs(bp);
+  const nb=v=>{const w=Math.min(50,Math.abs(v)/pm*50);return `<span class="netbar"><i style="${v>=0?"left":"right"}:50%;width:${w}%;background:var(${v>=0?"--up":"--down"})"></i></span>`};
+  $("learning").innerHTML=!ls.closed_trades?'<p class="muted">No closed H-002 trades yet. Every pattern gets explored first.</p>':
+    `<p class="muted">${ls.closed_trades} closed exploration trade${ls.closed_trades==1?"":"s"} · ${tried.length}/${allPat.length} patterns tried · assumed cost ${ls.assumed_cost_pips} pip per trade · under 10 trades is noise</p>`+
+    `<div class="cards">`+syms.map(sy=>{const g=(ls.by_symbol||{})[sy];return `<div class="mcard mini"><div class="sub">${esc(sy)}</div>${g?`<div class="big">${money(g.net)}</div>${stats(g,10)}`:'<div class="big muted">–</div><div class="stats">no closed trades</div>'}</div>`}).join("")+"</div>"+
+    `<h3>Pattern leaderboard</h3><div class="hscroll"><table class="mx"><tr><th>Pattern</th><th>Trades</th><th>Win</th><th style="text-align:left">Net USD</th><th>Pips/trade</th></tr>`+
+      tried.map(([p,g])=>`<tr><td>${esc(p)}</td><td>${g.n}${g.n<10?' <span class="muted">few</span>':""}</td><td>${pc(g.win_rate)} <span class="muted">${g.wins}W/${g.losses}L</span></td><td style="text-align:left">${nb(g.net)}${money(g.net)}</td><td>${money(g.avg_pips_after_cost)}</td></tr>`).join("")+"</table></div>"+
+    (untried.length?`<h3>Not tried yet (${untried.length})</h3><div class="chips">${untried.map(p=>`<span class="chip">${esc(p)}</span>`).join("")}</div>`:"")+
+    `<div class="cols"><div><h3>Pattern × symbol · net USD</h3><div class="hscroll">${matrix(ls.by_symbol_pattern,tried.map(([p])=>p),syms,x=>x,"Pattern",true)}</div></div>
+      <div><h3>Pattern × session · net USD</h3><div class="hscroll">${matrix(ls.by_pattern_session,tried.map(([p])=>p),SESS,x=>x,"Pattern",false)}</div></div></div>`+
+    `<h3>Hour of entry (UTC) · trades, tinted by net</h3><div class="hours">${Array.from({length:24},(_,h)=>{const g=(ls.by_hour||{})[h];
+      return `<div title="${h}:00 UTC${g?` · ${g.n} trades · net ${g.net}`:" · no trades"}" style="${g?tint(g.net,maxAbs(ls.by_hour)):""}"><b>${h}</b>${g?g.n:"·"}</div>`}).join("")}</div>`;
+  const ch=s.policy_changes||[];
+  const PF={lots:["Lots",p=>`${p.lots}${Object.entries(p.lots_by_symbol||{}).map(([k,v])=>` · ${k} ${v}`).join("")}`],
+    stop:["Stop loss",p=>`max(${p.sl_atr}×ATR, ${p.min_sl_pips} pips)`], target:["Take profit",p=>`${p.tp_rr}R`],
+    hold:["Time exit",p=>`${p.max_hold_bars} bars (${p.max_hold_bars*15/60}h)`], explore:["Exploration",p=>`ε ${p.epsilon} · min ${p.min_samples} samples`],
+    avoid:["Skip hours",p=>(p.avoid_hours_utc||[]).length?p.avoid_hours_utc.map(h=>h+":00").join(", ")+" UTC":"none"],
+    perbar:["Entries per bar",p=>String(p.entries_per_bar??"all matches")], sizing:["Sizing",p=>p.risk_per_trade_pct==null?"fixed lots":p.risk_per_trade_pct+"% risk"],
+    cost:["Assumed cost",p=>`${p.assumed_cost_pips} pip`]};
+  $("policy").innerHTML=`<div class="cards">`+arms.map(a=>{const p=P[a], last=ch.find(c=>c.arm===a), others=arms.filter(b=>b!==a).map(b=>P[b]), on=p.enabled||[];
+    return `<div class="mcard"><h4>${esc(armLabel("H-002-"+a))}</h4><div class="sub">arm ${esc(a)} · v${p.version}${last?` · last change ${t(last.at)} by ${esc(last.author==="system"?"system":who(last.author))}`:""}</div>
+      <div class="params">${Object.values(PF).map(([n,f])=>`<div class="${others.some(o=>f(o)!==f(p))?"diff":""}"><span>${n}</span>${esc(f(p))}</div>`).join("")}</div>
+      <div class="sub">Symbols</div><div class="chips">${(p.symbols||[]).map(x=>`<span class="chip">${esc(x)}</span>`).join("")}</div>
+      <div class="sub" style="margin-top:10px">Patterns enabled ${on.length}/${allPat.length}</div><div class="chips">${allPat.map(x=>`<span class="chip${on.includes(x)?"":" off"}">${esc(x)}</span>`).join("")}</div>
+      <details><summary>Raw policy JSON</summary><pre class="mono" style="white-space:pre-wrap;font-size:12px">${esc(JSON.stringify(p,null,1))}</pre></details></div>`}).join("")+"</div>"+
+    (ch.length?`<h3>Change history</h3><div class="scroll"><table class="mx"><tr><th>When</th><th>Model (arm)</th><th>Version</th><th>Author</th><th style="text-align:left">Reason</th></tr>`+
+      ch.map(c=>`<tr><td class="num">${t(c.at)}</td><td>${esc(armLabel("H-002-"+c.arm))}</td><td>v${c.version}</td><td>${esc(c.author==="system"?"system":who(c.author))}</td><td style="text-align:left;white-space:normal">${esc(c.reason)}</td></tr>`).join("")+"</table></div>":"");
   $("proposals").innerHTML=s.proposals.length?`<table><tr><th>#</th><th>By</th><th>Proposal</th><th>Evidence</th><th>Status</th><th>Review</th></tr>`+
     s.proposals.map(p=>`<tr><td>${p.id}</td><td>${esc(who(p.author))}</td><td>${esc(p.text)}</td><td>${esc(p.evidence)}</td><td><b>${esc(p.status)}</b></td><td>${esc(p.reviewer?who(p.reviewer)+": "+p.review:"")}</td></tr>`).join("")+"</table>":'<p class="muted">No proposals yet. A rule is distilled only when the other model agrees.</p>';
   $("mode").textContent="mode: "+(s.mode||"no risk.toml");
