@@ -333,6 +333,24 @@ def cmd_demo_lesson(a) -> int:
     return 0
 
 
+def cmd_demo_insights(a) -> int:
+    """Print the H-002 results digest, or retain changed digest documents to Hindsight."""
+    import os
+
+    from . import lesson_insights
+    from .lesson_memory import HindsightLessons
+    from .trade_journal import Journal
+
+    j = Journal(a.journal)
+    if not a.retain:
+        print("\n\n".join(f"[{d['document']}]\n{d['content']}" for d in lesson_insights.digest(j)) or "no closed trades")
+        return 0
+    if not os.environ.get("HINDSIGHT_API_KEY"):
+        raise SystemExit("--retain needs HINDSIGHT_API_KEY in the host environment")
+    print(json.dumps(lesson_insights.sync(j, HindsightLessons.from_env(), datetime.now(timezone.utc)), indent=2))
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="fxra")
     sub = p.add_subparsers(required=True)
@@ -404,6 +422,11 @@ def main(argv=None) -> int:
     dl.add_argument("--hindsight-document")
     dl.add_argument("--mark-retained", nargs=2, metavar=("LESSON_ID", "DOCUMENT"), type=str)
     dl.set_defaults(fn=cmd_demo_lesson)
+
+    di = sub.add_parser("demo-insights", help="H-002 results digest by pattern, session, hour and regime")
+    di.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
+    di.add_argument("--retain", action="store_true", help="retain changed digest documents to Hindsight")
+    di.set_defaults(fn=cmd_demo_insights)
 
     sd = sub.add_parser('simulation-demo', help='synthetic lifecycle demo; no trading or market results')
     sd.add_argument('--config', type=Path, default=Path('config/simulation-demo.example.toml'))

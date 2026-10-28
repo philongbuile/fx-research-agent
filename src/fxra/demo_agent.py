@@ -79,30 +79,77 @@ def exit_id(ticket: int) -> str:
     return f"H1B-X-{ticket}"
 
 
-def _lesson_text(trade: dict, bars: list[dict], currency: str) -> str:
-    """Structured, factual post-trade note. Rules are not tuned from it (research honesty)."""
+def excursion(trade: dict, market: dict) -> tuple[float, float, str]:
+    """Best and worst price move during the trade (price units), from M15 bars when present, else H1.
+
+    Snapshots skip the still-open bar, so the last part of the hold can be missing:
+    the realised move is a floor for the best (win) or the worst (loss) excursion.
+    """
     o, c = _t(trade["open_time"]), _t(trade["close_time"])
-    window = [b for b in bars if o - timedelta(hours=1) < _t(b["time"]) <= c]
-    long = trade["side"] == "buy"
-    mfe = mae = None
-    if window:
-        hi, lo = max(b["high"] for b in window), min(b["low"] for b in window)
-        mfe = (hi - trade["open_price"]) if long else (trade["open_price"] - lo)
-        mae = (trade["open_price"] - lo) if long else (hi - trade["open_price"])
-    pip = PIP_SIZES.get(trade.get("symbol") or SYMBOL, 0.0001)
-    pips = lambda x: "n/a" if x is None else f"{x / pip:.1f} pips"
+    bars, span, frame = market.get("m15_bars"), timedelta(minutes=15), "M15"
+    if not bars:
+        bars, span, frame = market.get("h1_bars") or [], timedelta(hours=1), "H1"
+    sign = 1 if trade["side"] == "buy" else -1
+    realised = sign * (trade["close_price"] - trade["open_price"])
+    best, worst = max(realised, 0.0), max(-realised, 0.0)
+    for b in bars:
+        if o - span < _t(b["time"]) <= c:
+            hi, lo = sign * (b["high"] - trade["open_price"]), sign * (b["low"] - trade["open_price"])
+            best, worst = max(best, hi, lo), max(worst, -hi, -lo)
+    return best, worst, frame
+
+
+def _lesson_text(trade: dict, market: dict, currency: str, info: dict | None = None) -> str:
+    """Structured, factual post-trade note: setup and conditions first, so later recall can find
+    "what happened to <pattern> in <session/regime>". Rules are not tuned from it (research honesty)."""
+    info = info or {}
+    f = info.get("features") or {}
+    o, c = _t(trade["open_time"]), _t(trade["close_time"])
+    symbol = trade.get("symbol") or SYMBOL
+    pip = PIP_SIZES.get(symbol, 0.0001)
+    sign = 1 if trade["side"] == "buy" else -1
+    moved = sign * (trade["close_price"] - trade["open_price"])
+    risk_dist = abs(trade["open_price"] - info["stop_loss"]) if info.get("stop_loss") else None
+    in_r = lambda x: f"{x / risk_dist:+.2f}R" if risk_dist else f"{x / pip:+.1f} pips"
+    best, worst, frame = excursion(trade, market)
     held = (c - o).total_seconds() / 3600
     verdict = "win" if trade["net"] > 0 else "loss" if trade["net"] < 0 else "flat"
+    reason = trade["exit_reason"] or "unknown"
     eid = trade["entry_id"] or ""
-    label = ("TECH-0003 execution check" if eid.startswith("T3-")
-             else f"H-002-{trade.get('arm') or 'claude'} {trade.get('symbol') or SYMBOL} {trade.get('pattern') or ''}"
-                  f" @ {trade.get('hour_utc')}h UTC"
-             if eid.startswith("H2") else STRATEGY_ID)
-    return (f"{label} {trade['side']} {trade['volume']} lot: {verdict} {trade['net']:+.2f} {currency} "
-            f"(gross {trade['profit']:+.2f}, commission {trade['commission']:+.2f}, swap {trade['swap']:+.2f}). "
+
+    if eid.startswith("H2"):
+        hour = trade.get("hour_utc")
+        when = ", ".join(x for x in (trade.get("session"), f"{hour}h UTC" if hour is not None else None,
+                                     f.get("dow") or f"{o:%a}") if x)
+        regime = ", ".join(x for x in (f"{f['vol']} vol" if f.get("vol") else None,
+                                       f"H1 trend {f['h1_trend']}" if f.get("h1_trend") else None,
+                                       f"M15 trend {f['m15_trend']}" if f.get("m15_trend") else None) if x)
+        head = (f"H-002-{trade.get('arm') or 'claude'} {trade.get('pattern') or ''} {trade['side']} {symbol}"
+                f" ({when}{'; ' + regime if regime else ''}): {verdict} {in_r(moved)}, {reason}.")
+    else:
+        label = "TECH-0003 execution check" if eid.startswith("T3-") else STRATEGY_ID
+        head = f"{label} {trade['side']} {symbol} ({o:%a} {o:%H}h UTC): {verdict} {in_r(moved)}, {reason}."
+
+    setup = []
+    if f.get("sl_pips") is not None:
+        setup.append(f"planned stop {f['sl_pips']:.1f} pips, target {f.get('tp_pips', 0):.1f} pips")
+    elif risk_dist:
+        setup.append(f"planned stop {risk_dist / pip:.1f} pips")
+    if f.get("atr_pips") is not None:
+        setup.append(f"ATR {f['atr_pips']:.1f} pips" + (f" (pctile {f['atr_pctile']})" if "atr_pctile" in f else ""))
+    if f.get("spread_pips") is not None:
+        setup.append(f"spread {f['spread_pips']} pips")
+    others = {k: v for k, v in (f.get("matches") or {}).items() if k != trade.get("pattern")}
+    if others:
+        setup.append("other signals that bar: " + ", ".join(f"{k} {v}" for k, v in sorted(others.items())))
+    if trade.get("policy_version") is not None:
+        setup.append(f"policy v{trade['policy_version']}")
+    return (f"{head} "
+            + (("Setup: " + "; ".join(setup) + ". ") if setup else "")
+            + f"Result {moved / pip:+.1f} pips, {verdict} {trade['net']:+.2f} {currency} (gross {trade['profit']:+.2f}, "
+            f"commission {trade['commission']:+.2f}, swap {trade['swap']:+.2f}), {trade['volume']} lot. "
             f"Entry {trade['open_price']} at {o:%Y-%m-%d %H:%M}Z, exit {trade['close_price']} at {c:%Y-%m-%d %H:%M}Z "
-            f"after {held:.1f} h, reason {trade['exit_reason'] or 'unknown'}. "
-            f"Best excursion {pips(mfe)}, worst {pips(mae)} (H1 bars, approximate). "
+            f"after {held:.1f} h. Excursion best {in_r(best)}, worst {in_r(-worst)} ({frame} bars, approximate). "
             f"Demo forward-test observation only, not evidence of edge.")
 
 
@@ -177,7 +224,8 @@ def step(journal: Journal, broker, limits: risk.RiskLimits | None, now: datetime
         journal.set_exit_reason(trade["position_id"], reason)
         trade["exit_reason"] = reason
         market = (snap.get("markets") or {}).get(trade.get("symbol") or SYMBOL, snap)
-        journal.add_lesson(now, trade["position_id"], "agent", _lesson_text(trade, market["h1_bars"], acct["currency"]))
+        journal.add_lesson(now, trade["position_id"], "agent",
+                           _lesson_text(trade, market, acct["currency"], journal.entry_info(trade["entry_id"])))
 
     if snap["quote"] is None:
         return {"action": "skip", "reason": "no fresh tick: market closed or broker clock unknown"}

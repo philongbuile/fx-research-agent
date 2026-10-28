@@ -142,8 +142,22 @@ observation to Hindsight over changing the policy after a few trades.
 
 ## Lessons and memory
 
-- `fxra demo-step` writes a factual lesson row for each closed trade: result,
-  costs, exit reason and approximate excursions.
+- `fxra demo-step` writes a factual lesson row for each closed trade. It leads
+  with the setup and conditions (pattern, side, symbol, session, UTC hour,
+  weekday, volatility regime, H1/M15 trend) and the result in R, then the planned
+  stop/target, ATR, spread, other signals on that bar, broker P&L and
+  excursions. H-002 entries store these conditions in `entry_tags.features`
+  (`h002.market_context`). Excursions use M15 bars; the snapshot skips the open
+  bar, so the realised move is a floor.
+- The agent loop retains each lesson to Hindsight with the usual tags plus facet
+  tags `outcome:`, `exit:`, `hour:`, `dow:`, `vol:`, `h1_trend:`, `m15_trend:`.
+- Single-trade lessons are n=1 and Hindsight cannot count. Once an hour the loop
+  retains a digest computed from the journal (`fxra.lesson_insights`): the
+  document `fxra-insight-overview` and one `fxra-insight-pattern-<pattern>` per
+  pattern, tags `demo`, `insight`. Each line gives n, win rate, average R after
+  the assumed cost and a sample label (n<10 noise, n<30 weak). A document is
+  re-retained under the same id only when its content changes.
+  `uv run fxra demo-insights` prints the digest; `--retain` pushes it now.
 - A Claude or Codex reflection session runs `uv run fxra demo-lesson`, reads the
   trades, recalls earlier lessons from Hindsight bank `fxra` (tags `demo`,
   `H-001B`, `lesson`), and writes a narrative lesson there. It records it with
