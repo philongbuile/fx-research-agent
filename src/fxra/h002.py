@@ -23,7 +23,10 @@ STRATEGY_VERSION = "explore"  # risk.toml approves "H-002@explore"; the policy v
 MAGIC = 20261029
 SYMBOL = "EURUSD"
 PIP = 0.0001
-PATTERNS = ("breakout20", "ema_pullback", "bb_rsi_reversion", "inside_bar_break")
+PATTERNS = ("breakout20", "ema_pullback", "bb_rsi_reversion", "inside_bar_break",
+            "breakout10", "ema_cross_9_21", "macd_cross", "momentum_candle", "engulfing", "pin_bar",
+            "rsi_cross_50", "rsi_extreme_fade", "three_bar_momentum", "bb_squeeze_break",
+            "failed_breakout_fade", "ema50_stretch_fade")
 
 DEFAULT_POLICY = {
     "version": 1,
@@ -57,7 +60,9 @@ def rsi(closes, n=14):
     g, l = sum(gains[:n]) / n, sum(losses[:n]) / n
     for gi, li in zip(gains[n:], losses[n:]):
         g, l = (g * (n - 1) + gi) / n, (l * (n - 1) + li) / n
-    return 100.0 if l == 0 else 100 - 100 / (1 + g / l)
+    if l == 0:
+        return 50.0 if g == 0 else 100.0  # a flat series is neutral, not overbought
+    return 100 - 100 / (1 + g / l)
 
 
 def session(hour: int) -> str:
@@ -95,7 +100,95 @@ def patterns(bars: list[dict]) -> dict[str, str]:
             out["inside_bar_break"] = "buy"
         elif last["close"] < mother["low"]:
             out["inside_bar_break"] = "sell"
+    _more_patterns(bars, closes, r, out)
     return out
+
+
+def _cross(fast, slow):
+    if fast[-2] <= slow[-2] and fast[-1] > slow[-1]:
+        return "buy"
+    if fast[-2] >= slow[-2] and fast[-1] < slow[-1]:
+        return "sell"
+    return None
+
+
+def _more_patterns(bars, closes, r, out):
+    """Exploration patterns added 2026-10-28 (owner: as many patterns as possible).
+
+    Deliberately simple and partly contradictory (trend vs fade). The explorer's
+    statistics, not intuition, decide which ones deserve to survive.
+    """
+    last, prev = bars[-1], bars[-2]
+    a = atr(bars[-15:])
+    rng = last["high"] - last["low"]
+    body = last["close"] - last["open"]
+
+    hi10, lo10 = max(b["high"] for b in bars[-11:-1]), min(b["low"] for b in bars[-11:-1])
+    if last["close"] > hi10:
+        out["breakout10"] = "buy"
+    elif last["close"] < lo10:
+        out["breakout10"] = "sell"
+
+    if side := _cross(ema(closes, 9), ema(closes, 21)):
+        out["ema_cross_9_21"] = side
+
+    macd = [f - s for f, s in zip(ema(closes, 12), ema(closes, 26))]
+    if side := _cross(macd, ema(macd, 9)):
+        out["macd_cross"] = side
+
+    if abs(body) > 1.5 * a:
+        out["momentum_candle"] = "buy" if body > 0 else "sell"
+
+    if prev["close"] < prev["open"] and body > 0 and last["open"] <= prev["close"] and last["close"] >= prev["open"]:
+        out["engulfing"] = "buy"
+    elif prev["close"] > prev["open"] and body < 0 and last["open"] >= prev["close"] and last["close"] <= prev["open"]:
+        out["engulfing"] = "sell"
+
+    if rng >= 0.5 * a > 0:
+        if min(last["open"], last["close"]) - last["low"] >= 0.6 * rng:
+            out["pin_bar"] = "buy"  # long lower wick: lows rejected
+        elif last["high"] - max(last["open"], last["close"]) >= 0.6 * rng:
+            out["pin_bar"] = "sell"
+
+    r_prev = rsi(closes[-61:-1])
+    if r_prev < 50 <= r:
+        out["rsi_cross_50"] = "buy"
+    elif r_prev > 50 >= r:
+        out["rsi_cross_50"] = "sell"
+    if r < 25:
+        out["rsi_extreme_fade"] = "buy"
+    elif r > 75:
+        out["rsi_extreme_fade"] = "sell"
+
+    three = bars[-3:]
+    if all(b["close"] > b["open"] for b in three) and closes[-3] < closes[-2] < closes[-1]:
+        out["three_bar_momentum"] = "buy"
+    elif all(b["close"] < b["open"] for b in three) and closes[-3] > closes[-2] > closes[-1]:
+        out["three_bar_momentum"] = "sell"
+
+    def band(end):
+        w = closes[end - 20:end]
+        m = sum(w) / 20
+        return m, (sum((c - m) ** 2 for c in w) / 20) ** 0.5
+    widths = [band(i)[1] for i in range(len(closes) - 50, len(closes))]  # bands up to the previous bar
+    mean, sd = band(len(closes))
+    if widths[-1] <= min(widths) * 1.0001:
+        if last["close"] > mean + 2 * sd:
+            out["bb_squeeze_break"] = "buy"
+        elif last["close"] < mean - 2 * sd:
+            out["bb_squeeze_break"] = "sell"
+
+    hi20, lo20 = max(b["high"] for b in bars[-21:-1]), min(b["low"] for b in bars[-21:-1])
+    if last["high"] > hi20 and last["close"] < hi20:
+        out["failed_breakout_fade"] = "sell"
+    elif last["low"] < lo20 and last["close"] > lo20:
+        out["failed_breakout_fade"] = "buy"
+
+    stretch = last["close"] - ema(closes, 50)[-1]
+    if stretch > 2 * a:
+        out["ema50_stretch_fade"] = "sell"
+    elif stretch < -2 * a:
+        out["ema50_stretch_fade"] = "buy"
 
 
 def choose(matches: dict[str, str], stats: dict[str, dict], policy: dict, rng: random.Random) -> str | None:

@@ -63,6 +63,34 @@ def test_patterns_detect_breakout_and_reversion():
     assert h002.patterns(m15(1.1000)) == {}
 
 
+def bar(o, h, l, c, i):
+    return {"time": (LATEST - timedelta(minutes=15 * (80 - i))).isoformat(), "open": o, "high": h, "low": l, "close": c}
+
+
+def with_tail(*tail):
+    base = m15(1.1000)[: 80 - len(tail)]
+    return base + [bar(*t, 80 - len(tail) + i + 1) for i, t in enumerate(tail)]
+
+
+def test_every_pattern_has_a_name_in_the_catalogue():
+    seen = set()
+    for close in (1.1020, 1.0980, 1.1007, 1.0993):
+        seen |= set(h002.patterns(m15(close)))
+    seen |= set(h002.patterns(with_tail((1.1003, 1.1004, 1.0996, 1.0997), (1.0996, 1.1006, 1.0995, 1.1005))))
+    assert seen <= set(h002.PATTERNS)
+
+
+def test_candle_patterns():
+    engulf = h002.patterns(with_tail((1.1003, 1.1004, 1.0996, 1.0997), (1.0996, 1.1006, 1.0995, 1.1005)))
+    assert engulf["engulfing"] == "buy"
+    pin = h002.patterns(with_tail((1.1000, 1.1001, 1.0990, 1.0999)))
+    assert pin["pin_bar"] == "buy"
+    fade = h002.patterns(with_tail((1.1000, 1.1012, 1.0999, 1.1003)))
+    assert fade["failed_breakout_fade"] == "sell"
+    big = h002.patterns(m15(1.1030))
+    assert big["momentum_candle"] == "buy" and big["breakout10"] == "buy" and big["ema_cross_9_21"] == "buy"
+
+
 def test_choose_explores_unseen_then_exploits():
     p = dict(h002.DEFAULT_POLICY)
     rng = random.Random(1)
