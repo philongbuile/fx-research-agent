@@ -48,6 +48,14 @@ MT5 runtime `artifacts/mt5-mcp-runtime/Scripts/python.exe`, terminal
 logged in to the demo account. The bridge refuses any non-demo account, and it
 refuses an account that changes while it is running.
 
+The terminal's **Algo Trading** button must be on. Otherwise every order is
+rejected with retcode 10027, "AutoTrading disabled by client". A terminal
+auto-update can also log the account out, which surfaces as
+`MT5_TERMINAL_UNAVAILABLE`. `uv run fxra demo-test-order` sends one risk-gated
+0.01-lot round trip (TECH-0003) to check the whole path. It is approved only
+while `TECH-0003@exec-check-v1` is listed in `config/risk.toml`; first passed
+2026-10-28.
+
 The MT5 IPC connection does not work from a sandboxed shell. Run the command from
 a normal terminal, or with the agent's sandbox disabled for that command.
 
