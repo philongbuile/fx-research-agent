@@ -10,6 +10,13 @@ The owner's selected setup (2026-10-27) is:
 - Task: `fxra-shared-backup-sync`, at interactive user logon and every five minutes, limited privileges, hidden window. Requires Google Drive signed in and mounted.
 - Last status: `D:\Work\codex\backup-sync-helper\status.json`.
 
+The scheduled action uses Windows `wscript.exe` and `run-hidden.vbs` to launch
+PowerShell with window style 0 from creation. Directly scheduling PowerShell
+with `-WindowStyle Hidden` produced a brief console flash on this workstation.
+The launcher waits for sync to finish and returns its exit code to Task Scheduler.
+It requires the built-in Windows Script Host/VBScript feature; do not enable a
+disabled scripting feature or change security policy automatically.
+
 The existing machine-specific runtime copy remains installed; this directory versions its reusable source with explicit path parameters. Future installations should copy the reviewed source into a stable folder and supply all three parameters. Do not store state inside either sync folder or place credentials in task arguments.
 
 ## Behavior
@@ -41,15 +48,15 @@ All paths must be dedicated, non-nested directories; only the state directory ma
 
 ## Install or recreate the scheduled task
 
-Copy `sync.ps1` to a stable runtime path, for example `D:\Work\codex\backup-sync-helper\sync.ps1`. The following is for a new installation; refuse to replace an unrelated existing task:
+Copy `sync.ps1` and `run-hidden.vbs` together to a stable runtime folder, for example `D:\Work\codex\backup-sync-helper`. The following is for a new installation; refuse to replace an unrelated existing task:
 
 ```powershell
 $taskName = 'fxra-shared-backup-sync'
 if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
     throw 'Task already exists; review it before changing anything.'
 }
-$arguments = '-NoProfile -NonInteractive -WindowStyle Hidden -File "D:\Work\codex\backup-sync-helper\sync.ps1" -LocalRoot "D:\Work\codex\gs_learner\Backups" -CloudRoot "G:\Other computers\My Laptop\Backups" -StateRoot "D:\Work\codex\backup-sync-helper\state"'
-$action = New-ScheduledTaskAction -Execute 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe' -Argument $arguments -WorkingDirectory 'C:\Windows\System32'
+$arguments = '//B //NoLogo "D:\Work\codex\backup-sync-helper\run-hidden.vbs" -LocalRoot "D:\Work\codex\gs_learner\Backups" -CloudRoot "G:\Other computers\My Laptop\Backups" -StateRoot "D:\Work\codex\backup-sync-helper\state"'
+$action = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\wscript.exe" -Argument $arguments -WorkingDirectory "$env:SystemRoot\System32"
 $userSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
 $logon = New-ScheduledTaskTrigger -AtLogOn -User $userSid
 $repeat = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 5)
@@ -61,5 +68,14 @@ Get-ScheduledTaskInfo -TaskName $taskName
 ```
 
 Test execution under Task Scheduler, not only in a shell: this environment's initial AppData authoring path was invisible to the scheduled process. The stable D: runtime path worked. No execution-policy or security-setting change is needed on the configured machine.
+
+For an existing reviewed installation, export its task XML privately, copy only
+the launcher beside its current script, and use `Set-ScheduledTask -Action` to
+replace only its action. Preserve triggers, principal, settings, paths and the
+installed sync script. Carry any existing sync path arguments to the launcher;
+omit them if the existing action used the installed script's defaults. Start
+the task and verify a fresh `status.json` and `LastTaskResult = 0`. Restore the
+saved action if the launcher cannot execute. Do not use `cmd.exe` or
+`cscript.exe` as the scheduled host, since those are console applications.
 
 Pause with `Disable-ScheduledTask -TaskName fxra-shared-backup-sync`; resume with `Enable-ScheduledTask` and `Start-ScheduledTask` using that name. Preserve the independent Hindsight backup job and all archive files.
