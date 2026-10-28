@@ -165,6 +165,16 @@ def test_arm_policy_ownership_and_initial_copy(journal, tmp_path):
     assert {("claude", 1), ("codex", 1), ("codex", 2)} <= arms
 
 
+def test_claude_arm_continues_legacy_version_line(journal, tmp_path):
+    legacy = tmp_path / "h002-policy.json"
+    legacy.write_text('{"version": 1}')
+    h002.update_policy(legacy, journal, {"lots": 1.0}, "claude/claude-opus-5-5", "v2")  # pre-D-33 history
+    h002.update_policy(legacy, journal, {"tp_rr": 2.0}, "claude/claude-opus-5-5", "v3")
+    assert h002.arm_policy(tmp_path, "claude", journal)["version"] == 4
+    new = h002.edit_arm_policy(tmp_path, "claude", journal, {"max_hold_bars": 12}, "claude/claude-opus-5-5", "next")
+    assert new["version"] == 5 and new["tp_rr"] == 2.0
+
+
 def test_proposal_needs_the_other_agent(journal):
     pid = journal.propose(NOW, "codex/gpt-6-sol", "disable pin_bar in asia", "pin_bar/asia n=14 avg -1.9 pips")
     with pytest.raises(PermissionError):

@@ -238,6 +238,10 @@ class Journal:
             "assumed_cost_pips": assumed_cost_pips,
         }
 
+    def last_policy_version(self, arm: str) -> int:
+        row = self.db.execute("SELECT max(version) FROM arm_policy_changes WHERE arm=?", (arm,)).fetchone()
+        return row[0] or 0
+
     def policy_change(self, version: int, at: datetime, author: str, reason: str, policy: dict, arm: str = "claude"):
         with self.db:
             self.db.execute("INSERT INTO arm_policy_changes VALUES (?,?,?,?,?,?)",
