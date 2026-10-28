@@ -48,7 +48,7 @@ flowchart LR
 
 | Actor | Read | Write | Never |
 |---|---|---|---|
-| Coding agent | repo, structured store, Hindsight bank | branches and PRs, `runs/`, `experiments/`, Hindsight memories | push to `main` for strategy/live/risk config, change `risk.toml` or the kill switch, hold broker credentials, have an order tool |
+| Coding agent | repo, structured store, Hindsight bank; reviewed MT5 read tools | branches and PRs, `runs/`, `experiments/`, Hindsight memories; future demo mutation proposals through D-28 confirmation | push to `main` for strategy/live/risk config, change `risk.toml` or the kill switch, hold broker credentials, bypass confirmation/risk checks, execute live orders |
 | `fxra` ingestion | broker data API (read-only login when MT5 arrives) | `data/raw` (one writer host per source) | overwrite a partition |
 | LEAN container | mounted algorithm (read-only), data (read-only) | its results folder | network access in backtests |
 | Hindsight server | its database | its database, `/backups` | public Internet exposure |
@@ -61,6 +61,11 @@ flowchart LR
 - Dev machines run LEAN locally in Docker. Results stay in `runs/` on the machine that ran them, and summaries go to Hindsight.
 
 ## What is deliberately absent
+
+D-28 permits reviewed order-capable integrations with read-only defaults and a
+trusted confirmation service for future demo mutations. Neither that service nor
+an MT5 execution adapter is implemented. See `security.md` for required previews,
+single-use authorization, risk checks, reconciliation and acceptance tests.
 
 - A LEAN–MT5 brokerage or data adapter. None is chosen or verified; this is research item B-12.
 - A vector database or RAG system of our own. Hindsight already provides recall.

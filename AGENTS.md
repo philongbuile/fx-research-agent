@@ -10,7 +10,7 @@ For memory or simulation work, also read `docs/simulation-design.md`, `docs/simu
 
 ## Hard limits
 
-1. **No live trading, no order sending.** Do not write, enable or run code that sends orders to a broker. Do not install or call any MCP server, skill or library that can place orders. The only execution adapter is `DryRunExecution`.
+1. **Reviewed order tools, confirmed demo execution only (D-28).** Order-capable MCP servers, skills and libraries may be installed after the third-party review and owner approval in `docs/security.md`. Trading mutations require an implemented trusted confirmation boundary, fresh owner confirmation of the exact action and a passing risk gate; read-only access is the default. Never expose unrestricted `order_send`, shell or arbitrary-code bypasses. Live trading remains out of scope. The current implementation is still `DryRunExecution` only; this policy does not enable execution or change any gate. Follow the confirmation and acceptance requirements in `docs/security.md`.
 2. **Do not touch the gates.** Do not edit `config/risk.toml`, the kill switch file, `ALLOWED_MODES` in `src/fxra/risk.py`, approved strategy lists, or `reports/approvals/`. Do not promote a strategy to any stage. Propose the change in a PR and stop.
 3. **No secrets.** Never write keys, passwords, broker logins, server names tied to an account, or account numbers into files, commits, memories or logs. If you find one, stop and tell the owner.
 4. **No unreviewed third-party code.** Do not download, install or vendor a repo, package, skill, plugin or MCP server that is not already in `pyproject.toml` or `docs/third-party/`, until the owner has approved a review note (see `docs/security.md`). Ask first.

@@ -31,6 +31,24 @@
 | D-26 | Adopt ai-memory at the reviewed source candidate `0e5488073d7073caa3181bbaf184102b215dcf66` for curated development notes and Claude/Codex handoffs only, with explicit workspace `personal-development` / project `fx-research-agent`. Authorize MCP-only installation and registration for these clients once A-01 verifies the exact artifact, dependencies/licenses and permissions. Use a Linux/WSL2 service on the current development machine; no automatic capture/hooks, bootstrap, cross-project profile or remote LLM/embedding service. | Owner explicitly delegated the ai-memory decision and requested merging the result on 2026-10-27. This settles Q-09's adoption/scope decision; it does not certify an unverified binary or complete A-01..A-03. No further adoption approval is required within this scope. See [review](third-party/ai-memory.md) and [topology](memory-topology.md). |
 | D-27 | Both machines use one authoritative Hindsight bank and one separate authoritative ai-memory backend on the current development machine. Keep services bound to loopback; connect the second machine through an authenticated SSH tunnel with verified host identity. The other Hindsight database is preserved as a standby/archive and must leave the shared write path after cutover. If the primary is unavailable, shared memory writes stop; no local-write fallback or automatic promotion. Google Drive synchronizes backup archives only. | Owner delegated the cross-machine memory decision on 2026-10-27. This settles Q-13 and supersedes D-16's direct plain-HTTP LAN path for memory clients. A single authority avoids conflicting histories. Deployment, divergent-history review and both-machine acceptance remain required; this decision claims no remote access or completed cutover. See [cutover and recovery](memory-topology.md). |
 
+## Confirmed order-tool policy (D-28)
+
+Owner decision, 2026-10-28: permit reviewed order-capable MCP servers, skills and
+libraries instead of the previous blanket installation ban. Read-only access is
+the default. Future demo trading mutations require a trusted service that binds
+fresh, explicit owner confirmation to the exact expiring request, enforces risk
+checks and prevents duplicate submissions. See [the confirmation contract and
+acceptance requirements](security.md#mt5-order-confirmation-contract-d-28).
+
+This supersedes the blanket order-tool prohibition in the previous AGENTS.md,
+security policy and README. It does not approve a specific third-party artifact,
+authorize any particular order, promote a strategy or enable live trading.
+D-10 remains the implementation baseline: `DryRunExecution` only and
+`ALLOWED_MODES = {"dry_run"}`. D-11's owner promotion gates still apply. A separate
+reviewed implementation and owner-reviewed gate change are required before demo
+execution. No confirmation service, execution adapter or acceptance-test result
+is claimed by this documentation change.
+
 ## Open questions
 
 ### Simulation and memory decisions (owner request, 2026-10-27)
