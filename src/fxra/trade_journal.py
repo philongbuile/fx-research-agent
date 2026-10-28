@@ -64,6 +64,16 @@ TRADES_SQL = ("SELECT t.*, g.strategy, g.pattern, g.hour_utc, g.session, g.polic
               "FROM trades t LEFT JOIN entry_tags g ON g.entry_id = t.entry_id")
 
 
+def confluence(features: dict | None, side: str) -> str | None:
+    """How many patterns on the entry bar agreed with / opposed the trade side ("solo", "2 agree",
+    "3+ agree", plus " · opposed"), from the matches stored at entry. None when none were stored."""
+    if not features or "matches" not in features:
+        return None
+    sides = list(features["matches"].values())
+    agree, opposed = max(1, sides.count(side)), sides.count("sell" if side == "buy" else "buy")
+    return ("solo" if agree == 1 else "2 agree" if agree == 2 else "3+ agree") + (" · opposed" if opposed else "")
+
+
 def _group(rows: list[dict], key, assumed_cost_pips: float) -> dict:
     """n, wins, losses, win rate, net, profit factor and average pips after an assumed cost, per key."""
     out: dict = {}
@@ -279,6 +289,10 @@ class Journal:
         round-trip cost because the demo feed shows ~zero spread.
         """
         closed = [t for t in self._rows(TRADES_SQL + " WHERE t.net IS NOT NULL AND g.pattern IS NOT NULL")]
+        features = {r["entry_id"]: json.loads(r["features"]) for r in
+                    self._rows("SELECT entry_id, features FROM entry_tags WHERE pattern IS NOT NULL")}
+        for t in closed:
+            t["confluence"] = confluence(features.get(t["entry_id"]), t["side"]) or "unknown"
         group = lambda key: _group(closed, key, assumed_cost_pips)
         return {"by_pattern": group(lambda t: t["pattern"]),
                 "by_symbol": group(lambda t: t["symbol"]),
@@ -289,6 +303,10 @@ class Journal:
                 "by_hour": {str(k): v for k, v in sorted(group(lambda t: t["hour_utc"]).items())},
                 "by_pattern_session": {f"{p} / {s}": v for (p, s), v in
                                        sorted(group(lambda t: (t["pattern"], t["session"])).items())},
+                # D-37: does a pattern do better alone or when other patterns agree on the same bar?
+                "by_confluence": dict(sorted(group(lambda t: t["confluence"]).items())),
+                "by_pattern_confluence": {f"{p} / {c}": v for (p, c), v in
+                                          sorted(group(lambda t: (t["pattern"], t["confluence"])).items())},
                 "assumed_cost_pips": assumed_cost_pips, "closed_trades": len(closed)}
 
     # lessons -------------------------------------------------------------

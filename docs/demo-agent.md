@@ -140,6 +140,16 @@ uv run fxra demo-policy --set tp_rr=2 --set 'avoid_hours_utc=[21,22]' --reason "
 Small samples (n < 10, flagged on the dashboard) are noise. Prefer adding an
 observation to Hindsight over changing the policy after a few trades.
 
+Signal agreement (D-37): patterns often fire together on the same bar and
+symbol (for example breakout10, breakout20 and three_bar_momentum on one
+up-move), so their positions share entry, stop and target and their results
+are not independent. Each closed H-002 trade is bucketed by how many patterns
+on its bar agreed with its side (`solo`, `2 agree`, `3+ agree`) and whether
+any pattern pointed the other way (`· opposed`), from `entry_tags.features.matches`.
+`demo-policy` reports `by_confluence` and `by_pattern_confluence`; the
+dashboard shows them under "Signal agreement", and lessons state the bucket.
+This is recorded for learning only and does not change how entries are taken.
+
 ## Lessons and memory
 
 - `fxra demo-step` writes a factual lesson row for each closed trade. It leads

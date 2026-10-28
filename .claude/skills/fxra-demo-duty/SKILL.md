@@ -67,7 +67,9 @@ narrative layer on top: why it happened and what to try next.
   from it or the journal, never from recalled lesson text.
 - `uv run fxra demo-lesson` lists trades and lessons not yet in Hindsight.
   `uv run fxra demo-policy` shows policies and stats by pattern, arm,
-  hour and session.
+  hour, session and signal agreement (D-37: did the pattern fire alone,
+  with others agreeing, or against an opposing pattern). Patterns that fire
+  together share one outcome, so judge a pattern on its `solo` record too.
 - For each closed trade without a narrative lesson, retain one to Hindsight
   with tags `demo`, `lesson`, the arm and `model:<your label>`. Then run
   `uv run fxra demo-lesson --mark-retained <id> <doc>`.

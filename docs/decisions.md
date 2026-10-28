@@ -230,6 +230,17 @@ same symbol produces correlated samples that inflate n without adding
 information. Budget constraints for a smaller future account are to be studied
 by replaying the journal under that budget, not by limiting exploration now.
 
+## Signal agreement is recorded for learning (D-37)
+
+Owner request, 2026-10-29: several patterns often enter the same symbol on the
+same bar with the same stop and target, so their outcomes are shared. Each
+closed H-002 trade is now bucketed by signal agreement (`solo`, `2 agree`,
+`3+ agree`, with `· opposed` when a pattern on that bar pointed the other way),
+derived from the matches already stored at entry, so older trades are covered.
+Stats, lessons and the dashboard report it. Entry behaviour is unchanged; using
+agreement in pattern ranking is a later step that needs enough samples per
+bucket and goes through a proposal and review.
+
 ## Open questions
 
 ### Simulation and memory decisions (owner request, 2026-10-27)

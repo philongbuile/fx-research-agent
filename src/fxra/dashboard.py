@@ -316,6 +316,7 @@ async function load(){
     (sb.shifts.length?`<h3>Shift log</h3>`+sb.shifts.slice(0,5).map(shift).join("")+
       (sb.shifts.length>5?`<details><summary>${sb.shifts.length-5} older entries</summary>${sb.shifts.slice(5).map(shift).join("")}</details>`:""):"");
   const bp=ls.by_pattern||{}, tried=Object.entries(bp).sort((x,y)=>y[1].net-x[1].net), untried=allPat.filter(p=>!bp[p]), pm=maxAbs(bp);
+  const bc=ls.by_confluence||{}, conf=["solo","2 agree","3+ agree"].flatMap(c=>[c,c+" · opposed"]).concat(["unknown"]).filter(c=>bc[c]);
   const nb=v=>{const w=Math.min(50,Math.abs(v)/pm*50);return `<span class="netbar"><i style="${v>=0?"left":"right"}:50%;width:${w}%;background:var(${v>=0?"--up":"--down"})"></i></span>`};
   $("learning").innerHTML=!ls.closed_trades?'<p class="muted">No closed H-002 trades yet. Every pattern gets explored first.</p>':
     `<p class="muted">${ls.closed_trades} closed exploration trade${ls.closed_trades==1?"":"s"} · ${tried.length}/${allPat.length} patterns tried · assumed cost ${ls.assumed_cost_pips} pip per trade · under 10 trades is noise</p>`+
@@ -323,6 +324,9 @@ async function load(){
     `<h3>Pattern leaderboard</h3><div class="hscroll"><table class="mx"><tr><th>Pattern</th><th>Trades</th><th>Win</th><th style="text-align:left">Net USD</th><th>Pips/trade</th></tr>`+
       tried.map(([p,g])=>`<tr><td>${esc(p)}</td><td>${g.n}${g.n<10?' <span class="muted">few</span>':""}</td><td>${pc(g.win_rate)} <span class="muted">${g.wins}W/${g.losses}L</span></td><td style="text-align:left">${nb(g.net)}${money(g.net)}</td><td>${money(g.avg_pips_after_cost)}</td></tr>`).join("")+"</table></div>"+
     (untried.length?`<h3>Not tried yet (${untried.length})</h3><div class="chips">${untried.map(p=>`<span class="chip">${esc(p)}</span>`).join("")}</div>`:"")+
+    `<h3>Signal agreement · other patterns on the same bar and symbol</h3><div class="cards">`+conf.map(c=>{const g=bc[c];
+      return `<div class="mcard mini"><div class="sub">${esc(c)}</div><div class="big">${money(g.net)}</div>${stats(g,10)}</div>`}).join("")+"</div>"+
+    `<div class="hscroll">${matrix(ls.by_pattern_confluence,tried.map(([p])=>p),conf,x=>x,"Pattern",false)}</div>`+
     `<div class="cols"><div><h3>Pattern × symbol · net USD</h3><div class="hscroll">${matrix(ls.by_symbol_pattern,tried.map(([p])=>p),syms,x=>x,"Pattern",true)}</div></div>
       <div><h3>Pattern × session · net USD</h3><div class="hscroll">${matrix(ls.by_pattern_session,tried.map(([p])=>p),SESS,x=>x,"Pattern",false)}</div></div></div>`+
     `<h3>Hour of entry (UTC) · trades, tinted by net</h3><div class="hours">${Array.from({length:24},(_,h)=>{const g=(ls.by_hour||{})[h];
