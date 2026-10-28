@@ -389,7 +389,15 @@ async function load(){
       <td class="right num"><b>${money(p.profit,ccy)}</b></td></tr>`}).join("")+"</table></div>"
     :'<p class="muted">Flat. Each arm opens one position per matched pattern on the next closed M15 bar.</p>';
   const st=s.last_step;
-  $("step").innerHTML=!st?"–":`<p class="muted">Last check ${ago(nowMs-Date.parse(st.at))} ago · every 30 s · decisions once per closed bar</p><div class="steps">`+
+  // decisions run on the first tick after each M15 close (~30 s after :00/:15/:30/:45)
+  const M15=900000, b=Math.floor(nowMs/M15)*M15, next=nowMs<b+30000?b+30000:b+M15+30000;
+  const hhmm=ms=>new Date(ms).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+  const h2=(s.orders||[]).filter(o=>o.status==="filled").map(o=>(o.client_order_id||"").match(/^H2C([LX])-(?:[A-Z]{2}-)?(\d{10})/)).filter(Boolean);
+  const stamp=h2.map(m=>m[2]).sort().at(-1), inBar=h2.filter(m=>m[2]===stamp);
+  const perArm=["L","X"].map(c=>[armLabel("H-002-"+(c==="L"?"claude":"codex")),inBar.filter(m=>m[1]===c).length]);
+  const lastBar=stamp?`last entries: bar ${stamp.slice(6,8)}:${stamp.slice(8)} UTC · ${inBar.length} order${inBar.length==1?"":"s"} (${perArm.map(([l,n])=>`${esc(l)} ${n}`).join(", ")})`:"no H-002 orders yet";
+  $("step").innerHTML=!st?"–":`<div class="possum">${kpi("Next decision",`${hhmm(next)} <span class="muted" style="font-size:13px">in ${ago(next-nowMs)}</span>`)}${kpi("Last check",ago(nowMs-Date.parse(st.at))+" ago")}</div>
+    <p class="muted">${lastBar} · checks every 30 s, decides once per closed M15 bar</p><div class="steps">`+
     Object.entries(st).filter(([k])=>k!=="at").map(([k,r])=>{
       const bar=(r.bar||"").replace(/^H-002[^:]*:(?:[A-Z]{6}:)?/,""), n=(r.entries||[]).length, x=(r.exits||[]).length;
       const what=r.action==="skip"&&r.reason==="already decided for this bar"?"waiting for next bar":r.action;
