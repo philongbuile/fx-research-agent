@@ -1,0 +1,45 @@
+# TECH-0002: bounded MT5 data replay
+
+Technical question: can a checksum-bound, live-observed MT5 minute-bar window be
+normalized, stored immutably, exported and delivered by the pinned LEAN engine
+without changing bid OHLC or bar timing?
+
+This is not a trading hypothesis. There are no signals, positions, simulated or
+broker orders, tuned parameters, OOS evaluation, promotion or edge claim.
+
+Freeze before the first run: use the two captured observation anchors selected
+for this technical check; admit only full contiguous minutes strictly between
+their UTC observations. Require a fresh, advancing quote clock with an unchanged
+integral-minute offset, same weekday/date and a short window. Preserve the raw
+captures and both checksums. Reject missing, duplicate, unordered or invalid
+bars; never fill. No current-offset inference is permitted outside this window,
+and historical DST remains unverified.
+
+Existing D-17 EURUSD M1 observations are the transport input. D-17's future
+strategy hypothesis on aggregated hour bars is separate. The explicit pip
+metadata convention is not used for sizing: this algorithm submits no orders.
+
+Success requires valid raw-store checksums, technical-only export provenance,
+read-only data/algorithm mounts and network-disabled LEAN, plus exact expected
+bid OHLC/open-time/end-time delivery and the replay completion marker. Failure
+of any check invalidates this technical result. Every engine invocation is a
+recorded trial, including failures, and none may be deleted.
+
+Costs: reconstructed ask OHLC uses the MT5 minute minimum spread; intrabar spread
+is unknown. Commission, slippage and historical swap are not evaluated because
+there are no orders/positions. OANDA calendars/properties are export plumbing,
+not a representation of the demo source's execution conditions. The chosen
+observed intraday weekday window avoids any session boundary; the full-day
+quality report must show that most of the day is outside the observation.
+
+Frozen inputs for the first trial:
+
+- First anchor capture: `data/mt5-quarantine/20261028T103404Z-eb4eba49/capture.json`,
+  SHA-256 `fd77d89c291fe5743eadb08d81478aa187b022a8ed42a9f2f415971c5d3237f1`.
+- Last anchor/data capture: `data/mt5-quarantine/20261028T104013Z-ff549131/capture.json`,
+  SHA-256 `b335451e8bc259de0df1cb926cedb9c8627748414ae108aa647d445132681b6e`.
+- Independent UTC clock tool observations agreed with the capture host at both
+  ends. This supports only the contemporaneous interval, not historical DST.
+- Research config: `lean/MT5DataReplay/research.toml`; no variant selection or OOS.
+
+Outcome and exact run ID will be recorded after the frozen implementation runs.

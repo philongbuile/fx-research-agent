@@ -104,6 +104,7 @@ def export(root: Path, out: Path, source: str, symbol: str, resolution: Resoluti
         files.append(p)
 
     entry = {
+        "technical_only": any(m["provenance"].get("technical_only", False) for m in metas),
         "source": source, "symbol": symbol, "resolution": res.value,
         "start": start.isoformat(), "end": end.isoformat(), "rows": len(rows),
         "price_side": side, "point": point, "digits": dig,

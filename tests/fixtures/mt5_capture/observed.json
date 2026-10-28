@@ -1,0 +1,90 @@
+{
+  "notice": "Synthetic test fixture. No real account, market prices or credentials.",
+  "first": {
+    "environment": "demo",
+    "source": "mt5-demo-1",
+    "symbol": "EURUSD",
+    "resolution": "minute",
+    "symbol_spec": {
+      "name": "EURUSD",
+      "digits": 5,
+      "point": 1e-05,
+      "trade_contract_size": 100000.0,
+      "volume_min": 0.01,
+      "volume_max": 500.0,
+      "volume_step": 0.01,
+      "currency_base": "EUR",
+      "currency_profit": "USD",
+      "currency_margin": "EUR",
+      "chart_mode": 0,
+      "spread_float": true,
+      "swap_mode": 1,
+      "swap_long": -0.7,
+      "swap_short": -1.0,
+      "swap_rollover3days": 3
+    },
+    "quote_observation": {
+      "observed_at_utc": "2026-01-06T09:00:02+00:00",
+      "raw_time": 1767697201,
+      "raw_time_msc": 1767697201000,
+      "bid": 1.1,
+      "ask": 1.1001,
+      "quote_valid": true
+    },
+    "rows": []
+  },
+  "last": {
+    "environment": "demo",
+    "source": "mt5-demo-1",
+    "symbol": "EURUSD",
+    "resolution": "minute",
+    "symbol_spec": {
+      "name": "EURUSD",
+      "digits": 5,
+      "point": 1e-05,
+      "trade_contract_size": 100000.0,
+      "volume_min": 0.01,
+      "volume_max": 500.0,
+      "volume_step": 0.01,
+      "currency_base": "EUR",
+      "currency_profit": "USD",
+      "currency_margin": "EUR",
+      "chart_mode": 0,
+      "spread_float": true,
+      "swap_mode": 1,
+      "swap_long": -0.7,
+      "swap_short": -1.0,
+      "swap_rollover3days": 3
+    },
+    "quote_observation": {
+      "observed_at_utc": "2026-01-06T09:03:03+00:00",
+      "raw_time": 1767697382,
+      "raw_time_msc": 1767697382000,
+      "bid": 1.1,
+      "ask": 1.1001,
+      "quote_valid": true
+    },
+    "rows": [
+      {
+        "time": 1767697260,
+        "open": 1.1,
+        "high": 1.101,
+        "low": 1.099,
+        "close": 1.1005,
+        "tick_volume": 7,
+        "spread": 10,
+        "real_volume": 0
+      },
+      {
+        "time": 1767697320,
+        "open": 1.1,
+        "high": 1.101,
+        "low": 1.099,
+        "close": 1.1005,
+        "tick_volume": 7,
+        "spread": 10,
+        "real_volume": 0
+      }
+    ]
+  }
+}

@@ -75,6 +75,8 @@ def new_run(config_path: Path, runs_root: Path, engine_image: str, now: datetime
         exports = json.loads(Path(data_export).read_text())["exports"]
         if data["source"] not in {e["source"] for e in exports}:
             raise ValueError(f"config data.source {data['source']!r} is not in {data_export}")
+        if any(e.get("technical_only", False) for e in exports) and not cfg["run"].get("technical_only", False):
+            raise ValueError("technical-only data export requires a technical-only run")
         data["manifests"] = [r for e in exports for r in e["manifest_refs"]]
         data["export"] = {"path": Path(data_export).as_posix(), "sha256": sha256_file(data_export)}
     now = now or datetime.now(timezone.utc)
