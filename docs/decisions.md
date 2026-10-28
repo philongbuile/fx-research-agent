@@ -216,6 +216,20 @@ change and more models may join.
   journal's pattern statistics immediately; Hindsight makes the same lessons
   available to every model.
 
+## Open-position cap raised to 200 (D-36)
+
+Owner decision, 2026-10-28: raise `max_open_positions` in the local
+`config/risk.toml` from 50 to 200. After D-34 added four symbols, 50 had
+become a binding cap (42 open at the time), which conflicts with the D-33
+intent of not limiting exploration. The D-33 5% daily loss limit, the 1-lot
+maximum and the kill switch are unchanged.
+
+The H-002 rule "one open position per pattern, per arm, per symbol" stays for
+now (Claude's recommendation; the owner may revisit). It is a data-quality rule, not a budget rule: stacking the same pattern on the
+same symbol produces correlated samples that inflate n without adding
+information. Budget constraints for a smaller future account are to be studied
+by replaying the journal under that budget, not by limiting exploration now.
+
 ## Open questions
 
 ### Simulation and memory decisions (owner request, 2026-10-27)
