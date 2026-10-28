@@ -36,6 +36,10 @@ the two-machine cutover remain incomplete. The owner deferred the two-machine
 connection on 2026-10-28. This deferral does not mark either acceptance test done,
 and does not make the supervised-character/replay milestones complete.
 
+The local environment and recorded engine smoke trial passed on 2026-10-28:
+see [verification evidence](local-lean-verification.md), then follow
+[the first research-learning session](research-first-session.md).
+
 - We run the engine image directly (`src/fxra/lean.py`), with no LEAN CLI and no QuantConnect account (D-07). The command is the same as the one the CLI generates: mount the algorithm at `/LeanCLI`, mount results at `/Results`, and run `QuantConnect.Lean.Launcher.dll` in backtesting mode with Python.
 - New algorithm: create `lean/<Name>/main.py` with one `QCAlgorithm` subclass, plus `research.toml` (copy `config/research.example.toml`).
 - Data: without `--data-dir`, LEAN uses the sample data inside the image (Oanda forex sample, EURUSD minute data for 2014-05 only). Real data comes from the raw store through `uv run fxra export-lean --source S --symbol SYM --resolution minute --start D --end D`, then `--data-dir data/lean`. Each `<type>/<market>` folder of the export (e.g. `forex/oanda`) is mounted over the image's copy; the image's market-hours and symbol-properties databases stay in use, so the session calendar is OANDA's, not the broker's. The run record copies the export's `manifest_refs` into `data.manifests` and stores the sha256 of `export.json`.
