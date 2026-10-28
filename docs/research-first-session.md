@@ -43,3 +43,8 @@ Do not treat it as a candidate strategy or promote it.
 
 The useful first outcome is a reproducible workflow and an honest failure
 criterion. A strategy or claim of edge is a later research outcome.
+
+For the next supervised study using MT5 demo observations, follow the
+[MT5-to-LEAN workflow](mt5-lean-workflow.md). The linked MCP candidate review is
+pending owner approval; a workflow document does not establish installation or
+successful ingestion.
