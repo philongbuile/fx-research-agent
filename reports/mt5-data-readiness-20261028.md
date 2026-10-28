@@ -48,3 +48,8 @@ before freezing an owner-selected hypothesis under D-17 and the research lifecyc
 No new backtest trial was executed for this study, so there is no new `run_id` or
 performance claim. Any future technical or strategy backtest must create and
 retain its own run record. The earlier LEAN smoke run remains technical-only.
+
+Follow-up: a separately bounded contemporaneous interval now passes ingestion
+and the technical replay `20261028T105113Z-d462e20a`; see
+[its evidence](../docs/mt5-observed-replay.md). This does not remove the historical
+timezone/calendar/cost limitations identified by this initial readiness study.

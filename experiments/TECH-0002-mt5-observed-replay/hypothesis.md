@@ -77,3 +77,10 @@ calendar, costs and no orders; no strategy or OOS result was evaluated.
 LEAN's UTC callback clock. Normalize both comparison operands consistently;
 regression tests cover aware and naive UTC callbacks with exchange-local bars.
 The same inputs remain frozen. This failed technical trial is retained as well.
+
+## Recorded outcome
+
+`runs/20261028T105113Z-d462e20a/run.json` completed reproducibly at commit
+`db059cef6c5794da689bf2cbd5321c70c5167952`, with `technical_only=true` and
+`Replay Verified=true`. Exact delivery passed with no orders. All failed trials
+above remain recorded. See [the evidence and limits](../../docs/mt5-observed-replay.md).

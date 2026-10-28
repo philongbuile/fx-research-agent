@@ -67,6 +67,15 @@ strategy or certify native Codex loading before restart. D-28 still governs any
 future execution proposal. Source/artifact and dependency limits are recorded in
 the [review](third-party/mt5-mcp.md).
 
+Implementation scope update, 2026-10-28: the owner requested continuing through
+backtest. A fixture-tested capture adapter admits only a short contemporaneously
+observed UTC interval, marks it technical-only and rejects out-of-window reads.
+The original historical captures remain quarantined; no historical DST rule or
+source session calendar is certified. A no-order LEAN replay checks exact source
+delivery under an explicitly separate technical algorithm calendar. See
+[bounded replay evidence](mt5-observed-replay.md). D-17's first strategy hypothesis
+and all execution/promotion decisions remain separate.
+
 ## Open questions
 
 ### Simulation and memory decisions (owner request, 2026-10-27)

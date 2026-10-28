@@ -8,7 +8,7 @@ flowchart LR
     AG["Claude Code / Codex<br/>(propose, code, review)"]
     FX["fxra CLI<br/>contracts · raw store · runs · risk gate (dry-run)"]
     LEAN["LEAN engine<br/>Docker image, --network none"]
-    MT5T["MT5 terminal + MetaTrader5 pkg<br/>(future, Windows only)"]
+    MT5T["MT5 terminal<br/>restricted market-data MCP (Windows)"]
   end
   subgraph HOST["Docker host (one machine)"]
     HS["Hindsight API + MCP :8888<br/>Control Plane UI :9999"]
@@ -23,7 +23,7 @@ flowchart LR
   FX -- "docker run" --> LEAN
   FX -- "write once, checksum" --> STORE
   LEAN -- "results" --> FX
-  MT5T -. "read-only data (future)" .-> FX
+  MT5T -. "bounded observed capture adapter" .-> FX
   MT5T -. "orders: NOT in Phase 0" .-> BROKER
 ```
 
@@ -67,7 +67,7 @@ trusted confirmation service for future demo mutations. Neither that service nor
 an MT5 execution adapter is implemented. See `security.md` for required previews,
 single-use authorization, risk checks, reconciliation and acceptance tests.
 
-- A LEAN–MT5 brokerage or data adapter. None is chosen or verified; this is research item B-12.
+- An MT5 brokerage/execution adapter. The data profile has a bounded observed-capture adapter and technical LEAN replay; broad historical UTC/DST and source-calendar verification remain. See `mt5-observed-replay.md`; execution integration remains research item B-12.
 - A vector database or RAG system of our own. Hindsight already provides recall.
 - Automated optimization that reports in-sample results as evidence.
 - Any LLM in the per-tick decision path.
