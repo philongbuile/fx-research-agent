@@ -241,6 +241,26 @@ Stats, lessons and the dashboard report it. Entry behaviour is unchanged; using
 agreement in pattern ranking is a later step that needs enough samples per
 bucket and goes through a proposal and review.
 
+## Daily loss limit removed and all hours traded (D-38)
+
+Owner decision, 2026-10-29, for the MT5 demo exploration phase:
+
+- `max_daily_loss_fraction` in the local `config/risk.toml` is set to `1.0`
+  (no daily loss limit; was 0.05 under D-33). The kill switch, stop loss on
+  every order, the 1-lot maximum, per-symbol spread limits and quote age checks
+  remain. At the time the day was down about 2.2%, so the limit had not blocked
+  any order.
+- Both H-002 arms drop `avoid_hours_utc` (was `[21]`), so every UTC hour is
+  explored. The per-symbol spread limit still rejects entries when rollover
+  spreads are wide. Applied as claude v5 and codex v2 on the owner's
+  instruction.
+
+Context: on 2026-10-28 the FOMC decision (18:00 UTC) and press conference
+whipsawed USD; the Claude arm lost about 1.8k USD on clustered USD-short
+entries (Hindsight lesson `fxra-lesson-claude-arm-usd-cluster-2026-10-28`).
+The owner chose to keep exploring without an exposure cap; losses are data.
+A live account needs new limits and a new decision.
+
 ## Open questions
 
 ### Simulation and memory decisions (owner request, 2026-10-27)
