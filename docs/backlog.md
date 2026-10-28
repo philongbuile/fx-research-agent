@@ -14,6 +14,13 @@ The character simulation and two-layer memory initiative has its own [design](si
 
 ## Phase 1 — research loop without a broker (Now)
 
+Local workstation update (2026-10-28): project-local pinned uv, the locked Python
+environment, `uv run pytest`, the pinned LEAN image and its recorded technical
+smoke trial are verified on this development machine. See
+[local evidence](local-lean-verification.md) and [first-session guide](research-first-session.md).
+The two-machine connection is deferred by the owner; this does not mark the
+separate MT5-laptop migration or memory acceptance tasks complete.
+
 - [x] B-06a Hindsight deployed on this machine (local only), bank `fxra` created, MCP tool allowlist, first backup taken (2026-10-26)
 - [x] B-06b Daily backup job: `infra/hindsight/backup.ps1`, Task Scheduler `fxra-hindsight-backup` at 12:30 (2026-10-26)
 - [x] B-06d Off-disk copy to `Backups/`, synced by Google Drive (2026-10-26)

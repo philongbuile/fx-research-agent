@@ -55,6 +55,10 @@ uv run fxra report --runs-root runs                      # markdown comparison o
 
 `lean/TechnicalSmokeTest` only checks that the engine works. It is **not a strategy and has no edge**.
 
+Local setup and the recorded smoke trial were verified on 2026-10-28; see
+[the evidence](docs/local-lean-verification.md) and
+[first research-learning session](docs/research-first-session.md).
+
 Dry-run one order intent through the risk gate. With the example limits, the gate rejects it, because empty allowlists fail closed:
 
 ```bash
