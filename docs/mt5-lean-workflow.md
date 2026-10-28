@@ -7,9 +7,12 @@ The owner approved the [MT5 MCP candidate](third-party/mt5-mcp.md) and its pinne
 restricted market-data profile is installed (D-28/D-29). Real MCP stdio reads
 retrieved demo observations; see [local acceptance](local-mt5-mcp-verification.md)
 and the [initial data-readiness study](../reports/mt5-data-readiness-20261028.md).
-Captured epochs remain quarantined pending historical UTC/DST and session-calendar
-verification. No structured ingestion, strategy backtest or evidence of edge is
-claimed. The workflow below is the required path after the initial read.
+General historical captures remain quarantined pending UTC/DST and session-calendar
+verification. A short contemporaneously observed slice now passes a fixture-tested
+adapter, immutable ingestion and a recorded **technical** LEAN replay; see
+[the exact run and scope](mt5-observed-replay.md). This does not verify a broader
+historical range or constitute a strategy backtest/evidence of edge. Follow the
+remaining workflow before evaluating a strategy.
 
 ## Roles and data path
 

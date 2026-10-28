@@ -1,0 +1,26 @@
+[run]
+kind = "backtest"
+hypothesis_id = "TECH-0002-mt5-observed-replay"
+strategy_path = "lean/MT5DataReplay/main.py"
+technical_only = true
+
+[data]
+source = "mt5-demo-1-observed"
+symbols = ["EURUSD"]
+resolution = "minute"
+start = 2026-10-28
+end = 2026-10-28
+timezone = "UTC"
+
+[assumptions]
+spread = "MT5 minimum minute spread; ask OHLC reconstructed approximately from bid"
+slippage = "not evaluated: no orders or fills in this technical replay"
+commission = "not evaluated: no orders or fills; no historical broker cost claim"
+swap = "not evaluated: no positions; current swap observation is not a historical series"
+fill_model = "no orders; OANDA calendar/properties are only LEAN export plumbing"
+time_mapping = "bounded contemporaneous observation only; no historical DST inference"
+algorithm_calendar = "NodaTime fixed UTC+13:15 technical calendar; source bar times and requested data dates remain UTC. Not a source/broker timezone."
+missing_data = "reject missing bars inside observation; partial day, no fill-forward"
+
+[split]
+in_sample = { start = 2026-10-28, end = 2026-10-28 }
