@@ -23,6 +23,12 @@
 
 ## MT5 order confirmation contract (D-28)
 
+> **D-30 (2026-10-28):** for demo accounts the owner removed the per-order human
+> confirmation (steps 2-3 below). Demo orders go only through
+> `fxra.mt5_execution`, which refuses non-demo accounts and identity changes, and
+> every order passes the automatic risk gate and kill switch. Steps 1, 4, 5 and 6
+> still apply. The full contract below still governs any live-account proposal.
+
 The owner authorized replacing the blanket installation ban on 2026-10-28.
 Installation approval, permission to retrieve data, a general "proceed", an
 approved strategy, and an earlier order confirmation do not authorize a new

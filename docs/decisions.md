@@ -15,7 +15,7 @@
 | D-07 | Run LEAN directly from the pinned image `quantconnect/lean:18206` with `docker run`, not through the LEAN CLI. | QuantConnect docs say: "To use the CLI, you must be a member in an organization on a paid tier" (verified 2026-10-26). The engine image needs no account. Bump the tag only in a reviewed commit. |
 | D-08 | All stored times are UTC. A bar's `time` is its **open** time. The adapter records the source timezone in the manifest. | MT5 returns broker server time, which is often UTC+2/+3 and shifts with DST (assumed; verify per broker, risk R-01). LEAN data files also stamp a bar with its **open** time (in the market's data timezone, UTC for `oanda`); LEAN itself sets `EndTime = Time + period` and delivers the bar at `EndTime`. So the LEAN export writes our bars **unshifted**. Corrected 2026-10-26 (B-14): this row used to say the export must shift by one period, which would have delivered every bar one period late. Verified against `quantconnect/lean:18206` sample files and a probe run (see `src/fxra/lean_export.py`). |
 | D-09 | Each data source has exactly one writer host. Partitions are immutable; the write is temp dir, then rename, with an `O_EXCL` lock file. | Prevents two machines writing the same partition. |
-| D-10 | No live orders in Phase 0. The risk gate accepts only `mode = "dry_run"`. The only execution adapter is `DryRunExecution`. | Owner constraint. |
+| D-10 | No live orders in Phase 0. The risk gate accepts only `mode = "dry_run"`. The only execution adapter is `DryRunExecution`. | Owner constraint. Superseded for demo accounts by D-30 (2026-10-28); live remains forbidden. |
 | D-11 | Claude and Codex only propose. A strategy reaches paper, demo or live only as a specific git commit, through the gates in `research-lifecycle.md`, with owner approval. | Owner constraint. |
 | D-12 | `AGENTS.md` is the canonical agent rule file. `CLAUDE.md` imports it and adds only Claude-specific notes. | Avoids two rule sets drifting apart. |
 | D-13 | Docs and code are in English (open-source audience). | Convention. |
@@ -75,6 +75,35 @@ source session calendar is certified. A no-order LEAN replay checks exact source
 delivery under an explicitly separate technical algorithm calendar. See
 [bounded replay evidence](mt5-observed-replay.md). D-17's first strategy hypothesis
 and all execution/promotion decisions remain separate.
+
+## Autonomous demo execution (D-30)
+
+Owner decision in the Claude session, 2026-10-28: "remove the block on sending
+orders to the MT5 demo; give the agent full authority to send orders on MT5 demo;
+revisit when trading a real account." The owner also chose the H-001 rules as the
+decision policy, with Claude and Codex both allowed to write lessons.
+
+For **demo accounts only**, this supersedes D-10's dry-run-only baseline and
+D-28's per-order human confirmation (steps 2-3 of the contract). What remains:
+
+- Orders go only through the first-party `fxra.mt5_execution` adapter. No raw
+  `order_send`, upstream all-tools server or ad-hoc script.
+- The adapter refuses any account whose trade mode is not demo, and stops if the
+  terminal's account identity changes during a session. Live trading stays out of
+  scope and needs a new owner decision.
+- Every order passes the automatic risk gate (`ALLOWED_MODES` now includes
+  `"demo"`): stop loss, `SymbolSpec` lot size, spread, quote age, daily loss,
+  max positions, approved `strategy@version` and the kill switch.
+- Idempotency and reconciliation from D-28 steps 5-6 still apply: persist the
+  `client_order_id` before sending; after a lost response, reconcile with broker
+  state and never resend blindly.
+- The owner can stop all execution at any time by creating `artifacts/KILL_SWITCH`.
+- As part of this decision the owner authorized Claude to create the initial local
+  `config/risk.toml` (`mode = "demo"`, EURUSD, `H-001@<commit>`, 0.01 lot, one
+  position, 1% daily loss). Later changes to limits or approvals go back to the owner.
+
+Demo results are forward-test observations, not evidence of edge. H-001's frozen
+rules are not tuned from demo outcomes; a rule change is a new hypothesis id.
 
 ## Open questions
 

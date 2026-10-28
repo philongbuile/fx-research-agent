@@ -4,7 +4,7 @@ Rules:
 - Same inputs (intent, limits, snapshots, now, seen ids, kill switch) give the same decision.
 - Anything missing, stale, malformed or unexpected is a rejection, never a pass.
 - The gate collects every failing check so a reviewer sees all reasons at once.
-- Phase 0: limits.mode must be "dry_run". Any other mode is rejected.
+- limits.mode must be "dry_run" or "demo" (D-30). "live" is always rejected.
 """
 
 import math
@@ -15,7 +15,7 @@ from pathlib import Path
 
 from .contracts import AccountSnapshot, OrderIntent, Quote, SymbolSpec
 
-ALLOWED_MODES = {"dry_run"}  # add "paper"/"demo" only through a reviewed change; never "live" in Phase 0
+ALLOWED_MODES = {"dry_run", "demo"}  # "demo" added by owner decision D-30; never "live" without a new decision
 
 
 @dataclass(frozen=True)
