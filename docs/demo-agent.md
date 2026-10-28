@@ -63,7 +63,10 @@ a normal terminal, or with the agent's sandbox disabled for that command.
 
 - Create `artifacts/KILL_SWITCH` (any content): every new entry is blocked.
   Existing stops at the broker stay in place.
-- Or stop the `fxra demo-run` process.
+- Or stop the `fxra demo-run` process. On Windows, Ctrl-C on the launching
+  shell can leave `uv`'s Python child running; check that no `fxra demo-run`
+  process is left before starting another. A second `demo-run` on the same
+  port now fails to bind instead of starting a second trading loop.
 - Positions opened by the agent carry magic number `20261028` and a comment
   `H1B-<yymmddhh>-<B|S>`. Close them manually in MT5 if needed.
 

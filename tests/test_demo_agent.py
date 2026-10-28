@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from fxra import demo_agent, risk
-from fxra.dashboard import Agent, make_handler
+from fxra.dashboard import Agent, _ExclusiveServer, make_handler
 from fxra.trade_journal import Journal
 
 NOW = datetime(2026, 10, 28, 14, 0, 20, tzinfo=timezone.utc)
@@ -195,3 +195,13 @@ def test_dashboard_state_and_page(journal, tmp_path):
     assert state["live"]["account"]["currency"] == "USD"
     json.dumps(state, default=str)
     assert make_handler(agent)  # handler builds; page is static HTML
+
+
+def test_second_dashboard_cannot_bind_the_same_port():
+    # a second demo-run must fail instead of starting a second trading loop
+    first = _ExclusiveServer(("127.0.0.1", 0), make_handler(None))
+    try:
+        with pytest.raises(OSError):
+            _ExclusiveServer(("127.0.0.1", first.server_address[1]), make_handler(None))
+    finally:
+        first.server_close()
