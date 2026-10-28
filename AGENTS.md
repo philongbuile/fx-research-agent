@@ -10,7 +10,7 @@ For memory or simulation work, also read `docs/simulation-design.md`, `docs/simu
 
 ## Hard limits
 
-1. **Reviewed order tools, confirmed demo execution only (D-28).** Order-capable MCP servers, skills and libraries may be installed after the third-party review and owner approval in `docs/security.md`. Trading mutations require an implemented trusted confirmation boundary, fresh owner confirmation of the exact action and a passing risk gate; read-only access is the default. Never expose unrestricted `order_send`, shell or arbitrary-code bypasses. Live trading remains out of scope. The current implementation is still `DryRunExecution` only; this policy does not enable execution or change any gate. Follow the confirmation and acceptance requirements in `docs/security.md`.
+1. **Autonomous demo execution only (D-30, D-28).** Agents may send orders to the MT5 **demo** account without per-order owner confirmation, but only through `fxra.mt5_execution` (`uv run fxra demo-step`). That adapter refuses non-demo accounts and identity changes; every order must pass the risk gate and kill switch. Never use raw `order_send`, the upstream all-tools server, shell or arbitrary-code bypasses. Live trading remains out of scope; a live account needs a new owner decision and the full D-28 confirmation contract in `docs/security.md`.
 2. **Do not touch the gates.** Do not edit `config/risk.toml`, the kill switch file, `ALLOWED_MODES` in `src/fxra/risk.py`, approved strategy lists, or `reports/approvals/`. Do not promote a strategy to any stage. Propose the change in a PR and stop.
 3. **No secrets.** Never write keys, passwords, broker logins, server names tied to an account, or account numbers into files, commits, memories or logs. If you find one, stop and tell the owner.
 4. **No unreviewed third-party code.** Do not download, install or vendor a repo, package, skill, plugin or MCP server that is not already in `pyproject.toml` or `docs/third-party/`, until the owner has approved a review note (see `docs/security.md`). Ask first.
@@ -41,6 +41,12 @@ For memory or simulation work, also read `docs/simulation-design.md`, `docs/simu
 - Never put simulation personal experiences, raw trading results, credentials or account information into development memory. Do not copy coding notes into Hindsight.
 - Missing ai-memory tools: continue without development memory and report the limitation. Do not use Hindsight as a fallback. See `docs/memory-and-simulation.md` for activation and the two-client acceptance test.
 - At session start, retrieve the scoped development handoff when ai-memory is available and verify it against Git. At handoff, store curated implementation paths, validation, limitations and next steps with links to the plan/roadmap and decision IDs. Do not duplicate the full canonical documents or claim an external memory update when no write succeeded.
+
+## Demo duty rotation (Claude and Codex)
+
+- Codex (`gpt-6-sol`) is on duty 08:00-18:00 and Claude (`claude-opus-5-5`) 18:00-08:00, local Asia/Ho_Chi_Minh. The roster is configurable in `config/duty.toml`; anyone may take over with `fxra demo-shift take`. Single machine; no multi-machine routing.
+- Follow `.claude/skills/fxra-demo-duty/SKILL.md` (mirrored for Codex in `.agents/skills/`) at every shift start and end. Hindsight holds trading lessons and shift summaries tagged `model:<id>`. ai-memory holds development handoffs. Docs and skills are updated in the same PR as the code they describe.
+- Trades, policy versions and lessons are attributed to the model on duty, so results can be compared across models.
 
 ## Research and character memory (Hindsight)
 

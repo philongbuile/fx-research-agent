@@ -185,9 +185,180 @@ def cmd_simulation_recover(a) -> int:
     return 0
 
 
+def _demo_agent(a):
+    from .dashboard import Agent
+    from .demo_agent import SubprocessBroker
+    from .trade_journal import Journal
+
+    broker = SubprocessBroker(a.mt5_python, a.terminal)
+    return Agent(Journal(a.journal), broker, a.limits, send=not a.no_send, interval=a.interval, roster_path=a.duty)
+
+
+def _on_duty(journal_path: Path, roster: Path) -> dict:
+    from . import duty
+    from .trade_journal import Journal
+
+    return duty.on_duty(duty.load_roster(roster), datetime.now(timezone.utc), Journal(journal_path).latest_override())
+
+
+SKILL_SOURCE, SKILL_MIRROR = Path(".claude/skills"), Path(".agents/skills")
+
+
+def cmd_sync_skills(a) -> int:
+    """Mirror Claude skills to `.agents/skills` so Codex reads the same instructions."""
+    import shutil
+
+    copied = []
+    for skill in sorted(p for p in SKILL_SOURCE.iterdir() if (p / "SKILL.md").exists()):
+        dest = SKILL_MIRROR / skill.name
+        if dest.exists():
+            shutil.rmtree(dest)
+        shutil.copytree(skill, dest)
+        copied.append(skill.name)
+    print(json.dumps({"synced": copied, "to": str(SKILL_MIRROR)}))
+    return 0
+
+
+def cmd_demo_shift(a) -> int:
+    """Duty rotation: who is on, take over, and log shift start/end summaries."""
+    from datetime import timedelta
+
+    from .trade_journal import Journal
+
+    j, now = Journal(a.journal), datetime.now(timezone.utc)
+    if a.action == "take":
+        if not (a.agent and a.model and a.reason):
+            raise SystemExit("take needs --agent, --model and --reason")
+        j.take_duty(now, a.agent, a.model, now + timedelta(hours=a.hours), a.reason)
+    elif a.action in ("start", "end"):
+        on = _on_duty(a.journal, a.duty)
+        j.log_shift(now, a.agent or on["agent"], a.model or on["model"], a.action, a.summary or "")
+    print(json.dumps({"on_duty": _on_duty(a.journal, a.duty), "scoreboard": j.model_scoreboard()},
+                     indent=2, default=str))
+    return 0
+
+
+def cmd_demo_step(a) -> int:
+    print(json.dumps(_demo_agent(a).tick(), indent=2, default=str))
+    return 0
+
+
+def cmd_demo_policy(a) -> int:
+    """Show or change the H-002 exploration policy (versioned; D-31 lets Claude/Codex change it)."""
+    from . import h002
+    from .trade_journal import Journal
+
+    path = a.journal.parent / "h002-policy.json"
+    if not a.set:
+        print(json.dumps({"policy": h002.load_policy(path),
+                          "learning": Journal(a.journal).learning_stats()}, indent=2))
+        return 0
+    if not a.reason:
+        raise SystemExit("--reason is required when changing the policy")
+    changes = {}
+    for item in a.set:
+        key, _, value = item.partition("=")
+        changes[key] = json.loads(value)
+    print(json.dumps(h002.update_policy(path, Journal(a.journal), changes, a.author, a.reason), indent=2))
+    return 0
+
+
+def cmd_demo_test_order(a) -> int:
+    from .demo_agent import test_round_trip
+
+    agent = _demo_agent(a)
+    with agent.lock:
+        result = test_round_trip(agent.journal, agent.broker, agent.limits(), datetime.now(timezone.utc),
+                                 hold_seconds=a.hold_seconds)
+    print(json.dumps(result, indent=2, default=str))
+    return 0 if result["action"] == "round_trip" else 2
+
+
+def cmd_demo_run(a) -> int:
+    from .dashboard import serve
+
+    serve(_demo_agent(a), a.port, loop=not a.no_loop)
+    return 0
+
+
+def cmd_demo_lesson(a) -> int:
+    """Lessons from Claude/Codex reflection, and bookkeeping of Hindsight retention."""
+    from .trade_journal import Journal
+
+    j = Journal(a.journal)
+    if a.add:
+        lesson = j.add_lesson(datetime.now(timezone.utc), a.trade, a.author, a.add, a.hindsight_document)
+        print(json.dumps({"lesson_id": lesson}))
+    elif a.mark_retained:
+        j.mark_retained(int(a.mark_retained[0]), a.mark_retained[1])
+        print(json.dumps({"lesson_id": a.mark_retained[0], "hindsight_document": a.mark_retained[1]}))
+    else:
+        state = j.state()
+        pending = [l for l in state["lessons"] if not l["hindsight_document"]]
+        print(json.dumps({"summary": state["summary"], "trades": state["trades"][:20],
+                          "lessons_not_in_hindsight": pending, "recent_decisions":
+                          [{k: d[k] for k in ("bar", "action", "side", "reason")} for d in state["decisions"][:24]]},
+                         indent=2, default=str))
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="fxra")
     sub = p.add_subparsers(required=True)
+
+    def demo_args(sp):
+        sp.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
+        sp.add_argument("--limits", type=Path, default=Path("config/risk.toml"))
+        sp.add_argument("--mt5-python", type=Path, default=Path("artifacts/mt5-mcp-runtime/Scripts/python.exe"))
+        sp.add_argument("--terminal", type=Path, default=Path(r"C:\Program Files\MetaTrader 5\terminal64.exe"))
+        sp.add_argument("--no-send", action="store_true", help="decide and journal, but never send orders")
+        sp.add_argument("--interval", type=int, default=30, help="seconds between agent checks")
+        sp.add_argument("--duty", type=Path, default=Path("config/duty.toml"), help="duty roster (default schedule if absent)")
+
+    ss = sub.add_parser("sync-skills", help="mirror .claude/skills to .agents/skills for Codex")
+    ss.set_defaults(fn=cmd_sync_skills)
+
+    sh = sub.add_parser("demo-shift", help="duty rotation: status, take over, log shift start/end")
+    sh.add_argument("action", choices=["status", "take", "start", "end"])
+    sh.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
+    sh.add_argument("--duty", type=Path, default=Path("config/duty.toml"))
+    sh.add_argument("--agent")
+    sh.add_argument("--model")
+    sh.add_argument("--hours", type=float, default=4.0)
+    sh.add_argument("--reason")
+    sh.add_argument("--summary")
+    sh.set_defaults(fn=cmd_demo_shift)
+
+    ds = sub.add_parser("demo-step", help="one H-001B decision cycle on the MT5 demo account (D-30)")
+    demo_args(ds)
+    ds.set_defaults(fn=cmd_demo_step)
+
+    dp = sub.add_parser("demo-policy", help="show or change the H-002 exploration policy")
+    dp.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
+    dp.add_argument("--set", action="append", metavar="KEY=JSON", help='e.g. tp_rr=2 or enabled=["breakout20"]')
+    dp.add_argument("--reason")
+    dp.add_argument("--author", default="claude")
+    dp.set_defaults(fn=cmd_demo_policy)
+
+    dt = sub.add_parser("demo-test-order", help="TECH-0003: one risk-gated 0.01-lot buy/close round trip")
+    demo_args(dt)
+    dt.add_argument("--hold-seconds", type=int, default=60)
+    dt.set_defaults(fn=cmd_demo_test_order)
+
+    dr = sub.add_parser("demo-run", help="agent loop + local dashboard on 127.0.0.1")
+    demo_args(dr)
+    dr.add_argument("--port", type=int, default=8765)
+    dr.add_argument("--no-loop", action="store_true", help="dashboard only, no agent steps")
+    dr.set_defaults(fn=cmd_demo_run)
+
+    dl = sub.add_parser("demo-lesson", help="list trades/lessons for reflection, add a lesson, or mark one retained")
+    dl.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
+    dl.add_argument("--add", metavar="TEXT")
+    dl.add_argument("--trade", type=int, help="position id the lesson is about")
+    dl.add_argument("--author", default="claude")
+    dl.add_argument("--hindsight-document")
+    dl.add_argument("--mark-retained", nargs=2, metavar=("LESSON_ID", "DOCUMENT"), type=str)
+    dl.set_defaults(fn=cmd_demo_lesson)
 
     sd = sub.add_parser('simulation-demo', help='synthetic lifecycle demo; no trading or market results')
     sd.add_argument('--config', type=Path, default=Path('config/simulation-demo.example.toml'))

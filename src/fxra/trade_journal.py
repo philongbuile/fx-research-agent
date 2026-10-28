@@ -1,0 +1,272 @@
+"""SQLite journal of the demo agent: decisions, orders, broker trades, lessons, equity.
+
+Trade P&L comes from broker deal records (profit, commission, swap, fee), never
+from our own price arithmetic. No account identifiers are stored.
+"""
+
+import json
+import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS decisions (
+    bar TEXT PRIMARY KEY, at TEXT NOT NULL, action TEXT NOT NULL, side TEXT,
+    reason TEXT NOT NULL, details TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS orders (
+    client_order_id TEXT PRIMARY KEY, at TEXT NOT NULL, kind TEXT NOT NULL, side TEXT,
+    lots REAL, stop_loss REAL, status TEXT NOT NULL, risk TEXT NOT NULL, result TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS trades (
+    position_id INTEGER PRIMARY KEY, side TEXT NOT NULL, volume REAL NOT NULL,
+    open_time TEXT NOT NULL, open_price REAL NOT NULL, entry_id TEXT,
+    close_time TEXT, close_price REAL, exit_id TEXT, exit_reason TEXT,
+    profit REAL, commission REAL, swap REAL, fee REAL, net REAL);
+CREATE TABLE IF NOT EXISTS lessons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, position_id INTEGER,
+    author TEXT NOT NULL, text TEXT NOT NULL, hindsight_document TEXT);
+CREATE TABLE IF NOT EXISTS equity (
+    at TEXT PRIMARY KEY, balance REAL NOT NULL, equity REAL NOT NULL, currency TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS day_start (day TEXT PRIMARY KEY, equity REAL NOT NULL);
+CREATE TABLE IF NOT EXISTS entry_tags (
+    entry_id TEXT PRIMARY KEY, strategy TEXT NOT NULL, pattern TEXT, hour_utc INTEGER, session TEXT,
+    policy_version INTEGER, features TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS policy_changes (
+    version INTEGER PRIMARY KEY, at TEXT NOT NULL, author TEXT NOT NULL, reason TEXT NOT NULL, policy TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS duty_overrides (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, agent TEXT NOT NULL, model TEXT NOT NULL,
+    until TEXT NOT NULL, reason TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS shift_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, agent TEXT NOT NULL, model TEXT NOT NULL,
+    kind TEXT NOT NULL, summary TEXT NOT NULL);
+"""
+MIGRATIONS = [("entry_tags", "duty_agent", "TEXT"), ("entry_tags", "duty_model", "TEXT")]
+
+DAILY_KPI_USD = 50.0  # owner's daily target; shown as progress, never optimised for
+PIP = 0.0001
+TRADES_SQL = ("SELECT t.*, g.strategy, g.pattern, g.hour_utc, g.session, g.policy_version, g.duty_agent, g.duty_model "
+              "FROM trades t LEFT JOIN entry_tags g ON g.entry_id = t.entry_id")
+
+
+class Journal:
+    def __init__(self, path: Path):
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.db = sqlite3.connect(self.path, check_same_thread=False)
+        self.db.row_factory = sqlite3.Row
+        self.db.executescript(SCHEMA)
+        for table, column, kind in MIGRATIONS:
+            if column not in {r[1] for r in self.db.execute(f"PRAGMA table_info({table})")}:
+                self.db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {kind}")
+
+    def close(self):
+        self.db.close()
+
+    def _rows(self, sql, *args):
+        return [dict(r) for r in self.db.execute(sql, args)]
+
+    # decisions -----------------------------------------------------------
+    def decided(self, bar: str) -> bool:
+        return self.db.execute("SELECT 1 FROM decisions WHERE bar=?", (bar,)).fetchone() is not None
+
+    def decide(self, bar: str, at: datetime, action: str, side: str | None, reason: str, details: dict):
+        with self.db:
+            self.db.execute("INSERT OR IGNORE INTO decisions VALUES (?,?,?,?,?,?)",
+                            (bar, at.isoformat(), action, side, reason, json.dumps(details, default=str)))
+
+    # orders --------------------------------------------------------------
+    def order_ids(self) -> set[str]:
+        return {r["client_order_id"] for r in self._rows("SELECT client_order_id FROM orders")}
+
+    def order(self, cid, at, kind, side, lots, stop_loss, status, risk, result):
+        with self.db:
+            self.db.execute("INSERT OR REPLACE INTO orders VALUES (?,?,?,?,?,?,?,?,?)",
+                            (cid, at.isoformat(), kind, side, lots, stop_loss, status,
+                             json.dumps(risk, default=str), json.dumps(result, default=str)))
+
+    # equity --------------------------------------------------------------
+    def snapshot_equity(self, at: datetime, balance: float, equity: float, currency: str) -> float:
+        """Record equity; return the first equity seen this UTC day (risk gate input)."""
+        day = at.date().isoformat()
+        with self.db:
+            self.db.execute("INSERT OR IGNORE INTO equity VALUES (?,?,?,?)",
+                            (at.replace(second=0, microsecond=0).isoformat(), balance, equity, currency))
+            self.db.execute("INSERT OR IGNORE INTO day_start VALUES (?,?)", (day, equity))
+        return self.db.execute("SELECT equity FROM day_start WHERE day=?", (day,)).fetchone()[0]
+
+    # trades from broker deals --------------------------------------------
+    def sync_deals(self, deals: list[dict]) -> list[dict]:
+        """Upsert trades from deals; return trades that closed for the first time."""
+        by_position: dict[int, list[dict]] = {}
+        for d in sorted(deals, key=lambda d: (d["time"], d["ticket"])):
+            by_position.setdefault(d["position_id"], []).append(d)
+        newly_closed = []
+        with self.db:
+            for pid, ds in by_position.items():
+                ins = [d for d in ds if d["entry"] == "in"]
+                outs = [d for d in ds if d["entry"] == "out"]
+                if not ins:
+                    continue
+                first = ins[0]
+                before = self.db.execute("SELECT close_time FROM trades WHERE position_id=?", (pid,)).fetchone()
+                self.db.execute("INSERT OR IGNORE INTO trades (position_id, side, volume, open_time, open_price, entry_id)"
+                                " VALUES (?,?,?,?,?,?)", (pid, first["side"], first["volume"], first["time"],
+                                                          first["price"], first["comment"]))
+                if not outs or sum(d["volume"] for d in outs) + 1e-9 < sum(d["volume"] for d in ins):
+                    continue
+                last = outs[-1]
+                parts = {k: sum(d.get(k) or 0.0 for d in ds) for k in ("profit", "commission", "swap", "fee")}
+                net = sum(parts.values())
+                self.db.execute("UPDATE trades SET close_time=?, close_price=?, exit_id=?, profit=?, commission=?,"
+                                " swap=?, fee=?, net=? WHERE position_id=?",
+                                (last["time"], last["price"], last["comment"], parts["profit"], parts["commission"],
+                                 parts["swap"], parts["fee"], net, pid))
+                if before is None or before[0] is None:
+                    newly_closed.append(pid)
+        return [self.trade(pid) for pid in newly_closed]
+
+    def set_exit_reason(self, position_id: int, reason: str):
+        with self.db:
+            self.db.execute("UPDATE trades SET exit_reason=? WHERE position_id=?", (reason, position_id))
+
+    def trade(self, position_id: int) -> dict:
+        return self._rows(TRADES_SQL + " WHERE t.position_id=?", position_id)[0]
+
+    # exploration bookkeeping ---------------------------------------------
+    def tag_entry(self, entry_id: str, tags: dict):
+        with self.db:
+            self.db.execute("INSERT OR REPLACE INTO entry_tags (entry_id, strategy, pattern, hour_utc, session,"
+                            " policy_version, features, duty_agent, duty_model) VALUES (?,?,?,?,?,?,?,?,?)",
+                            (entry_id, tags["strategy"], tags.get("pattern"), tags.get("hour_utc"),
+                             tags.get("session"), tags.get("policy_version"), json.dumps(tags.get("features", {})),
+                             tags.get("duty_agent"), tags.get("duty_model")))
+
+    # duty rotation ---------------------------------------------------------
+    def latest_override(self) -> dict | None:
+        rows = self._rows("SELECT agent, model, until, reason FROM duty_overrides ORDER BY id DESC LIMIT 1")
+        return rows[0] if rows else None
+
+    def take_duty(self, at: datetime, agent: str, model: str, until: datetime, reason: str):
+        with self.db:
+            self.db.execute("INSERT INTO duty_overrides (at, agent, model, until, reason) VALUES (?,?,?,?,?)",
+                            (at.isoformat(), agent, model, until.isoformat(), reason))
+
+    def log_shift(self, at: datetime, agent: str, model: str, kind: str, summary: str):
+        with self.db:
+            self.db.execute("INSERT INTO shift_log (at, agent, model, kind, summary) VALUES (?,?,?,?,?)",
+                            (at.isoformat(), agent, model, kind, summary))
+
+    def model_scoreboard(self, assumed_cost_pips: float = 0.8) -> dict:
+        """Per AI model on duty: trades opened on its watch, policy versions and lessons it authored.
+
+        Trades are attributed to the model on duty at entry (the policy then in force
+        may be another model's); `by_policy_author` gives the other view.
+        """
+        closed = self._rows(TRADES_SQL + " WHERE t.net IS NOT NULL AND g.duty_model IS NOT NULL")
+
+        def group(key):
+            out: dict = {}
+            for t in closed:
+                pips = (t["close_price"] - t["open_price"]) / PIP * (1 if t["side"] == "buy" else -1)
+                g = out.setdefault(key(t), {"n": 0, "wins": 0, "losses": 0, "net": 0.0, "gross_win": 0.0,
+                                            "gross_loss": 0.0, "pips": 0.0})
+                g["n"] += 1
+                g["wins"] += t["net"] > 0
+                g["losses"] += t["net"] < 0
+                g["net"] += t["net"]
+                g["gross_win" if t["net"] > 0 else "gross_loss"] += t["net"]
+                g["pips"] += pips - assumed_cost_pips
+            for g in out.values():
+                g["win_rate"] = round(g["wins"] / g["n"], 3)
+                g["profit_factor"] = round(g["gross_win"] / -g["gross_loss"], 2) if g["gross_loss"] else None
+                g["avg_pips_after_cost"] = round(g.pop("pips") / g["n"], 2)
+                g["net"], g["gross_win"], g["gross_loss"] = (round(g[k], 2) for k in ("net", "gross_win", "gross_loss"))
+            return out
+
+        policy_by_version = {r["version"]: r["author"] for r in self._rows("SELECT version, author FROM policy_changes")}
+        counts = lambda sql: {r["k"]: r["n"] for r in self._rows(sql)}
+        return {
+            "by_model": group(lambda t: t["duty_model"]),
+            "by_model_strategy": {f"{m} / {s}": v for (m, s), v in
+                                  sorted(group(lambda t: (t["duty_model"], t["strategy"])).items())},
+            "by_policy_author": group(lambda t: policy_by_version.get(t["policy_version"], "default-policy")),
+            "lessons_by_author": counts("SELECT author k, count(*) n FROM lessons GROUP BY author"),
+            "policy_changes_by_author": counts("SELECT author k, count(*) n FROM policy_changes GROUP BY author"),
+            "shifts": self._rows("SELECT at, agent, model, kind, summary FROM shift_log ORDER BY id DESC LIMIT 20"),
+            "assumed_cost_pips": assumed_cost_pips,
+        }
+
+    def policy_change(self, version: int, at: datetime, author: str, reason: str, policy: dict):
+        with self.db:
+            self.db.execute("INSERT INTO policy_changes VALUES (?,?,?,?,?)",
+                            (version, at.isoformat(), author, reason, json.dumps(policy)))
+
+    def learning_stats(self, assumed_cost_pips: float = 0.8) -> dict:
+        """Closed exploration trades grouped by pattern, UTC hour and pattern x session.
+
+        Pips are from broker prices; `avg_pips_after_cost` subtracts an assumed
+        round-trip cost because the demo feed shows ~zero spread.
+        """
+        closed = [t for t in self._rows(TRADES_SQL + " WHERE t.net IS NOT NULL AND g.pattern IS NOT NULL")]
+
+        def group(key):
+            out: dict = {}
+            for t in closed:
+                pips = (t["close_price"] - t["open_price"]) / PIP * (1 if t["side"] == "buy" else -1)
+                g = out.setdefault(key(t), {"n": 0, "wins": 0, "net": 0.0, "pips": 0.0})
+                g["n"] += 1
+                g["wins"] += t["net"] > 0
+                g["net"] += t["net"]
+                g["pips"] += pips - assumed_cost_pips
+            for g in out.values():
+                g["net"] = round(g["net"], 2)
+                g["win_rate"] = round(g["wins"] / g["n"], 2)
+                g["avg_pips_after_cost"] = round(g["pips"] / g["n"], 2)
+                del g["pips"]
+            return out
+
+        return {"by_pattern": group(lambda t: t["pattern"]),
+                "by_hour": {str(k): v for k, v in sorted(group(lambda t: t["hour_utc"]).items())},
+                "by_pattern_session": {f"{p} / {s}": v for (p, s), v in
+                                       sorted(group(lambda t: (t["pattern"], t["session"])).items())},
+                "assumed_cost_pips": assumed_cost_pips, "closed_trades": len(closed)}
+
+    # lessons -------------------------------------------------------------
+    def add_lesson(self, at: datetime, position_id: int | None, author: str, text: str,
+                   hindsight_document: str | None = None) -> int:
+        with self.db:
+            cur = self.db.execute("INSERT INTO lessons (at, position_id, author, text, hindsight_document)"
+                                  " VALUES (?,?,?,?,?)", (at.isoformat(), position_id, author, text, hindsight_document))
+        return cur.lastrowid
+
+    def mark_retained(self, lesson_id: int, document: str):
+        with self.db:
+            self.db.execute("UPDATE lessons SET hindsight_document=? WHERE id=?", (document, lesson_id))
+
+    def recent_lessons(self, n=5) -> list[dict]:
+        return self._rows("SELECT id, at, author, text FROM lessons ORDER BY id DESC LIMIT ?", n)
+
+    # read model for the dashboard ----------------------------------------
+    def state(self, limit=200, now: datetime | None = None) -> dict:
+        trades = self._rows(TRADES_SQL + " ORDER BY t.open_time DESC LIMIT ?", limit)
+        closed = [t for t in trades if t["net"] is not None]
+        wins = [t for t in closed if t["net"] > 0]
+        today = (now or datetime.now(timezone.utc)).date().isoformat()  # trade times are UTC
+        today_net = sum(t["net"] for t in self._rows("SELECT net FROM trades WHERE net IS NOT NULL AND "
+                                                    "substr(close_time,1,10)=?", today))
+        return {
+            "kpi": {"day_utc": today, "target_usd": DAILY_KPI_USD, "net_today": round(today_net, 2),
+                    "progress": round(today_net / DAILY_KPI_USD, 3)},
+            "learning": self.learning_stats(),
+            "scoreboard": self.model_scoreboard(),
+            "policy_changes": self._rows("SELECT version, at, author, reason FROM policy_changes ORDER BY version DESC"),
+            "decisions": [dict(r, details=json.loads(r["details"]))
+                          for r in self._rows("SELECT * FROM decisions ORDER BY at DESC LIMIT ?", limit)],
+            "orders": [dict(r, risk=json.loads(r["risk"]), result=json.loads(r["result"]))
+                       for r in self._rows("SELECT * FROM orders ORDER BY at DESC LIMIT ?", limit)],
+            "trades": trades,
+            "lessons": self._rows("SELECT * FROM lessons ORDER BY id DESC LIMIT ?", limit),
+            "equity": self._rows("SELECT * FROM equity ORDER BY at"),
+            "summary": {"closed_trades": len(closed), "wins": len(wins),
+                        "net_total": round(sum(t["net"] for t in closed), 2),
+                        "win_rate": round(len(wins) / len(closed), 3) if closed else None},
+        }

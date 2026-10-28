@@ -30,7 +30,17 @@ def evaluate(minutes: pa.Table, *, signal_open: datetime,
                              end=end, available_at=available_at)
     if result.missing_minutes:
         return None
-    bars = result.bars.to_pylist()
+    return signal_from_hours(result.bars.to_pylist(), available_at=end)
+
+
+def signal_from_hours(bars: list[dict], *, available_at: datetime) -> BreakoutSignal:
+    """The 24/14/10 rules on exactly 25 consecutive closed hourly bars (oldest first).
+
+    H-001 feeds hours aggregated from complete M1 data; H-001B (demo agent) feeds the
+    broker's native H1 bars. The caller is responsible for contiguity.
+    """
+    if len(bars) != 25:
+        raise ValueError("exactly 25 hourly bars required")
     prior, current = bars[:-1], bars[-1]
     upper = max(r["high"] for r in prior)
     lower = min(r["low"] for r in prior)
@@ -39,6 +49,6 @@ def evaluate(minutes: pa.Table, *, signal_open: datetime,
                   abs(bars[i]["high"] - bars[i - 1]["close"]),
                   abs(bars[i]["low"] - bars[i - 1]["close"]))
               for i in range(len(bars) - 14, len(bars))]
-    return BreakoutSignal(end, side, sum(ranges) / 14,
+    return BreakoutSignal(available_at, side, sum(ranges) / 14,
                           min(r["low"] for r in prior[-10:]),
                           max(r["high"] for r in prior[-10:]))

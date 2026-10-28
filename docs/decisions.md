@@ -15,7 +15,7 @@
 | D-07 | Run LEAN directly from the pinned image `quantconnect/lean:18206` with `docker run`, not through the LEAN CLI. | QuantConnect docs say: "To use the CLI, you must be a member in an organization on a paid tier" (verified 2026-10-26). The engine image needs no account. Bump the tag only in a reviewed commit. |
 | D-08 | All stored times are UTC. A bar's `time` is its **open** time. The adapter records the source timezone in the manifest. | MT5 returns broker server time, which is often UTC+2/+3 and shifts with DST (assumed; verify per broker, risk R-01). LEAN data files also stamp a bar with its **open** time (in the market's data timezone, UTC for `oanda`); LEAN itself sets `EndTime = Time + period` and delivers the bar at `EndTime`. So the LEAN export writes our bars **unshifted**. Corrected 2026-10-26 (B-14): this row used to say the export must shift by one period, which would have delivered every bar one period late. Verified against `quantconnect/lean:18206` sample files and a probe run (see `src/fxra/lean_export.py`). |
 | D-09 | Each data source has exactly one writer host. Partitions are immutable; the write is temp dir, then rename, with an `O_EXCL` lock file. | Prevents two machines writing the same partition. |
-| D-10 | No live orders in Phase 0. The risk gate accepts only `mode = "dry_run"`. The only execution adapter is `DryRunExecution`. | Owner constraint. |
+| D-10 | No live orders in Phase 0. The risk gate accepts only `mode = "dry_run"`. The only execution adapter is `DryRunExecution`. | Owner constraint. Superseded for demo accounts by D-30 (2026-10-28); live remains forbidden. |
 | D-11 | Claude and Codex only propose. A strategy reaches paper, demo or live only as a specific git commit, through the gates in `research-lifecycle.md`, with owner approval. | Owner constraint. |
 | D-12 | `AGENTS.md` is the canonical agent rule file. `CLAUDE.md` imports it and adds only Claude-specific notes. | Avoids two rule sets drifting apart. |
 | D-13 | Docs and code are in English (open-source audience). | Convention. |
@@ -75,6 +75,82 @@ source session calendar is certified. A no-order LEAN replay checks exact source
 delivery under an explicitly separate technical algorithm calendar. See
 [bounded replay evidence](mt5-observed-replay.md). D-17's first strategy hypothesis
 and all execution/promotion decisions remain separate.
+
+## Autonomous demo execution (D-30)
+
+Owner decision in the Claude session, 2026-10-28: "remove the block on sending
+orders to the MT5 demo; give the agent full authority to send orders on MT5 demo;
+revisit when trading a real account." The owner also chose the H-001 rules as the
+decision policy, with Claude and Codex both allowed to write lessons.
+
+For **demo accounts only**, this supersedes D-10's dry-run-only baseline and
+D-28's per-order human confirmation (steps 2-3 of the contract). What remains:
+
+- Orders go only through the first-party `fxra.mt5_execution` adapter. No raw
+  `order_send`, upstream all-tools server or ad-hoc script.
+- The adapter refuses any account whose trade mode is not demo, and stops if the
+  terminal's account identity changes during a session. Live trading stays out of
+  scope and needs a new owner decision.
+- Every order passes the automatic risk gate (`ALLOWED_MODES` now includes
+  `"demo"`): stop loss, `SymbolSpec` lot size, spread, quote age, daily loss,
+  max positions, approved `strategy@version` and the kill switch.
+- Idempotency and reconciliation from D-28 steps 5-6 still apply: persist the
+  `client_order_id` before sending; after a lost response, reconcile with broker
+  state and never resend blindly.
+- The owner can stop all execution at any time by creating `artifacts/KILL_SWITCH`.
+- As part of this decision the owner authorized Claude to create the initial local
+  `config/risk.toml` (`mode = "demo"`, EURUSD, `H-001@<commit>`, 0.01 lot, one
+  position, 1% daily loss). Later changes to limits or approvals go back to the owner.
+
+Demo results are forward-test observations, not evidence of edge. H-001's frozen
+rules are not tuned from demo outcomes; a rule change is a new hypothesis id.
+
+## Demo exploration phase (D-31)
+
+Owner direction, 2026-10-28: the demo stage is for learning and experimenting as
+much as possible. Rigid rules should be distilled only after enough experience.
+Owner also set 0.1 lot for the new strategy and a daily KPI of 50 USD.
+
+- **H-002 explorer** (`src/fxra/h002.py`, `H-002@explore`, magic `20261029`)
+  trades four M15 entry patterns with ATR stop and take profit. When several
+  match, an epsilon-greedy choice prefers patterns with better realised results
+  but keeps exploring. Every trade is tagged with pattern, UTC hour, session and
+  policy version.
+- Claude and Codex may change the H-002 **policy** (`artifacts/demo/h002-policy.json`
+  through `fxra demo-policy --set ... --reason ...`) without owner approval.
+  Policy covers enabled patterns, stop/target multiples, hold time, avoided hours
+  and exploration rate. Every change gets a version, author and reason in the
+  journal. New pattern *code* still goes through a branch and PR.
+- Account safety stays fixed and owner-controlled in `config/risk.toml`: demo
+  only, stop loss on every order, max 0.1 lot, two open positions (one per
+  strategy), 1% daily loss and the kill switch.
+- The 50 USD/day KPI is shown as progress. It is never an optimisation target:
+  agents do not raise size or remove stops to chase it.
+- Research honesty is unchanged in substance. Exploration results are
+  in-sample observations on a zero-spread demo feed, not evidence of edge.
+  Learning statistics subtract an assumed 0.8-pip cost. A rule distilled from
+  exploration becomes a new frozen hypothesis id and must be tested on data that
+  arrives after it is frozen. H-001B stays frozen as the control.
+
+## Demo duty rotation and model comparison (D-32)
+
+Owner direction, 2026-10-28: Codex (`gpt-6-sol`) is on duty 08:00-18:00 and
+Claude (`claude-opus-5-5`) 18:00-08:00, local time, on one machine. Duty is
+flexible: `config/duty.toml` or `fxra demo-shift take`. Memory, docs and skills
+must stay continuously current across shifts; see
+`.claude/skills/fxra-demo-duty/SKILL.md` (mirrored to `.agents/skills/` by
+`fxra sync-skills`). Every trade, policy version, lesson and shift is attributed
+to the model on duty. `fxra demo-shift status` and the dashboard report win
+rate, net, profit factor and average pips per model, so other models (including
+lighter LLMs) can later be tested against the same memory and knowledge.
+Model comparisons are confounded by the market hours each shift covers and by
+small samples. Read them per strategy and session.
+
+Sizing, same day: the owner chose a **fixed 1 lot** for H-002, about 50 USD lost
+at the usual 5-pip stop and about 75 USD at the 1.5R target.
+`max_lots_per_order = 1.0` in the local `config/risk.toml`; H-002 policy v2
+sets `lots = 1.0`. H-001B stays at 0.01 lot as the frozen control. A
+`risk_per_trade_pct` sizing mode exists but is off.
 
 ## Open questions
 
