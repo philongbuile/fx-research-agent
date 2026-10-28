@@ -80,6 +80,20 @@ def session(hour: int) -> str:
     return "asia" if hour < 7 else "london" if hour < 12 else "overlap_ny" if hour < 17 else "late_ny"
 
 
+def market_context(bars: list[dict], h1_bars: list[dict], quote: dict, pip: float, bar_time: datetime) -> dict:
+    """Conditions at entry, stored with the trade so lessons and digests can say *when* a pattern works.
+
+    Trend = EMA20 vs EMA50 (M15, and H1 when 50 H1 bars exist). Volatility regime =
+    where the current M15 ATR(14) sits among the ATRs of the bars in the snapshot.
+    """
+    trend = lambda closes: ("up" if ema(closes, 20)[-1] > ema(closes, 50)[-1] else "down") if len(closes) >= 50 else None
+    atrs = [atr(bars[i - 15:i]) for i in range(15, len(bars) + 1)]
+    pct = sum(x <= atrs[-1] for x in atrs) / len(atrs)
+    return {"m15_trend": trend([b["close"] for b in bars]), "h1_trend": trend([b["close"] for b in h1_bars]),
+            "atr_pctile": round(pct, 2), "vol": "low" if pct < 1 / 3 else "high" if pct > 2 / 3 else "normal",
+            "spread_pips": round((quote["ask"] - quote["bid"]) / pip, 2), "dow": bar_time.strftime("%a")}
+
+
 def patterns(bars: list[dict]) -> dict[str, str]:
     """Pattern name -> side for the last closed bar. Needs at least 60 bars."""
     if len(bars) < 60:
@@ -387,6 +401,7 @@ def _step_symbol(journal: Journal, broker, limits, now: datetime, snap: dict, ma
     spec = SymbolSpec(symbol, "mt5-demo-1", s["digits"], s["point"], pip, s["contract_size"],
                       s["volume_min"], s["volume_max"], s["volume_step"], s["quote_currency"])
     day_start = journal.snapshot_equity(now, acct["balance"], acct["equity"], acct["currency"]) if candidates else None
+    context = market_context(bars, market.get("h1_bars") or [], q, pip, latest) if candidates else {}
     open_count = len(snap["positions"]) - len(exits)
     for chosen in candidates:
         side = matches[chosen]
@@ -412,7 +427,7 @@ def _step_symbol(journal: Journal, broker, limits, now: datetime, snap: dict, ma
                                 "hour_utc": hour, "session": session(hour), "policy_version": policy["version"],
                                 "duty_agent": (duty or {}).get("agent"), "duty_model": (duty or {}).get("model"),
                                 "features": {"matches": matches, "atr_pips": a / pip, "sl_pips": dist / pip,
-                                             "tp_pips": dist * policy["tp_rr"] / pip}})
+                                             "tp_pips": dist * policy["tp_rr"] / pip, **context}})
         if not send:
             entries.append({"pattern": chosen, "side": side, "status": "not_sent"})
             continue

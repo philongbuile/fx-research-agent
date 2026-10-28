@@ -44,8 +44,11 @@ narrative layer on top: why it happened and what to try next.
    scoreboard, and proposal status.
 2. ai-memory (workspace `personal-development`, project `fx-research-agent`):
    list and accept the latest handoff, then verify it against Git.
-3. Hindsight bank `fxra`: recall `demo lesson` and the other model's latest
-   hand-over summary (tags `demo`, `shift`, `model:<other label>`).
+3. Hindsight bank `fxra`: read the digest first (documents
+   `fxra-insight-overview` and `fxra-insight-pattern-<pattern>`, tag `insight`),
+   then recall `demo lesson` and the other model's latest hand-over summary
+   (tags `demo`, `shift`, `model:<other label>`). Lessons carry facet tags
+   (`outcome:`, `exit:`, `hour:`, `dow:`, `vol:`, `h1_trend:`) for narrow recall.
 4. Review the other agent's open proposals: `uv run fxra demo-propose` lists
    them. Then review each:
    `uv run fxra demo-propose --review <id> --agree|--reject --note "<your evidence>" --author <agent>/<model>`.
@@ -59,6 +62,9 @@ narrative layer on top: why it happened and what to try next.
 
 ## About every hour
 
+- `uv run fxra demo-insights` prints counts by pattern, session, hour, weekday,
+  volatility and trend (the loop retains it to Hindsight hourly). Quote numbers
+  from it or the journal, never from recalled lesson text.
 - `uv run fxra demo-lesson` lists trades and lessons not yet in Hindsight.
   `uv run fxra demo-policy` shows policies and stats by pattern, arm,
   hour and session.

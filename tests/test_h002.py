@@ -122,6 +122,9 @@ def test_every_matched_pattern_opens_its_own_position(journal, tmp_path):
             assert i["stop_loss"] < 1.10201 < i["take_profit"]
     tag = journal.db.execute("SELECT arm, hour_utc, session FROM entry_tags LIMIT 1").fetchone()
     assert tuple(tag) == ("claude", 14, "overlap_ny")
+    f = journal.entry_info(ids[0])["features"]
+    assert f["vol"] == "high" and f["m15_trend"] == "up" and f["h1_trend"] is None and f["dow"] == "Wed"
+    assert f["spread_pips"] == 0.1 and journal.entry_info(ids[0])["stop_loss"] < 1.10201
     again = h002.step(journal, b, limits(tmp_path, max_open_positions=50), NOW, snap(bars), dict(h002.DEFAULT_POLICY))
     assert again["action"] == "skip" and len(b.sent) == len(matched)
 

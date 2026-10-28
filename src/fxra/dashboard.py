@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import demo_agent, duty, h002, lesson_memory, risk
+from . import demo_agent, duty, h002, lesson_insights, lesson_memory, risk
 from .trade_journal import Journal
 
 
@@ -46,6 +46,7 @@ class Agent:
         self.lock = threading.Lock()
         self.last_step = None
         self.last_memory = {"enabled": memory is not None}
+        self.last_insights = None
 
     def sync_lessons(self):
         if self.memory is None:
@@ -55,6 +56,18 @@ class Agent:
         except Exception as e:
             self.last_memory = {"enabled": True, "error": type(e).__name__}
         return self.last_memory
+
+    def sync_insights(self, now=None, every_seconds=3600):
+        """Hourly digest of demo results to Hindsight (lesson_insights); unchanged documents are skipped."""
+        now = now or datetime.now(timezone.utc)
+        if self.memory is None or (self.last_insights and
+                                   (now - self.last_insights["checked"]).total_seconds() < every_seconds):
+            return self.last_insights
+        try:
+            self.last_insights = {"checked": now, **lesson_insights.sync(self.journal, self.memory, now, self.lock)}
+        except Exception as e:
+            self.last_insights = {"checked": now, "error": type(e).__name__}
+        return self.last_insights
 
     def arm_labels(self) -> dict:
         """Arm name -> label of the model its owner runs now (config/duty.toml [agents])."""
@@ -117,6 +130,7 @@ class Agent:
         while not stop.is_set():
             self.tick()
             self.sync_lessons()  # a lesson written this tick reaches Hindsight before the next bar
+            self.sync_insights()
             stop.wait(self.interval)
 
     def state(self):

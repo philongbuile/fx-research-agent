@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS shift_log (
 CREATE TABLE IF NOT EXISTS arm_policy_changes (
     arm TEXT NOT NULL, version INTEGER NOT NULL, at TEXT NOT NULL, author TEXT NOT NULL, reason TEXT NOT NULL,
     policy TEXT NOT NULL, PRIMARY KEY (arm, version));
+CREATE TABLE IF NOT EXISTS insight_docs (
+    document TEXT PRIMARY KEY, hash TEXT NOT NULL, at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS proposals (
     id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, author TEXT NOT NULL, text TEXT NOT NULL,
     evidence TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', reviewer TEXT, review TEXT, reviewed_at TEXT);
@@ -187,6 +189,12 @@ class Journal:
                              tags.get("duty_agent"), tags.get("duty_model"), tags.get("arm"), tags.get("symbol"),
                              tags.get("arm_model")))
 
+    def entry_info(self, entry_id: str | None) -> dict:
+        """Entry-time features and the planned stop loss of a trade's entry order (for lessons)."""
+        tag = self.db.execute("SELECT features FROM entry_tags WHERE entry_id=?", (entry_id,)).fetchone()
+        order = self.db.execute("SELECT stop_loss FROM orders WHERE client_order_id=?", (entry_id,)).fetchone()
+        return {"features": json.loads(tag[0]) if tag else {}, "stop_loss": order[0] if order else None}
+
     def entry_pattern(self, entry_id: str) -> str | None:
         row = self.db.execute("SELECT pattern FROM entry_tags WHERE entry_id=?", (entry_id,)).fetchone()
         return row[0] if row else None
@@ -294,6 +302,13 @@ class Journal:
     def mark_retained(self, lesson_id: int, document: str):
         with self.db:
             self.db.execute("UPDATE lessons SET hindsight_document=? WHERE id=?", (document, lesson_id))
+
+    def insight_hashes(self) -> dict[str, str]:
+        return {r["document"]: r["hash"] for r in self._rows("SELECT document, hash FROM insight_docs")}
+
+    def mark_insight(self, document: str, digest: str, at: datetime):
+        with self.db:
+            self.db.execute("INSERT OR REPLACE INTO insight_docs VALUES (?,?,?)", (document, digest, at.isoformat()))
 
     def recent_lessons(self, n=5) -> list[dict]:
         return self._rows("SELECT id, at, author, text FROM lessons ORDER BY id DESC LIMIT ?", n)

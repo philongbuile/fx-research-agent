@@ -19,8 +19,8 @@ class HindsightLessons(HindsightDocuments):
 
     @staticmethod
     def _document(document):
-        if not re.fullmatch(r"fxra-lesson-\d+-\d+", document):
-            raise ValueError("lesson document id required")
+        if not re.fullmatch(r"fxra-lesson-\d+-\d+|fxra-insight-[a-z0-9_-]+", document):
+            raise ValueError("lesson or insight document id required")
         return document
 
     def retain_lesson(self, document: str, content: str, at: str, tags: list[str]):
@@ -36,6 +36,23 @@ class HindsightLessons(HindsightDocuments):
                    timeout=10)
 
 
+def facet_tags(trade: dict, features: dict) -> list[str]:
+    """`key:value` tags so recall can filter lessons by outcome, exit, time and market regime."""
+    out = []
+    if trade.get("net") is not None:
+        out.append("outcome:" + ("win" if trade["net"] > 0 else "loss" if trade["net"] < 0 else "flat"))
+    if trade.get("exit_reason"):
+        out.append(f"exit:{trade['exit_reason']}")
+    if trade.get("hour_utc") is not None:
+        out.append(f"hour:{int(trade['hour_utc']):02d}")
+    dow = features.get("dow") or (datetime.fromisoformat(trade["open_time"]).astimezone(timezone.utc).strftime("%a")
+                                  if trade.get("open_time") else None)
+    if dow:
+        out.append(f"dow:{dow}")
+    out += [f"{k}:{features[k]}" for k in ("vol", "h1_trend", "m15_trend") if features.get(k)]
+    return out
+
+
 def pending(journal: Journal, limit: int = 20) -> list[dict]:
     rows = journal._rows("SELECT id, at, position_id, author, text FROM lessons WHERE hindsight_document IS NULL"
                          " ORDER BY id LIMIT ?", limit)
@@ -48,6 +65,7 @@ def pending(journal: Journal, limit: int = 20) -> list[dict]:
             tags.append(f"H-002-{trade['arm']}")
         if trade.get("arm_model"):
             tags.append(f"model:{trade['arm_model']}")
+        tags += facet_tags(trade, journal.entry_info(trade["entry_id"])["features"]) if trade else []
         out.append({**r, "document": f"fxra-lesson-{r['position_id'] or 0}-{r['id']}", "tags": tags,
                     "content": r["text"] + (f" Arm model: {trade['arm_model']}." if trade.get("arm_model") else "")})
     return out
