@@ -213,9 +213,9 @@ uv run fxra demo-playbook --status 1 proposed --proposal 2 --author claude/claud
 The MT5 terminal has an economic calendar that Python cannot read directly, so
 a small first-party MQL5 service exports it:
 
-1. MetaTrader 5 → Tools → MetaQuotes Language Editor. Open
-   `mql5/Services/FxraCalendarExport.mq5` from this repo (or copy it into the
-   terminal's `MQL5\Services` folder) and press Compile.
+1. Copy `mt5_services/FxraCalendarExport.mq5` into the terminal's
+   `MQL5\Services` folder (File → Open Data Folder) and compile it in
+   MetaEditor, or from a shell with `metaeditor64.exe /compile:<path>`.
 2. In the terminal's Navigator, right-click Services → Add service →
    FxraCalendarExport → OK. It starts at once and every time the terminal starts.
 3. Every 5 minutes it writes `fxra_calendar.json` (30 days back, 7 days ahead)

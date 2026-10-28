@@ -1,6 +1,6 @@
 """Economic calendar from the MT5 terminal (D-40): news context for every trade and news patterns.
 
-The first-party MQL5 service `mql5/Services/FxraCalendarExport.mq5` writes moderate and high
+The first-party MQL5 service `mt5_services/FxraCalendarExport.mq5` writes moderate and high
 importance events for USD, EUR, GBP, JPY and AUD to the terminal's Common\\Files folder. This module
 reads that file (times are trade-server time; the file carries server and GMT clocks to convert),
 keeps every event in the journal so past trades stay taggable, and derives:

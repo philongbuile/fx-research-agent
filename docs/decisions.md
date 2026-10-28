@@ -279,7 +279,7 @@ Owner decision, 2026-10-29, after the FOMC lesson: the agents must know when
 key news is due and learn to trade it, not only avoid it. Source chosen: the
 MT5 terminal's built-in economic calendar, so no new third-party code or
 service. A first-party, read-only MQL5 service
-(`mql5/Services/FxraCalendarExport.mq5`) exports moderate and high importance
+(`mt5_services/FxraCalendarExport.mq5`) exports moderate and high importance
 events for USD, EUR, GBP, JPY and AUD (time, forecast, actual, previous, and
 MT5's good/bad impact flag) to the terminal's Common\Files folder; the owner
 compiles and starts it once. The agent loop stores the events in the journal,
