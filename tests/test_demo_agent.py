@@ -168,6 +168,20 @@ def test_tech_round_trip_needs_its_own_approval(journal, tmp_path):
     assert broker.closed[0] == {"ticket": 9, "client_order_id": "T3X-9", "symbol": "EURUSD"}
 
 
+def test_tick_takes_its_clock_after_the_slow_snapshot(journal, tmp_path, monkeypatch):
+    """Regression: a clock read before the snapshot made fresh quotes 'from the future'."""
+    import fxra.dashboard as dash
+
+    seen = []
+    agent = Agent(journal, FakeBroker(bars()), tmp_path / "missing.toml", send=False)
+    clock = iter([NOW - timedelta(seconds=5), NOW, NOW, NOW])
+    monkeypatch.setattr(dash, "datetime", type("D", (), {"now": staticmethod(lambda tz=None: next(clock))}))
+    monkeypatch.setattr(dash.demo_agent, "step", lambda j, b, l, now, **k: seen.append(now) or {"action": "x"})
+    monkeypatch.setattr(dash.h002, "step", lambda *a, **k: {"action": "x"})
+    agent.tick()
+    assert seen == [NOW]
+
+
 def test_dashboard_state_and_page(journal, tmp_path):
     (tmp_path / "risk.toml").write_text(
         '[risk]\nmode="demo"\nallowed_symbols=["EURUSD"]\napproved_strategies=["H-001B@h001b-v1"]\n'

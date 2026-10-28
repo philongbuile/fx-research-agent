@@ -68,6 +68,9 @@ class Agent:
             except Exception as e:
                 self.last_step = {"at": now.isoformat(), "action": "error", "reason": str(e)}
                 return self.last_step
+            # The snapshot subprocess takes seconds: a clock taken before it makes the
+            # fresh quote look like it comes from the future (risk gate: quote_from_future).
+            now = datetime.now(timezone.utc)
             results, on = {}, self.duty(now)
             runs = [("H-001B", lambda: demo_agent.step(self.journal, self.broker, limits, now,
                                                        send=self.send, snap=snap, duty=on))]
