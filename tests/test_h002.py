@@ -283,3 +283,23 @@ def test_learning_stats_group_by_pattern_and_hour(journal):
     assert (g["n"], g["wins"], g["net"], g["win_rate"], g["avg_pips_after_cost"]) == (1, 1, 10.0, 1.0, 9.2)
     assert "claude / breakout20" in s["by_arm_pattern"]  # pre-D-33 H-002 trades belong to the Claude arm
     assert "9" in s["by_hour"] and "breakout20 / london" in s["by_pattern_session"]
+    assert s["by_confluence"]["unknown"]["n"] == 1  # no matches stored at entry
+
+
+def test_confluence_counts_agreeing_and_opposing_patterns(journal):
+    from fxra.trade_journal import confluence
+    m = {"breakout20": "buy", "breakout10": "buy", "three_bar_momentum": "buy", "ema50_stretch_fade": "sell"}
+    assert confluence({"matches": m}, "buy") == "3+ agree · opposed"
+    assert confluence({"matches": m}, "sell") == "solo · opposed"
+    assert confluence({"matches": {"pin_bar": "buy", "engulfing": "buy"}}, "buy") == "2 agree"
+    assert confluence({}, "buy") is None
+    journal.tag_entry("H2-2", {"strategy": "H-002", "pattern": "pin_bar", "hour_utc": 9, "session": "london",
+                               "features": {"matches": {"pin_bar": "sell"}}})
+    journal.sync_deals([{"ticket": 3, "order": 3, "position_id": 2, "time": "2026-10-28T09:15:00+00:00", "side": "sell",
+                         "entry": "in", "volume": 0.1, "price": 1.1000, "profit": 0, "commission": 0, "swap": 0,
+                         "comment": "H2-2"},
+                        {"ticket": 4, "order": 4, "position_id": 2, "time": "2026-10-28T09:45:00+00:00", "side": "buy",
+                         "entry": "out", "volume": 0.1, "price": 1.1010, "profit": -10.0, "commission": 0, "swap": 0,
+                         "comment": "[sl 1.10100]"}])
+    s = journal.learning_stats(0.8)
+    assert s["by_confluence"]["solo"]["losses"] == 1 and "pin_bar / solo" in s["by_pattern_confluence"]

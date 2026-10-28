@@ -16,7 +16,7 @@ from pathlib import Path
 from . import risk
 from .breakout import signal_from_hours
 from .contracts import AccountSnapshot, OrderIntent, Quote, SymbolSpec
-from .trade_journal import PIP_SIZES, Journal
+from .trade_journal import PIP_SIZES, Journal, confluence
 
 STRATEGY_ID = "H-001B"
 STRATEGY_VERSION = "h001b-v1"  # bump on any rule change; risk.toml approves "H-001B@h001b-v1"
@@ -142,6 +142,8 @@ def _lesson_text(trade: dict, market: dict, currency: str, info: dict | None = N
     others = {k: v for k, v in (f.get("matches") or {}).items() if k != trade.get("pattern")}
     if others:
         setup.append("other signals that bar: " + ", ".join(f"{k} {v}" for k, v in sorted(others.items())))
+    if trade.get("pattern") and confluence(f, trade["side"]):
+        setup.append(f"confluence {confluence(f, trade['side'])}")
     if trade.get("policy_version") is not None:
         setup.append(f"policy v{trade['policy_version']}")
     return (f"{head} "
