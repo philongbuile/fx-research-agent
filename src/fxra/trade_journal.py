@@ -46,6 +46,10 @@ CREATE TABLE IF NOT EXISTS insight_docs (
 CREATE TABLE IF NOT EXISTS proposals (
     id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, author TEXT NOT NULL, text TEXT NOT NULL,
     evidence TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', reviewer TEXT, review TEXT, reviewed_at TEXT);
+CREATE TABLE IF NOT EXISTS playbook (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, author TEXT NOT NULL, title TEXT NOT NULL,
+    action TEXT NOT NULL, filter TEXT NOT NULL, rationale TEXT NOT NULL, confirm_n INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'candidate', proposal_id INTEGER, updated_at TEXT, note TEXT);
 """
 MIGRATIONS = [("entry_tags", "duty_agent", "TEXT"), ("entry_tags", "duty_model", "TEXT"), ("entry_tags", "arm", "TEXT"),
               ("entry_tags", "symbol", "TEXT"), ("entry_tags", "arm_model", "TEXT")]
@@ -228,6 +232,26 @@ class Journal:
             self.db.execute("UPDATE proposals SET status=?, reviewer=?, review=?, reviewed_at=? WHERE id=?",
                             ("agreed" if agree else "rejected", reviewer, note, at.isoformat(), proposal_id))
         return self._rows("SELECT * FROM proposals WHERE id=?", proposal_id)[0]
+
+    # playbook: candidate rules whose evidence is recounted from trades ------
+    def add_rule(self, at: datetime, author: str, title: str, action: str, filter_: dict, rationale: str,
+                 confirm_n: int) -> int:
+        with self.db:
+            cur = self.db.execute("INSERT INTO playbook (at, author, title, action, filter, rationale, confirm_n)"
+                                  " VALUES (?,?,?,?,?,?,?)",
+                                  (at.isoformat(), author, title, action, json.dumps(filter_), rationale, confirm_n))
+        return cur.lastrowid
+
+    def rules(self) -> list[dict]:
+        return [{**r, "filter": json.loads(r["filter"])} for r in self._rows("SELECT * FROM playbook ORDER BY id")]
+
+    def set_rule_status(self, rule_id: int, at: datetime, status: str, note: str, proposal_id: int | None = None):
+        with self.db:
+            cur = self.db.execute("UPDATE playbook SET status=?, note=?, updated_at=?,"
+                                  " proposal_id=coalesce(?, proposal_id) WHERE id=?",
+                                  (status, note, at.isoformat(), proposal_id, rule_id))
+        if not cur.rowcount:
+            raise ValueError(f"no playbook rule {rule_id}")
 
     # duty rotation ---------------------------------------------------------
     def latest_override(self) -> dict | None:

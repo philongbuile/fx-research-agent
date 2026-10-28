@@ -49,6 +49,8 @@ narrative layer on top: why it happened and what to try next.
    then recall `demo lesson` and the other model's latest hand-over summary
    (tags `demo`, `shift`, `model:<other label>`). Lessons carry facet tags
    (`outcome:`, `exit:`, `hour:`, `dow:`, `vol:`, `h1_trend:`) for narrow recall.
+   Also read the playbook: `uv run fxra demo-playbook` (Hindsight document
+   `fxra-playbook`, tag `playbook`). Read it before any policy change.
 4. Review the other agent's open proposals: `uv run fxra demo-propose` lists
    them. Then review each:
    `uv run fxra demo-propose --review <id> --agree|--reject --note "<your evidence>" --author <agent>/<model>`.
@@ -75,6 +77,15 @@ narrative layer on top: why it happened and what to try next.
   `uv run fxra demo-lesson --mark-retained <id> <doc>`.
 - Tune your arm with a reason grounded in the stats. Fewer than 10 samples is
   noise; note an observation instead.
+- Playbook (D-39): turn what the lessons and numbers suggest into candidate
+  rules with a trade filter and a confirmation threshold:
+  `uv run fxra demo-playbook --add "<title>" --action avoid|prefer|watch --when pattern=breakout10,breakout20 --when hour=18 --why "<lesson or numbers>" --confirm-n 30 --author <agent>/<model>`.
+  Filter fields: pattern, symbol, session, hour, side, arm, vol, h1_trend,
+  dow, confluence. Evidence is recounted from the journal every time. When a
+  rule shows `ready to propose`, propose it (next bullet) and record
+  `uv run fxra demo-playbook --status <id> proposed --proposal <pid> --author <agent>/<model>`.
+  After review, mark it `adopted` (then the arm owners change their policy)
+  or `retired`, with a `--note`. Also retire rules the numbers contradict.
 - To turn an observation into a rule that both arms should follow, run
   `uv run fxra demo-propose --text "..." --evidence "<arm, pattern, session, n, avg pips>" --author <agent>/<model>`.
   The other agent decides.

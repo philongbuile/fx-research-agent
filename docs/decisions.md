@@ -261,6 +261,18 @@ entries (Hindsight lesson `fxra-lesson-claude-arm-usd-cluster-2026-10-28`).
 The owner chose to keep exploring without an exposure cap; losses are data.
 A live account needs new limits and a new decision.
 
+## Trading playbook (D-39)
+
+Owner request, 2026-10-29: lessons alone are not enough; Claude and Codex
+should turn them into rules, patterns and instructions that support their
+decisions. The journal gains a `playbook` table of candidate rules (action,
+trade filter, rationale, confirmation threshold of at least 10 trades). The
+evidence for each rule is recounted from closed trades on every read, so rules
+never cite stale numbers. A supported rule that reaches its threshold is
+proposed through `demo-propose`; only an agreed proposal changes an arm policy.
+Agents read the playbook at shift start and before any policy change, and the
+hourly digest retains it to Hindsight as `fxra-playbook`.
+
 ## Open questions
 
 ### Simulation and memory decisions (owner request, 2026-10-27)

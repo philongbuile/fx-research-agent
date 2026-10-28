@@ -45,7 +45,7 @@ For memory or simulation work, also read `docs/simulation-design.md`, `docs/simu
 ## Demo duty rotation (Claude and Codex)
 
 - D-33: Codex (`gpt-6.1-sol`, label "Codex GPT-6.1 Sol Medium") is primary on duty 24/7. Claude (`claude-opus-5-5`, label "Claude Opus 5.5 Medium") is co-duty 18:00-08:00, local Asia/Ho_Chi_Minh. The roster is configurable in `config/duty.toml`; anyone may take over with `fxra demo-shift take`. Single machine; no multi-machine routing.
-- Each model owns one H-002 arm (`H-002-claude`, `H-002-codex`) and edits only that arm's policy. Rules are distilled only through `fxra demo-propose` with review by the other agent.
+- Each model owns one H-002 arm (`H-002-claude`, `H-002-codex`) and edits only that arm's policy. Rules are distilled only through `fxra demo-propose` with review by the other agent. Candidate rules and their recounted evidence live in the playbook (`fxra demo-playbook`, D-39); read it before changing a policy.
 - Follow `.claude/skills/fxra-demo-duty/SKILL.md` (mirrored for Codex in `.agents/skills/`) at every shift start and end. Hindsight holds trading lessons and shift summaries tagged `model:<label>` (the label from `config/duty.toml` [agents], e.g. `model:Claude Opus 5.5 Medium`). ai-memory holds development handoffs. Docs and skills are updated in the same PR as the code they describe.
 - Trades, policy versions and lessons are attributed to the model on duty, so results can be compared across models.
 
