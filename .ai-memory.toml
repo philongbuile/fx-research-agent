@@ -1,4 +1,4 @@
-# D-26 authorizes the MCP-only scope; exact-artifact review and acceptance remain.
+# D-26 MCP-only service is installed locally; real client/cross-machine acceptance remains.
 # MCP-only curated development notes first. Do not enable automatic hooks here.
 workspace = "personal-development"
 project = "fx-research-agent"

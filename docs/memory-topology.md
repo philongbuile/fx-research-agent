@@ -2,13 +2,15 @@
 
 D-26 and D-27 record the owner's delegated decisions on 2026-10-27. Adoption and
 topology are settled. This document is an implementation contract, not evidence
-that ai-memory is installed or the second machine is connected.
+that the second machine is connected. The pinned local ai-memory service is now
+installed; see [local MCP evidence](local-memory-mcp.md). Actual two-client
+acceptance and second-machine cutover remain open.
 
 ## One authority for both machines
 
 The current development machine is the primary memory host. Its verified local
-Hindsight deployment is authoritative after cutover. A separate ai-memory service
-on the same host will hold curated development notes and Claude/Codex handoffs
+Hindsight deployment is authoritative after cutover. A separate locally installed ai-memory service
+on the same host holds curated development notes and Claude/Codex handoffs
 in workspace `personal-development`, project `fx-research-agent`. Use the reviewed
 source candidate in D-26 and a Linux/WSL2 service; resolve the executable artifact
 and verify its digest, dependencies/licenses and permissions under A-01 before
@@ -55,7 +57,7 @@ automatic standby promotion or restore is allowed.
    Use an explicit reviewed import plan if histories diverged; never restore
    one full archive over the other or silently overwrite a document. Existing
    run records remain the source of truth for research metrics.
-4. Complete A-01's artifact review and install only the D-26 MCP scope, without
+4. Preserve the completed local A-01 review and D-26 MCP-only installation, without
    hooks, auto-upgrade, transcript import or a remote LLM. Register Claude and
    Codex against the primary's authenticated development backend using its real
    tool schemas. Discovery/configuration alone does not pass acceptance.

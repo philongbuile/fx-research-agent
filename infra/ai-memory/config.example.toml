@@ -1,0 +1,25 @@
+# Copy only into a private data directory; never put credentials in this file.
+bind = "127.0.0.1:49374"
+allowed_hosts = ["localhost", "127.0.0.1", "::1"]
+log_level = "warn"
+embedding_provider = "none"
+capture_assistant = false
+
+[profile]
+enabled = false
+
+[maintenance]
+enabled = false
+
+[auto_improve]
+require_approval = true
+
+[auto_improve.scheduler]
+enabled = false
+
+[auto_improve.eval]
+enabled = false
+
+[auth]
+bearer_token_file = "/data/auth.token"
+# The installed private config also contains a CSPRNG-generated token_pepper.

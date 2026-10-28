@@ -6,7 +6,9 @@ D-26 authorizes adopting ai-memory and its bounded MCP-only installation after
 exact-artifact review. D-27 selects this development machine as the single primary
 memory host for both machines, with authenticated SSH forwarding to loopback
 services. See [topology, cutover and acceptance](memory-topology.md). These are
-settled decisions; installation and two-machine connectivity remain unverified.
+settled decisions. Local pinned installation/protocol checks now pass; real client
+acceptance and second-machine connectivity remain unverified. See [local MCP
+installation](local-memory-mcp.md) and [service operations](../infra/ai-memory/README.md).
 
 ## Recover lost access credentials
 
@@ -26,7 +28,7 @@ If the database password is also lost, do not replace it with a random value in 
 
 | Data | Location / owner | Reader |
 |---|---|---|
-| Architecture, technical decisions, coding progress and coding handoffs | ai-memory, workspace `personal-development`, project `fx-research-agent`; D-26 scope authorized, artifact checks and acceptance remain | Claude and Codex coding sessions |
+| Architecture, technical decisions, coding progress and coding handoffs | ai-memory, workspace `personal-development`, project `fx-research-agent`; D-26 artifact checks/local installation pass; actual client acceptance remains | Claude and Codex coding sessions |
 | Canonical project rules and decisions | `AGENTS.md`, `docs/decisions.md`, Git | Coding agents; memory holds links and context, not another authoritative copy |
 | Simulation events, raw fixture results, balances, policy, identities, personality, knowledge revisions, handoff snapshots and original final outputs | SQLite selected by `--db`, normally `artifacts/simulation/*.sqlite` | Trusted simulation controller only |
 | Personal experience narratives and professional narratives | Hindsight bank `fxra`, immutable simulation/document IDs | Identity-bound gateway only |
@@ -100,9 +102,9 @@ The controller explicitly calls `release_handoff(event_id, simulation_time, depa
 
 The implemented opt-in rehire rule is a controller attestation referencing a recorded reassessment. The debt rule accepts explicit evidenced controller adjustments; there is no automatic salary, living expense, interest or loss-to-debt mechanism. The owner still needs to decide Q-10..Q-12. Final session limits are configurable operational limits, not trading rules.
 
-## Activate development memory after approval
+## Development memory installation and remaining acceptance
 
-D-26 records owner authorization for the [review note's MCP-only scope](third-party/ai-memory.md); further adoption approval is not pending within that scope. Complete its remaining exact-artifact/digest, dependency/license and permission checks before execution. No third-party code was installed for this decision change. Candidate source pin: `0e5488073d7073caa3181bbaf184102b215dcf66` (manifest version `3.2.8`). Do not substitute a `latest` binary/container. This Windows host currently has no `ai-memory` executable, and no ai-memory tools are connected to this session. D-26 selects a Linux/WSL2 service on the primary; do not silently substitute experimental native Windows deployment.
+D-26 records owner authorization for the [review note's MCP-only scope](third-party/ai-memory.md); further adoption approval is not pending within that scope. Complete its remaining exact-artifact/digest, dependency/license and permission checks before execution. No third-party code was installed for this decision change. Candidate source pin: `0e5488073d7073caa3181bbaf184102b215dcf66` (manifest version `3.2.8`). Do not substitute a `latest` binary/container. This Windows host now runs the verified Linux container and upstream bridge through Docker Desktop WSL2; no native Windows executable or new distro was installed. Both user registrations exist, but this active session cannot reload its native tool inventory. See [the current evidence and restart instructions](local-memory-mcp.md); real A-03 sessions remain required.
 
 After an approved matching binary/service is available, consult that binary's `--help` and the pinned upstream [installation documentation](https://github.com/akitaonrails/ai-memory/blob/0e5488073d7073caa3181bbaf184102b215dcf66/docs/install.md) before applying client settings. Upstream offers non-applying registration previews:
 
@@ -152,4 +154,4 @@ The owner authorizes local Control Plane sign-in using `HINDSIGHT_UI_ACCESS_KEY`
 
 V-03 also passed locally on 2026-10-27: a matching synthetic SQLite/Hindsight pair was restored into an isolated target, preserving exact documents, identity/time filtering, the pending departure and its original deadline. Startup recovered the expired departure without fabricated final outputs. Verification passed again after a target service restart. The source was neither restored nor restarted; temporary target resources were removed. See [sanitized evidence and replay instructions](simulation-restore-verification.md).
 
-Remaining limits: the other host was not contacted, and its local history has not been reconciled or rerouted. D-27 settles Q-13 with a single primary; its cutover checks remain unverified. The coordinated restore uses a frozen single simulation writer, not a distributed snapshot protocol. D-26 settles ai-memory adoption/scope authorization; exact-artifact review, installation and Claude/Codex acceptance remain incomplete. No real character LLM runner/sandbox is installed. `uv` is absent in the current process; local tests use Python and declared dependencies isolated in ignored `artifacts/test-deps`, while CI runs the standard `uv` suite. No global environment, live execution adapter, risk config, approval artifact or strategy stage was changed.
+Remaining limits: the other host was not contacted, and its local history has not been reconciled or rerouted. D-27 settles Q-13 with a single primary; its cutover checks remain unverified. The coordinated restore uses a frozen single simulation writer, not a distributed snapshot protocol. D-26 artifact review and local installation subsequently passed on 2026-10-28; actual Claude/Codex acceptance remains incomplete (see [local MCP evidence](local-memory-mcp.md)). No real character LLM runner/sandbox is installed. The earlier verification used isolated Python dependencies; pinned local `uv` and the standard 94-test `uv run pytest` suite subsequently passed on 2026-10-28. No global environment, live execution adapter, risk config, approval artifact or strategy stage was changed.

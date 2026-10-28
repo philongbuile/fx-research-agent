@@ -69,7 +69,7 @@ flowchart LR
 
 ## Memory layers and simulation foundation
 
-Development context and Claude/Codex handoffs use a separately scoped ai-memory backend (D-26 authorizes adoption and bounded installation; exact-artifact review, installation and acceptance remain). Hindsight remains the research/character memory system. There is no bridge that copies one layer into the other. Canonical project decisions stay in Git. Both layers have one primary host under D-27; unavailable-primary writes fail closed rather than falling back to a divergent local backend.
+Development context and Claude/Codex handoffs use a separately scoped ai-memory backend (D-26 exact-artifact review and local installation passed; real client/cross-machine acceptance remains; see local-memory-mcp.md). Hindsight remains the research/character memory system. There is no bridge that copies one layer into the other. Canonical project decisions stay in Git. Both layers have one primary host under D-27; unavailable-primary writes fail closed rather than falling back to a divergent local backend.
 
 `fxra.simulation` adds a local SQLite controller database, separate from the market-data Parquet store. It atomically owns the event journal, independent life/employment state, four separate financial account types, evidence/status revisions, immutable personality, departure snapshots and final outputs. It has no dependency on execution adapters. It neither promotes strategies nor relaxes the existing risk gate.
 
