@@ -1,8 +1,9 @@
 # MT5 MCP candidate review
 
 Reviewed 2026-10-28 for local Windows research/data access under D-28. Status:
-**candidate selected; owner review-note approval and artifact verification are
-pending. Nothing installed or registered by this review.**
+**owner approved the exact review on 2026-10-28; pinned package and restricted
+local profile installed and verified.** Native tool loading after a Codex
+restart remains to be checked. See [local evidence](../local-mt5-mcp-verification.md).
 
 ## Comparison and selection
 
@@ -23,7 +24,7 @@ repository across GitHub.
 
 - Candidate package: `mt5-trading-mcp`, source version `1.6.1`, exact Git commit
   `daa905d36135aa1f00017efccc9b39fba7130c3f` (GitHub source metadata inspected;
-  no claim of matching a downloaded wheel).
+  subsequently matched against the downloaded wheel; see local acceptance below).
 - `uv.lock` SHA-256:
   `0d39ae11ce9867d38f52f491ab7e53d26bca8179bafb9c1e8a20bc189e776642`.
 - MIT source license includes commercial use and redistribution subject to
@@ -78,7 +79,7 @@ No third-party code was executed. This is not a full line-by-line audit.
 
 ## Proposed installation and acceptance scope
 
-Owner approval requested for this candidate and the following bounded profile:
+Owner approved this candidate and the following bounded profile:
 
 1. Install the exact verified artifact/dependency closure in an isolated native
    Windows environment. Keep the research project's dependency environment
@@ -105,9 +106,35 @@ profile must independently satisfy D-28 and reviewed risk/promotion gates.
 
 ## Approval record
 
-The owner authorized candidate selection/review and requested installation on
-2026-10-28. **This exact review note has not yet been approved by the owner.**
-AGENTS.md hard limit 4 and `security.md` require that approval before downloading,
-installing or vendoring the candidate. Artifact checks, restricted-profile tests,
-native MCP registration and real data pull remain pending; do not report them
-as complete.
+The owner approved this exact review on 2026-10-28 ("approved everything, pull
+main and continue") after merging PR #20. The restricted profile was then
+installed, tested and registered; real MCP stdio calls retrieved demo market
+data. No upstream all-tools server or execution feature was enabled.
+
+## Local artifact acceptance
+
+- Official PyPI wheel `mt5_trading_mcp-1.6.1-py3-none-any.whl` SHA-256:
+  `abf5e187e4882a825ebc4abbdc4a226cc1e49ccb9226546a84254040b7dd2fad`.
+  All 40 package Python files match the approved Git checkout after normalizing
+  CRLF/LF checkout line endings. Wheel bytes were independently hash-checked;
+  this comparison does not claim a reproducible-build attestation.
+- Native CPython 3.13 runtime: 43 exact dependency distributions installed with
+  `--require-hashes --only-binary :all:` from the frozen upstream lock export,
+  plus the verified candidate wheel installed with `--no-deps --no-index`.
+  No source builds, optional bridge, global interpreter install or project
+  dependency changes. `uv pip check` passed.
+- Installed wheel notices/digests were inventoried; MetaTrader5's bundled license
+  is MIT. NumPy and certifi notices remain in the runtime. The pywin32 wheel
+  declares PSF in metadata but omits standalone notice files; preserve official
+  b311 source license texts at immutable commit
+  `8b328dffac71b7afaf2d72f47c4048f27a32f6c8` as supplemental evidence, including
+  the BSD-style Mark Hammond notice. Do not treat registry metadata as a complete
+  binary license audit or redistribute an incomplete notice bundle.
+- `pywin32.pth` loads the packaged bootstrap to register its DLL directory; the
+  bootstrap was inspected. No upstream project install/build script was run.
+- Ignored evidence: `artifact.json`, `installed-notices.json`,
+  `runtime-requirements.txt`, `pywin32-notices/`, `protocol-fake.json`,
+  `protocol-native.json` and `registration.json` under `artifacts/mt5-mcp-review/`.
+
+Full binary/source security auditing and future execution acceptance are not
+claimed. Captures remain quarantined pending timestamp/calendar verification.

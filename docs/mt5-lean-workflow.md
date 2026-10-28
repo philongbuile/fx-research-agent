@@ -3,10 +3,13 @@
 ## Current state
 
 Local LEAN engine verification passed; see [the recorded technical run](local-lean-verification.md).
-D-28 permits reviewed integrations, but the [MT5 MCP candidate](third-party/mt5-mcp.md)
-has not been installed or accepted. This workflow is a plan, not an executed
-study or evidence of edge. MT5 GUI history retrieval worked, but CSV export
-stalled; no successful MT5 file pull or structured ingestion is claimed.
+The owner approved the [MT5 MCP candidate](third-party/mt5-mcp.md) and its pinned
+restricted market-data profile is installed (D-28/D-29). Real MCP stdio reads
+retrieved demo observations; see [local acceptance](local-mt5-mcp-verification.md)
+and the [initial data-readiness study](../reports/mt5-data-readiness-20261028.md).
+Captured epochs remain quarantined pending historical UTC/DST and session-calendar
+verification. No structured ingestion, strategy backtest or evidence of edge is
+claimed. The workflow below is the required path after the initial read.
 
 ## Roles and data path
 

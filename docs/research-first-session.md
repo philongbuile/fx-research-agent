@@ -45,6 +45,6 @@ The useful first outcome is a reproducible workflow and an honest failure
 criterion. A strategy or claim of edge is a later research outcome.
 
 For the next supervised study using MT5 demo observations, follow the
-[MT5-to-LEAN workflow](mt5-lean-workflow.md). The linked MCP candidate review is
-pending owner approval; a workflow document does not establish installation or
-successful ingestion.
+[MT5-to-LEAN workflow](mt5-lean-workflow.md). The owner-approved restricted MCP
+profile has passed local protocol/data-read checks; captures still require
+timestamp/calendar verification before ingestion. See the linked evidence.

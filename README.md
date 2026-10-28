@@ -20,7 +20,7 @@ Goals:
 | [Hindsight](https://github.com/vectorize-io/hindsight) (MIT) | Shared memory over MCP/API: hypotheses, decisions, results, lessons | Docker Compose in `infra/hindsight` |
 | [ai-memory](https://github.com/akitaonrails/ai-memory) (MIT) | Shared development context and coding handoffs for Claude/Codex | Pinned local MCP service installed (D-26); real two-client and second-machine acceptance remain ([evidence](docs/local-memory-mcp.md)) |
 | Simulation controller | Independent character/job lifecycle, durable journal, scoped memory and recoverable handoffs | Synthetic CLI demo and regression tests; no broker execution |
-| MetaTrader 5 | Planned data/execution source, if the broker uses MT5 | Not integrated. No LEAN–MT5 adapter exists here (see `docs/decisions.md`) |
+| MetaTrader 5 | Demo market-data source | Restricted local MCP reads verified (D-29); timestamp verification, structured ingestion and execution remain separate ([evidence](docs/local-mt5-mcp-verification.md)) |
 
 Read next: [architecture](docs/architecture.md), [decisions](docs/decisions.md), [research lifecycle](docs/research-lifecycle.md), [data contracts](docs/data-contracts.md), [security](docs/security.md), [risks](docs/risks.md), [backlog](docs/backlog.md), [setup](docs/setup.md).
 
