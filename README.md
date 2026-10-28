@@ -95,7 +95,7 @@ data/ runs/ artifacts/  generated, gitignored
 ## Ground rules
 
 - Market data, spreads, swaps, account state, orders and computed numbers live in the structured store (`data/`, `runs/`). They do not live in Hindsight. Hindsight holds the narrative: why a run happened, what was learned, and what was decided.
-- An LLM may propose or review a candidate strategy. It may never edit, promote or deploy a live strategy, and it never gets an order-sending tool.
+- An LLM may propose or review a candidate strategy. Reviewed order-capable integrations are permitted under D-28, with read-only access by default and a trusted owner-confirmation boundary before any demo trading mutation (see `docs/security.md`). Execution is not implemented; live strategy deployment and promotion remain owner-controlled and out of scope.
 - No secrets, credentials, account identifiers or bulk broker data in git.
 
 ## License
