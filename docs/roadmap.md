@@ -13,6 +13,11 @@ This roadmap orders outcomes by dependency, without speculative calendar dates. 
 
 S1 verification and S2 policy discussions can proceed independently. S3 requires functioning character memory and agreed policy before an economic exercise is treated as representative. S4 builds on the existing research loop rather than replacing LEAN or its run records.
 
+Owner direction (2026-10-28): defer the two-machine connection/cutover and
+continue local LEAN setup and the existing research-learning loop. This work
+does not depend on active development memory or completed character simulation.
+Keep the outstanding S1 acceptance work visible rather than marking it done.
+
 V-03 passed locally on 2026-10-27: a frozen synthetic SQLite/Hindsight pair was
 restored into a fresh isolated Docker project and verified again after service
 restart. Identity/time isolation, exact document integrity, persisted departure
