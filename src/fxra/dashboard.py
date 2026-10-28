@@ -7,11 +7,11 @@ GET /api/state   journal read model + latest live snapshot + kill switch status
 import json
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import demo_agent, duty, h002, lesson_insights, lesson_memory, playbook, risk
+from . import demo_agent, duty, econ_calendar, h002, lesson_insights, lesson_memory, playbook, risk
 from .trade_journal import Journal
 
 
@@ -38,7 +38,7 @@ class CachingBroker:
 
 class Agent:
     def __init__(self, journal: Journal, broker, limits_path: Path, *, send=True, interval=30,
-                 roster_path: Path | None = None, memory=None):
+                 roster_path: Path | None = None, memory=None, calendar_path: Path | None = None):
         self.journal, self.broker = journal, CachingBroker(broker)
         self.limits_path, self.send, self.interval = Path(limits_path), send, interval
         self.roster_path = roster_path
@@ -47,6 +47,16 @@ class Agent:
         self.last_step = None
         self.last_memory = {"enabled": memory is not None}
         self.last_insights = None
+        self.calendar_path = Path(calendar_path) if calendar_path else econ_calendar.DEFAULT_PATH
+        self.calendar = {"status": "missing"}
+
+    def refresh_calendar(self, now):
+        """Economic calendar (D-40) for this tick; trading continues without it."""
+        try:
+            self.calendar = econ_calendar.refresh(self.journal, self.calendar_path, now)
+        except Exception as e:
+            self.calendar = {"status": "error", "reason": f"{type(e).__name__}: {e}"}
+        return self.journal.events(now - timedelta(hours=3), now + timedelta(hours=3))
 
     def sync_lessons(self):
         if self.memory is None:
@@ -109,6 +119,7 @@ class Agent:
             # The snapshot subprocess takes seconds: a clock taken before it makes the
             # fresh quote look like it comes from the future (risk gate: quote_from_future).
             now = datetime.now(timezone.utc)
+            snap = {**snap, "events": self.refresh_calendar(now)}
             results, on = {}, self.duty(now)
             runs = [("H-001B", lambda: demo_agent.step(self.journal, self.broker, limits, now,
                                                        send=self.send, snap=snap, duty=on))]
@@ -144,7 +155,9 @@ class Agent:
                     strategies={i: bool(limits and i in limits.approved_strategies) for i in ids},
                     policies={arm: h002.arm_policy(self.demo_dir, arm, self.journal) for arm in h002.ARMS},
                     duty=self.duty(), arm_labels=self.arm_labels(), model_labels=self.model_labels(),
-                    memory=self.last_memory,
+                    memory=self.last_memory, calendar=self.calendar,
+                    events=self.journal.events(datetime.now(timezone.utc) - timedelta(hours=12),
+                                               datetime.now(timezone.utc) + timedelta(hours=24)),
                     server_time=datetime.now(timezone.utc).isoformat())
         return data
 
@@ -248,13 +261,14 @@ details{margin-top:12px}summary{cursor:pointer;color:var(--mute);font-size:13px}
 .tl{display:grid;grid-template-columns:auto auto 1fr;gap:4px 12px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line)}
 .tl:last-child{border-bottom:0}@media (max-width:640px){.tl{grid-template-columns:1fr auto}.tl>:last-child{grid-column:1/-1}}
 </style></head><body>
-<header><h1>FX Demo Agent</h1><span id="duty" class="pill"></span><span id="memsync" class="pill"></span><span id="strategy" class="pill"></span><span id="mode" class="pill"></span>
+<header><h1>FX Demo Agent</h1><span id="duty" class="pill"></span><span id="memsync" class="pill"></span><span id="calsync" class="pill"></span><span id="strategy" class="pill"></span><span id="mode" class="pill"></span>
 <span id="kill" class="pill"></span><span id="conn" class="pill"></span><span id="updated" class="muted"></span></header>
 <main>
 <section class="card wide"><h2>Account &amp; market</h2><div class="kpis" id="kpis"></div></section>
 <section class="card wide"><h2>Daily KPI (UTC day)</h2><div id="kpi"></div></section>
 <section class="card wide"><h2>Open positions</h2><div id="position"></div></section>
 <section class="card wide"><h2>Agent status</h2><div id="step"></div></section>
+<section class="card wide"><h2>Economic calendar (MT5, moderate and high importance)</h2><div id="calendar"></div></section>
 <section class="card wide"><h2>Equity</h2><div id="equity"></div></section>
 <section class="card wide"><h2>Trades (broker deals)</h2><div class="scroll"><table id="trades"></table></div><div id="trades-more"></div></section>
 <section class="card wide"><h2>Decisions, hour by hour</h2><div class="scroll"><table id="decisions"></table></div><div id="decisions-more"></div></section>
@@ -421,6 +435,17 @@ async function load(){
         :what==="waiting for next bar"?"already decided this bar":esc(r.reason||"");
       return `<div class="steprow"><b>${esc(armLabel(k))}</b><span class="badge b-${esc(r.action)}">${esc(what)}</span>
         <span class="why">${bar?`<span class="muted">bar ${t(bar)}</span> · `:""}${why}</span></div>`}).join("")+"</div>";
+  const cal=s.calendar||{}, CS={ok:'<span class="ok">calendar live</span>',stale:'<span class="bad">calendar stale</span>',
+    missing:'<span class="muted">calendar not running</span>',error:'<span class="bad">calendar error</span>'};
+  $("calsync").innerHTML=CS[cal.status]||esc(cal.status||"");
+  const ev=s.events||[], nowT=Date.parse(s.server_time), num=v=>v==null?"–":(+v).toLocaleString(undefined,{maximumFractionDigits:3});
+  $("calendar").innerHTML=cal.status==="missing"?`<p class="muted">The MT5 service <code>FxraCalendarExport</code> is not running yet. Compile <code>mql5/Services/FxraCalendarExport.mq5</code> in MetaEditor, then Navigator → Services → Add service → Start. Trading continues without it; news patterns and news tags wait for it.</p>`:
+    ev.length?`<div class="hscroll"><table class="mx"><tr><th>Time</th><th>In</th><th>Ccy</th><th style="text-align:left">Event</th><th>Imp.</th><th>Forecast</th><th>Actual</th><th>Previous</th><th>Impact</th></tr>`+
+    ev.map(e=>{const d=(Date.parse(e.time)-nowT)/60000, past=d<0;
+      return `<tr style="${past?"opacity:.6":""}"><td class="num">${hhmm(Date.parse(e.time))}</td><td class="num">${past?ago(-d*60000)+" ago":"in "+ago(d*60000)}</td><td>${esc(e.currency)}</td>
+      <td style="text-align:left;white-space:normal">${esc(e.name)}</td><td>${e.importance>=3?'<span class="badge b-exit">high</span>':'<span class="badge">moderate</span>'}</td>
+      <td>${num(e.forecast)}</td><td><b>${num(e.actual)}</b></td><td>${num(e.previous)}</td><td>${e.impact===1?`<span class="ok">good for ${esc(e.currency)}</span>`:e.impact===2?`<span class="bad">bad for ${esc(e.currency)}</span>`:"–"}</td></tr>`}).join("")+"</table></div>"
+    :'<p class="muted">No moderate or high importance events in the last 12 h or the next 24 h.</p>';
   $("equity").innerHTML=chart(s.equity);
   $("trades").innerHTML="<tr><th>Opened</th><th>Pattern</th><th>Side</th><th>Lots</th><th>Entry</th><th>Closed</th><th>Exit</th><th>Reason</th><th>Gross</th><th>Comm.</th><th>Swap</th><th>Net</th></tr>"+
     (s.trades.slice(0,SHOW.trades).map(r=>`<tr><td>${t(r.open_time)}</td><td>${esc(r.pattern?r.pattern+" · "+r.hour_utc+"h":(r.entry_id||"").startsWith("T3-")?"TECH-0003":"H-001B")}</td><td>${r.side}</td><td>${r.volume}</td><td>${r.open_price}</td><td>${t(r.close_time)}</td><td>${r.close_price??"open"}</td><td>${esc(r.exit_reason??"")}</td><td>${money(r.profit)}</td><td>${money(r.commission)}</td><td>${money(r.swap)}</td><td>${money(r.net,ccy)}</td></tr>`).join("")||'<tr><td colspan="12" class="muted">No trades yet.</td></tr>');

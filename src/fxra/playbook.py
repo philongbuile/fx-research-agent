@@ -15,7 +15,7 @@ from datetime import datetime
 from .lesson_insights import closed_trades, label, stats
 from .trade_journal import Journal
 
-FIELDS = ("pattern", "symbol", "session", "hour", "side", "arm", "vol", "h1_trend", "dow", "confluence")
+FIELDS = ("pattern", "symbol", "session", "hour", "side", "arm", "vol", "h1_trend", "dow", "confluence", "event")
 ACTIONS = ("avoid", "prefer", "watch")
 STATUSES = ("candidate", "proposed", "adopted", "retired")
 

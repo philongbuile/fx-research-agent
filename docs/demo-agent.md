@@ -207,3 +207,34 @@ uv run fxra demo-playbook --status 1 proposed --proposal 2 --author claude/claud
 - The `client_order_id` is persisted before sending. A known id is never resent.
   A lost response is reconciled against positions and deals.
 - Account login and server stay in process memory. Output uses the alias `demo-1`.
+
+## Economic calendar (D-40)
+
+The MT5 terminal has an economic calendar that Python cannot read directly, so
+a small first-party MQL5 service exports it:
+
+1. MetaTrader 5 → Tools → MetaQuotes Language Editor. Open
+   `mql5/Services/FxraCalendarExport.mq5` from this repo (or copy it into the
+   terminal's `MQL5\Services` folder) and press Compile.
+2. In the terminal's Navigator, right-click Services → Add service →
+   FxraCalendarExport → OK. It starts at once and every time the terminal starts.
+3. Every 5 minutes it writes `fxra_calendar.json` (30 days back, 7 days ahead)
+   to `%APPDATA%\MetaQuotes\Terminal\Common\Files`. It only reads the calendar;
+   it never trades.
+
+The agent loop reads the file each tick, stores events in the journal table
+`econ_events`, tags every H-002 entry with the nearest relevant event
+(`event`: `pre|release|post` + `high|moderate`, plus name, currency, minutes
+from release and MT5's good/bad impact) and evaluates three news patterns on the
+first closed M15 bars after a high-importance release for the symbol's
+currencies:
+
+- `news_momentum`: the release bar's range is at least one ATR → follow it;
+- `news_surprise`: MT5 marks the value good or bad for its currency → trade
+  that currency's direction;
+- `news_followthrough`: the bar after the release continues the release bar's
+  direction → enter once the first spike is confirmed.
+
+`uv run fxra demo-calendar` lists the last 6 hours (actual vs forecast) and
+the next 24 hours. The dashboard shows the same table and a calendar status
+pill. Trades from before the export are tagged from the stored history.
