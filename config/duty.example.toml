@@ -1,13 +1,14 @@
-# Demo duty roster. Copy to config/duty.toml (gitignored) to change it; without it the
-# defaults below apply. Times are local to `timezone`; a shift may wrap midnight.
+# Demo duty roster (D-32, D-33). Copy to config/duty.toml (gitignored) to change it; without it the
+# defaults below apply. Times are local to `timezone`; a shift may wrap midnight; start == end means 24h.
+# The first matching shift is primary (operations); later matches are co-duty.
 # Take over outside the schedule with: uv run fxra demo-shift take --agent <a> --model <m> --hours <h> --reason "..."
 timezone = "Asia/Ho_Chi_Minh"
 
 [[shift]]
 agent = "codex"
 model = "gpt-6-sol"
-start = "08:00"
-end = "18:00"
+start = "00:00"
+end = "00:00"
 
 [[shift]]
 agent = "claude"

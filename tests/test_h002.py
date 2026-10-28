@@ -19,17 +19,17 @@ def limits(tmp_path, **kw):
     return risk.RiskLimits(**{**base, **kw})
 
 
-def m15(last_close=1.1000, n=80):
+def m15(last_close=1.1000, n=80, end=LATEST):
     out = []
     for i in range(n):
-        t = LATEST - timedelta(minutes=15 * (n - 1 - i))
+        t = end - timedelta(minutes=15 * (n - 1 - i))
         out.append({"time": t.isoformat(), "open": 1.1, "high": 1.1005, "low": 1.0995, "close": 1.1})
     out[-1].update(close=last_close, high=max(1.1005, last_close), low=min(1.0995, last_close))
     return out
 
 
-def snap(bars, positions=()):
-    return {"quote": {"bid": 1.10200, "ask": 1.10201, "time": (NOW - timedelta(seconds=1)).isoformat()},
+def snap(bars, positions=(), at=NOW):
+    return {"quote": {"bid": 1.10200, "ask": 1.10201, "time": (at - timedelta(seconds=1)).isoformat()},
             "account": {"currency": "USD", "balance": 1e5, "equity": 1e5, "hedging": True},
             "spec": {"digits": 5, "point": 0.00001, "contract_size": 100000, "volume_min": 0.01,
                      "volume_max": 100, "volume_step": 0.01, "quote_currency": "USD"},
@@ -103,20 +103,76 @@ def test_choose_explores_unseen_then_exploits():
     assert h002.choose({"breakout20": "buy"}, stats, {**p, "enabled": ["ema_pullback"]}, rng) is None
 
 
-def test_entry_tags_pattern_hour_and_sends_with_tp_sl_magic(journal, tmp_path):
+def test_every_matched_pattern_opens_its_own_position(journal, tmp_path):
     b = Broker()
-    out = h002.step(journal, b, limits(tmp_path), NOW, snap(m15(1.1020)), dict(h002.DEFAULT_POLICY),
-                    rng=random.Random(0))
-    assert out["action"] == "entry" and out["side"] == "buy"
-    sent = b.sent[0]
-    assert sent["magic"] == h002.MAGIC and sent["intent"]["quantity_lots"] == 0.1
-    i = sent["intent"]
-    assert i["stop_loss"] < 1.10201 < i["take_profit"]
-    assert round((i["take_profit"] - 1.10201) / (1.10201 - i["stop_loss"]), 1) == 1.5
-    tag = journal.db.execute("SELECT pattern, hour_utc, session FROM entry_tags").fetchone()
-    assert tuple(tag) == (out["pattern"], 14, "overlap_ny")
-    again = h002.step(journal, b, limits(tmp_path), NOW, snap(m15(1.1020)), dict(h002.DEFAULT_POLICY))
-    assert again["action"] == "skip" and len(b.sent) == 1
+    bars = m15(1.1020)
+    matched = h002.patterns(bars)
+    out = h002.step(journal, b, limits(tmp_path, max_open_positions=50), NOW, snap(bars),
+                    dict(h002.DEFAULT_POLICY), rng=random.Random(0))
+    assert out["action"] == "entry" and {e["pattern"] for e in out["entries"]} == set(matched)
+    assert len(b.sent) == len(matched) > 1
+    ids = [s["intent"]["client_order_id"] for s in b.sent]
+    assert len(set(ids)) == len(ids) and all(i.startswith("H2CL-2610281400-") and len(i) <= 31 for i in ids)
+    for s in b.sent:
+        i = s["intent"]
+        assert s["magic"] == h002.ARMS["claude"]["magic"] and i["quantity_lots"] == 0.1
+        assert i["side"] == matched[next(p for p in h002.PATTERNS if i["client_order_id"].endswith(
+            f"-{h002.PATTERNS.index(p):02d}{i['side'][0].upper()}"))]
+        if i["side"] == "buy":
+            assert i["stop_loss"] < 1.10201 < i["take_profit"]
+    tag = journal.db.execute("SELECT arm, hour_utc, session FROM entry_tags LIMIT 1").fetchone()
+    assert tuple(tag) == ("claude", 14, "overlap_ny")
+    again = h002.step(journal, b, limits(tmp_path, max_open_positions=50), NOW, snap(bars), dict(h002.DEFAULT_POLICY))
+    assert again["action"] == "skip" and len(b.sent) == len(matched)
+
+
+def test_entries_per_bar_and_already_open_patterns(journal, tmp_path):
+    b = Broker()
+    bars = m15(1.1020)
+    pol = {**h002.DEFAULT_POLICY, "entries_per_bar": 1}
+    out = h002.step(journal, b, limits(tmp_path, max_open_positions=50), NOW, snap(bars), pol, rng=random.Random(0))
+    assert len(out["entries"]) == 1
+    first = b.sent[0]["intent"]["client_order_id"]
+    held = {"ticket": 9, "magic": h002.ARMS["claude"]["magic"], "side": "buy", "volume": 0.1,
+            "time": LATEST.isoformat(), "comment": first}
+    later = NOW + timedelta(minutes=15)
+    out2 = h002.step(journal, b, limits(tmp_path, max_open_positions=50), later,
+                     snap(m15(1.1020, end=LATEST + timedelta(minutes=15)), [held], at=later), dict(h002.DEFAULT_POLICY),
+                     rng=random.Random(0))
+    assert out2["entries"] and out["entries"][0]["pattern"] not in {e["pattern"] for e in out2["entries"]}
+
+
+def test_arms_trade_independently_with_own_magic(journal, tmp_path):
+    b = Broker()
+    lim = limits(tmp_path, max_open_positions=50)
+    for arm in h002.ARMS:
+        h002.step(journal, b, lim, NOW, snap(m15(1.1020)), dict(h002.DEFAULT_POLICY), arm=arm, rng=random.Random(0))
+    magics = {s["magic"] for s in b.sent}
+    assert magics == {20261029, 20261030}
+    assert journal.decided("H-002-claude:" + LATEST.isoformat()) and journal.decided("H-002-codex:" + LATEST.isoformat())
+
+
+def test_arm_policy_ownership_and_initial_copy(journal, tmp_path):
+    (tmp_path / "h002-policy.json").write_text('{"version": 3, "lots": 1.0}')
+    claude = h002.arm_policy(tmp_path, "claude", journal)
+    codex = h002.arm_policy(tmp_path, "codex", journal)
+    assert claude["lots"] == codex["lots"] == 1.0 and claude["version"] == codex["version"] == 1
+    with pytest.raises(PermissionError):
+        h002.edit_arm_policy(tmp_path, "claude", journal, {"tp_rr": 3}, "codex/gpt-6-sol", "try")
+    new = h002.edit_arm_policy(tmp_path, "codex", journal, {"tp_rr": 3}, "codex/gpt-6-sol", "wider targets")
+    assert new["version"] == 2 and h002.arm_policy(tmp_path, "claude", journal)["tp_rr"] == 1.5
+    arms = {(c["arm"], c["version"]) for c in journal.state()["policy_changes"]}
+    assert {("claude", 1), ("codex", 1), ("codex", 2)} <= arms
+
+
+def test_proposal_needs_the_other_agent(journal):
+    pid = journal.propose(NOW, "codex/gpt-6-sol", "disable pin_bar in asia", "pin_bar/asia n=14 avg -1.9 pips")
+    with pytest.raises(PermissionError):
+        journal.review(pid, NOW, "codex/gpt-6-sol", True, "self review")
+    done = journal.review(pid, NOW, "claude/claude-opus-5-5", True, "claude arm agrees: n=11, -1.4 pips")
+    assert done["status"] == "agreed"
+    with pytest.raises(ValueError):
+        journal.review(pid, NOW, "claude/claude-opus-5-5", False, "again")
 
 
 def test_avoid_hours_and_unapproved(journal, tmp_path):
@@ -137,6 +193,11 @@ def test_time_exit_closes_own_position_only(journal, tmp_path):
     other = {"ticket": 6, "magic": 20261028, "side": "sell", "volume": 0.01, "time": LATEST.isoformat()}
     out = h002.step(journal, b, limits(tmp_path), NOW, snap(m15(), [other, mine]), dict(h002.DEFAULT_POLICY))
     assert out["action"] == "exit" and b.closed == [{"ticket": 5, "client_order_id": "H2X-5", "symbol": "EURUSD"}]
+    codex = {**mine, "ticket": 7, "magic": h002.ARMS["codex"]["magic"]}
+    j2 = Journal(tmp_path / "j2.sqlite")
+    h002.step(j2, b, limits(tmp_path), NOW, snap(m15(), [codex]), dict(h002.DEFAULT_POLICY), arm="claude")
+    assert all(c["ticket"] != 7 for c in b.closed)  # an arm never touches the other arm's positions
+    j2.close()
 
 
 def test_policy_update_is_versioned_and_validated(journal, tmp_path):
@@ -161,6 +222,7 @@ def test_learning_stats_group_by_pattern_and_hour(journal):
               "comment": "[tp 1.10100]"}]
     journal.sync_deals(deals)
     s = journal.learning_stats(0.8)
-    assert s["by_pattern"]["breakout20"] == {"n": 1, "wins": 1, "net": 10.0, "win_rate": 1.0,
-                                             "avg_pips_after_cost": 9.2}
+    g = s["by_pattern"]["breakout20"]
+    assert (g["n"], g["wins"], g["net"], g["win_rate"], g["avg_pips_after_cost"]) == (1, 1, 10.0, 1.0, 9.2)
+    assert "claude / breakout20" in s["by_arm_pattern"]  # pre-D-33 H-002 trades belong to the Claude arm
     assert "9" in s["by_hour"] and "breakout20 / london" in s["by_pattern_session"]

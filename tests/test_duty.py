@@ -14,13 +14,15 @@ def at_local(hour, minute=0):
     return datetime(2026, 10, 28, hour, minute, tzinfo=timezone(timedelta(hours=7))).astimezone(timezone.utc)
 
 
-def test_default_roster_codex_by_day_claude_by_night():
+def test_default_roster_codex_always_claude_joins_at_night():
     r = duty.DEFAULT_ROSTER
-    assert duty.on_duty(r, at_local(8))["model"] == "gpt-6-sol"
-    assert duty.on_duty(r, at_local(17, 59))["agent"] == "codex"
-    assert duty.on_duty(r, at_local(18))["model"] == "claude-opus-5-5"
-    assert duty.on_duty(r, at_local(3))["agent"] == "claude"
-    assert duty.on_duty(r, at_local(23))["until"].startswith("2026-10-29T08:00")
+    day = duty.on_duty(r, at_local(10))
+    assert (day["agent"], day["co_duty"]) == ("codex", [])
+    for hour in (18, 23, 3, 7):
+        night = duty.on_duty(r, at_local(hour))
+        assert night["agent"] == "codex" and [c["model"] for c in night["co_duty"]] == ["claude-opus-5-5"]
+    assert duty.on_duty(r, at_local(23))["co_duty"][0]["until"].startswith("2026-10-29T08:00")
+    assert duty.on_duty(r, at_local(8))["co_duty"] == []
 
 
 def test_override_wins_until_it_expires(tmp_path):
@@ -28,7 +30,8 @@ def test_override_wins_until_it_expires(tmp_path):
     now = at_local(10)
     j.take_duty(now, "claude", "claude-opus-5-5", now + timedelta(hours=2), "codex quota")
     o = j.latest_override()
-    assert duty.on_duty(duty.DEFAULT_ROSTER, now + timedelta(hours=1), o)["source"] == "override"
+    during = duty.on_duty(duty.DEFAULT_ROSTER, now + timedelta(hours=1), o)
+    assert during["source"] == "override" and during["co_duty"][0]["agent"] == "codex"
     assert duty.on_duty(duty.DEFAULT_ROSTER, now + timedelta(hours=3), o)["agent"] == "codex"
     j.close()
 

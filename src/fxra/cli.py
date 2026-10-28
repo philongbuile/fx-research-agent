@@ -244,22 +244,46 @@ def cmd_demo_step(a) -> int:
 
 
 def cmd_demo_policy(a) -> int:
-    """Show or change the H-002 exploration policy (versioned; D-31 lets Claude/Codex change it)."""
+    """Show the H-002 arm policies, or change your own arm's policy (D-31, D-33)."""
     from . import h002
     from .trade_journal import Journal
 
-    path = a.journal.parent / "h002-policy.json"
-    if not a.set:
-        print(json.dumps({"policy": h002.load_policy(path),
-                          "learning": Journal(a.journal).learning_stats()}, indent=2))
+    j, demo = Journal(a.journal), a.journal.parent
+    if not (a.set or a.enable or a.disable):
+        print(json.dumps({"policies": {arm: h002.arm_policy(demo, arm, j) for arm in h002.ARMS},
+                          "learning": j.learning_stats()}, indent=2))
         return 0
-    if not a.reason:
-        raise SystemExit("--reason is required when changing the policy")
+    if not (a.arm and a.reason):
+        raise SystemExit("--arm and --reason are required when changing a policy")
     changes = {}
-    for item in a.set:
+    for item in a.set or ():
         key, _, value = item.partition("=")
-        changes[key] = json.loads(value)
-    print(json.dumps(h002.update_policy(path, Journal(a.journal), changes, a.author, a.reason), indent=2))
+        try:
+            changes[key] = json.loads(value)
+        except ValueError:  # Windows PowerShell 5.1 strips inner quotes; plain words stay strings
+            changes[key] = value
+    if a.enable or a.disable:
+        enabled = h002.arm_policy(demo, a.arm, j)["enabled"]
+        changes["enabled"] = [p for p in h002.PATTERNS if (p in enabled or p in (a.enable or ())) and p not in (a.disable or ())]
+    print(json.dumps(h002.edit_arm_policy(demo, a.arm, j, changes, a.author, a.reason), indent=2))
+    return 0
+
+
+def cmd_demo_propose(a) -> int:
+    """Propose a distilled rule or a cross-arm idea; the other agent must review it."""
+    from .trade_journal import Journal
+
+    j, now = Journal(a.journal), datetime.now(timezone.utc)
+    if a.review is not None:
+        if a.agree == a.reject:
+            raise SystemExit("review needs exactly one of --agree / --reject")
+        print(json.dumps(j.review(a.review, now, a.author, a.agree, a.note or ""), indent=2))
+    elif a.text:
+        if not a.evidence:
+            raise SystemExit("--evidence is required: cite the stats (arm, pattern, session, n)")
+        print(json.dumps({"proposal_id": j.propose(now, a.author, a.text, a.evidence)}))
+    else:
+        print(json.dumps(j.state()["proposals"], indent=2))
     return 0
 
 
@@ -333,12 +357,26 @@ def main(argv=None) -> int:
     demo_args(ds)
     ds.set_defaults(fn=cmd_demo_step)
 
-    dp = sub.add_parser("demo-policy", help="show or change the H-002 exploration policy")
+    dp = sub.add_parser("demo-policy", help="show H-002 arm policies, or change your own arm's policy")
     dp.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
-    dp.add_argument("--set", action="append", metavar="KEY=JSON", help='e.g. tp_rr=2 or enabled=["breakout20"]')
+    dp.add_argument("--arm", choices=["claude", "codex"])
+    dp.add_argument("--set", action="append", metavar="KEY=JSON", help="e.g. tp_rr=2 or max_hold_bars=12")
+    dp.add_argument("--enable", action="append", metavar="PATTERN")
+    dp.add_argument("--disable", action="append", metavar="PATTERN")
     dp.add_argument("--reason")
-    dp.add_argument("--author", default="claude")
+    dp.add_argument("--author", required=False, default="", help="<agent>/<model>, must own the arm")
     dp.set_defaults(fn=cmd_demo_policy)
+
+    pr = sub.add_parser("demo-propose", help="list proposals, propose a rule, or review the other agent's proposal")
+    pr.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
+    pr.add_argument("--text")
+    pr.add_argument("--evidence")
+    pr.add_argument("--review", type=int, metavar="ID")
+    pr.add_argument("--agree", action="store_true")
+    pr.add_argument("--reject", action="store_true")
+    pr.add_argument("--note")
+    pr.add_argument("--author", default="", help="<agent>/<model>")
+    pr.set_defaults(fn=cmd_demo_propose)
 
     dt = sub.add_parser("demo-test-order", help="TECH-0003: one risk-gated 0.01-lot buy/close round trip")
     demo_args(dt)

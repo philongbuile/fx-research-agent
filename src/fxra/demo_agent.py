@@ -94,8 +94,8 @@ def _lesson_text(trade: dict, bars: list[dict], currency: str) -> str:
     verdict = "win" if trade["net"] > 0 else "loss" if trade["net"] < 0 else "flat"
     eid = trade["entry_id"] or ""
     label = ("TECH-0003 execution check" if eid.startswith("T3-")
-             else f"H-002 {trade.get('pattern') or ''} @ {trade.get('hour_utc')}h UTC".replace("  ", " ")
-             if eid.startswith("H2-") else STRATEGY_ID)
+             else f"H-002-{trade.get('arm') or 'claude'} {trade.get('pattern') or ''} @ {trade.get('hour_utc')}h UTC"
+             if eid.startswith("H2") else STRATEGY_ID)
     return (f"{label} {trade['side']} {trade['volume']} lot: {verdict} {trade['net']:+.2f} {currency} "
             f"(gross {trade['profit']:+.2f}, commission {trade['commission']:+.2f}, swap {trade['swap']:+.2f}). "
             f"Entry {trade['open_price']} at {o:%Y-%m-%d %H:%M}Z, exit {trade['close_price']} at {c:%Y-%m-%d %H:%M}Z "

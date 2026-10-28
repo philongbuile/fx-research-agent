@@ -103,8 +103,23 @@ explores with probability `epsilon`. Stop = max(`sl_atr` × ATR14, `min_sl_pips`
 Target = `tp_rr` × stop. A time exit fires after `max_hold_bars`. Size is
 `lots` (1.0 since policy v2, owner choice).
 
-Duty rotation and the per-model scoreboard follow D-32 and the
-`fxra-demo-duty` skill.
+Duty and the per-model scoreboard follow D-32/D-33 and the `fxra-demo-duty`
+skill.
+
+## Two arms (D-33)
+
+H-002 runs as two arms on the same bars, `H-002-claude` (magic `20261029`) and
+`H-002-codex` (magic `20261030`). Each has its own policy file,
+`artifacts/demo/h002-policy-<arm>.json`. Only the arm's owner may edit it:
+
+```powershell
+uv run fxra demo-policy --arm codex --author codex/gpt-6-sol --disable pin_bar --reason "..."
+```
+
+Every matched enabled pattern opens its own position, one per pattern per
+arm, with client ids `H2CL-<yymmddHHMM>-<pattern#><B|S>` or `H2CX-...`.
+Proposals for shared rules go through `uv run fxra demo-propose`, and the
+other agent reviews them.
 
 Reflection, by Claude or Codex:
 
