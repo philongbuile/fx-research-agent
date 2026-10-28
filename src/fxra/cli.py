@@ -190,8 +190,15 @@ def _demo_agent(a):
     from .demo_agent import SubprocessBroker
     from .trade_journal import Journal
 
+    import os
+
+    from .lesson_memory import HindsightLessons
+
     broker = SubprocessBroker(a.mt5_python, a.terminal)
-    return Agent(Journal(a.journal), broker, a.limits, send=not a.no_send, interval=a.interval, roster_path=a.duty)
+    # Lessons go to Hindsight as soon as a trade closes when the host provides a key (never logged).
+    memory = HindsightLessons.from_env() if os.environ.get("HINDSIGHT_API_KEY") else None
+    return Agent(Journal(a.journal), broker, a.limits, send=not a.no_send, interval=a.interval, roster_path=a.duty,
+                 memory=memory)
 
 
 def _on_duty(journal_path: Path, roster: Path) -> dict:

@@ -298,8 +298,11 @@ ACTION_RANK = ("entry", "blocked", "exit", "hold", "no_trade", "skip", "error")
 
 def step(journal: Journal, broker, limits, now: datetime, snap: dict, policy: dict, *,
          send: bool = True, rng: random.Random | None = None, duty: dict | None = None,
-         arm: str = "claude") -> dict:
+         arm: str = "claude", arm_model: str | None = None) -> dict:
     """One decision per closed M15 bar, per enabled symbol, for one arm.
+
+    `arm_model` is the label of the model that owns the arm right now (D-35); it is
+    stored with every entry so results stay attributable after a model switch.
 
     Per symbol: time-exits the arm's positions that reached max_hold_bars, then
     opens one position for every matched enabled pattern not already open in this
@@ -313,7 +316,7 @@ def step(journal: Journal, broker, limits, now: datetime, snap: dict, policy: di
             continue
         try:
             results[symbol] = _step_symbol(journal, broker, limits, now, snap, markets[symbol], symbol, policy,
-                                           send=send, rng=rng, duty=duty, arm=arm)
+                                           send=send, rng=rng, duty=duty, arm=arm, arm_model=arm_model)
         except Exception as e:  # one symbol failing must not stop the others
             results[symbol] = {"action": "error", "reason": f"{type(e).__name__}: {e}"}
         snap = {**snap, "positions": snap["positions"] + [
@@ -328,7 +331,8 @@ def step(journal: Journal, broker, limits, now: datetime, snap: dict, policy: di
 
 
 def _step_symbol(journal: Journal, broker, limits, now: datetime, snap: dict, market: dict, symbol: str,
-                 policy: dict, *, send: bool, rng: random.Random, duty: dict | None, arm: str) -> dict:
+                 policy: dict, *, send: bool, rng: random.Random, duty: dict | None, arm: str,
+                 arm_model: str | None = None) -> dict:
     cfg = ARMS[arm]
     name, magic, code = cfg["arm"], cfg["magic"], SYMBOL_CODES.get(symbol, symbol[:2])
     pip = PIP_SIZES[symbol]
@@ -403,7 +407,8 @@ def _step_symbol(journal: Journal, broker, limits, now: datetime, snap: dict, ma
             journal.order(cid, now, "entry", side, lots, stop, "risk_rejected", decision.to_dict(), {})
             blocked.append({"pattern": chosen, "reasons": decision.reasons})
             continue
-        journal.tag_entry(cid, {"strategy": STRATEGY_ID, "arm": arm, "symbol": symbol, "pattern": chosen,
+        journal.tag_entry(cid, {"strategy": STRATEGY_ID, "arm": arm, "arm_model": arm_model, "symbol": symbol,
+                                "pattern": chosen,
                                 "hour_utc": hour, "session": session(hour), "policy_version": policy["version"],
                                 "duty_agent": (duty or {}).get("agent"), "duty_model": (duty or {}).get("model"),
                                 "features": {"matches": matches, "atr_pips": a / pip, "sl_pips": dist / pip,

@@ -122,7 +122,7 @@ H-002 runs as two arms on the same bars, `H-002-claude` (magic `20261029`) and
 `artifacts/demo/h002-policy-<arm>.json`. Only the arm's owner may edit it:
 
 ```powershell
-uv run fxra demo-policy --arm codex --author codex/gpt-6-sol --disable pin_bar --reason "..."
+uv run fxra demo-policy --arm codex --author codex/gpt-6.1-sol --disable pin_bar --reason "..."
 ```
 
 Every matched enabled pattern opens its own position, one per pattern per

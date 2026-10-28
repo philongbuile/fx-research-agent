@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import demo_agent, duty, h002, risk
+from . import demo_agent, duty, h002, lesson_memory, risk
 from .trade_journal import Journal
 
 
@@ -38,12 +38,37 @@ class CachingBroker:
 
 class Agent:
     def __init__(self, journal: Journal, broker, limits_path: Path, *, send=True, interval=30,
-                 roster_path: Path | None = None):
+                 roster_path: Path | None = None, memory=None):
         self.journal, self.broker = journal, CachingBroker(broker)
         self.limits_path, self.send, self.interval = Path(limits_path), send, interval
         self.roster_path = roster_path
+        self.memory = memory  # HindsightLessons, or None when no Hindsight key is configured
         self.lock = threading.Lock()
         self.last_step = None
+        self.last_memory = {"enabled": memory is not None}
+
+    def sync_lessons(self):
+        if self.memory is None:
+            return self.last_memory
+        try:
+            self.last_memory = {"enabled": True, **lesson_memory.flush(self.journal, self.memory, self.lock)}
+        except Exception as e:
+            self.last_memory = {"enabled": True, "error": type(e).__name__}
+        return self.last_memory
+
+    def arm_labels(self) -> dict:
+        """Arm name -> label of the model its owner runs now (config/duty.toml [agents])."""
+        roster = duty.load_roster(self.roster_path)
+        return {cfg["arm"]: duty.agent_info(roster, cfg["owner"])["label"] for cfg in h002.ARMS.values()}
+
+    def model_labels(self) -> dict:
+        """Model id (and agent name) -> display label, for attribution columns written as ids."""
+        roster = duty.load_roster(self.roster_path)
+        out = {"gpt-6-sol": duty.agent_info(roster, "codex")["label"]}  # id used before D-35
+        for agent in roster.get("agents", {}):
+            info = duty.agent_info(roster, agent)
+            out[info["model"]] = out[agent] = info["label"]
+        return out
 
     def duty(self, now=None):
         return duty.on_duty(duty.load_roster(self.roster_path), now or datetime.now(timezone.utc),
@@ -74,10 +99,12 @@ class Agent:
             results, on = {}, self.duty(now)
             runs = [("H-001B", lambda: demo_agent.step(self.journal, self.broker, limits, now,
                                                        send=self.send, snap=snap, duty=on))]
+            labels = self.arm_labels()
             for arm, cfg in h002.ARMS.items():
-                runs.append((cfg["arm"], lambda arm=arm: h002.step(
+                runs.append((cfg["arm"], lambda arm=arm, cfg=cfg: h002.step(
                     self.journal, self.broker, limits, now, snap,
-                    h002.arm_policy(self.demo_dir, arm, self.journal), send=self.send, duty=on, arm=arm)))
+                    h002.arm_policy(self.demo_dir, arm, self.journal), send=self.send, duty=on, arm=arm,
+                    arm_model=labels[cfg["arm"]])))
             for name, run in runs:
                 try:
                     results[name] = run()
@@ -89,6 +116,7 @@ class Agent:
     def run_forever(self, stop: threading.Event):
         while not stop.is_set():
             self.tick()
+            self.sync_lessons()  # a lesson written this tick reaches Hindsight before the next bar
             stop.wait(self.interval)
 
     def state(self):
@@ -100,7 +128,8 @@ class Agent:
                     kill_switch=risk.kill_switch_active(limits), mode=limits.mode if limits else None,
                     strategies={i: bool(limits and i in limits.approved_strategies) for i in ids},
                     policies={arm: h002.arm_policy(self.demo_dir, arm, self.journal) for arm in h002.ARMS},
-                    duty=self.duty(),
+                    duty=self.duty(), arm_labels=self.arm_labels(), model_labels=self.model_labels(),
+                    memory=self.last_memory,
                     server_time=datetime.now(timezone.utc).isoformat())
         return data
 
@@ -174,7 +203,7 @@ svg{width:100%;height:160px}.muted{color:var(--mute)}
   padding:8px 0;border-bottom:1px solid var(--line)}.steprow:last-child{border-bottom:0}
 @media (max-width:640px){.steprow{grid-template-columns:1fr auto}.steprow .why{grid-column:1/-1}}
 </style></head><body>
-<header><h1>FX Demo Agent</h1><span id="duty" class="pill"></span><span id="strategy" class="pill"></span><span id="mode" class="pill"></span>
+<header><h1>FX Demo Agent</h1><span id="duty" class="pill"></span><span id="memsync" class="pill"></span><span id="strategy" class="pill"></span><span id="mode" class="pill"></span>
 <span id="kill" class="pill"></span><span id="conn" class="pill"></span><span id="updated" class="muted"></span></header>
 <main>
 <section class="card wide"><h2>Account &amp; market</h2><div class="kpis" id="kpis"></div></section>
@@ -212,21 +241,29 @@ async function load(){
     <p class="muted">Tracked, not optimised: the agent never sizes up to chase it.</p>`;
   const grp=(o,label)=>{const r=Object.entries(o);return r.length?`<table><tr><th>${label}</th><th>n</th><th>Win</th><th>Net USD</th><th>Avg pips after cost</th></tr>`+
     r.map(([n,g])=>`<tr><td>${esc(n)}</td><td>${g.n}${g.n<10?' <span class="muted">(few)</span>':""}</td><td>${(g.win_rate*100).toFixed(0)}%</td><td>${money(g.net)}</td><td>${money(g.avg_pips_after_cost)}</td></tr>`).join("")+"</table>":""};
-  const d=s.duty; $("duty").innerHTML=`on duty: <b>${esc(d.agent)}</b> · ${esc(d.model)}`+(d.co_duty||[]).map(c=>` + <b>${esc(c.agent)}</b> · ${esc(c.model)} <span class="muted">until ${esc((c.until||"").slice(11,16))}</span>`).join("");
+  const AL=s.arm_labels||{}, ML=s.model_labels||{};
+  const armLabel=n=>AL[n]?`${AL[n]}`:n;  // H-002-claude -> "Claude Opus 5.5 Medium"
+  const who=a=>{if(!a)return "";const [ag,m]=String(a).split("/");return ML[m]||ML[ag]||a};
+  const rl=k=>String(k).replace(/^(claude|codex)(?= \/|$)/,x=>AL["H-002-"+x]||x);
+  const d=s.duty; $("duty").innerHTML=`on duty: <b>${esc(d.label||d.model)}</b>`+(d.co_duty||[]).map(c=>` + <b>${esc(c.label||c.model)}</b> <span class="muted">until ${esc((c.until||"").slice(11,16))}</span>`).join("");
+  const mem=s.memory||{}; $("memsync").innerHTML=!mem.enabled?'<span class="muted">Hindsight sync off</span>':mem.error||mem.failed?`<span class="bad">Hindsight sync failing${mem.pending?` · ${mem.pending} pending`:""}</span>`:`<span class="ok">Hindsight synced</span>${mem.pending?` · ${mem.pending} pending`:""}`;
   const sb=s.scoreboard, mrow=o=>Object.entries(o);
   const sbt=(o,label)=>mrow(o).length?`<table><tr><th>${label}</th><th>n</th><th>Win rate</th><th>Net USD</th><th>Profit factor</th><th>Avg pips after cost</th></tr>`+
     mrow(o).map(([n,g])=>`<tr><td>${esc(n)}</td><td>${g.n}${g.n<30?' <span class="muted">(small)</span>':""}</td><td>${(g.win_rate*100).toFixed(0)}% <span class="muted">${g.wins}W/${g.losses}L</span></td><td>${money(g.net)}</td><td>${g.profit_factor??"–"}</td><td>${money(g.avg_pips_after_cost)}</td></tr>`).join("")+"</table>":"";
-  $("scoreboard").innerHTML=(mrow(sb.by_arm).length?"<h3>Arm vs arm (same market, same bars)</h3>"+sbt(sb.by_arm,"Arm")+"<br>"+sbt(sb.by_arm_session,"Arm / session")+"<br>"+sbt(sb.by_arm_symbol||{},"Arm / symbol")+"<br>":"")+
-    (mrow(sb.by_model).length?sbt(sb.by_model,"Model on duty at entry")+"<br>"+sbt(sb.by_model_strategy,"Model / strategy")+"<br>"+sbt(sb.by_policy_author,"Policy author"):'<p class="muted">No closed trades attributed to a model yet.</p>')+
-    `<p class="muted">Lessons: ${esc(JSON.stringify(sb.lessons_by_author))} · Policy changes: ${esc(JSON.stringify(sb.policy_changes_by_author))}</p>`+
+  const relabel=(o,f)=>Object.fromEntries(Object.entries(o||{}).map(([k,v])=>[f(k),v]));
+  const ids=k=>String(k).split(" / ").map(x=>ML[x]||who(x)).join(" / ");
+  $("scoreboard").innerHTML=(mrow(sb.by_arm_model||sb.by_arm).length?"<h3>Model vs model (H-002 arms: same market, same bars)</h3>"+
+      sbt(sb.by_arm_model||relabel(sb.by_arm,rl),"Model running the arm")+"<br>"+sbt(relabel(sb.by_arm_session,rl),"Model / session")+"<br>"+sbt(relabel(sb.by_arm_symbol,rl),"Model / symbol")+"<br>":"")+
+    (mrow(sb.by_model).length?sbt(relabel(sb.by_model,ids),"Model on duty at entry")+"<br>"+sbt(relabel(sb.by_model_strategy,ids),"Model on duty / strategy")+"<br>"+sbt(relabel(sb.by_policy_author,ids),"Policy author"):'<p class="muted">No closed trades attributed to a model yet.</p>')+
+    `<p class="muted">Lessons: ${esc(Object.entries(sb.lessons_by_author).map(([a,n])=>`${who(a)} ${n}`).join(", "))} · Policy changes: ${esc(Object.entries(sb.policy_changes_by_author).map(([a,n])=>`${who(a)} ${n}`).join(", "))}</p>`+
     (sb.shifts.length?"<p>"+sb.shifts.map(x=>`${t(x.at)} · <b>${esc(x.agent)}</b> ${esc(x.kind)}: ${esc(x.summary)}`).join("<br>")+"</p>":"");
   const ls=s.learning;
   $("learning").innerHTML=ls.closed_trades?`<p class="muted">${ls.closed_trades} closed exploration trades; assumed cost ${ls.assumed_cost_pips} pip per trade.</p>`+
     grp(ls.by_symbol||{},"Symbol")+"<br>"+grp(ls.by_pattern,"Pattern")+"<br>"+grp(ls.by_symbol_pattern||{},"Symbol / pattern")+"<br>"+grp(ls.by_hour,"Hour UTC")+"<br>"+grp(ls.by_pattern_session,"Pattern / session"):'<p class="muted">No closed H-002 trades yet. Every pattern gets explored first.</p>';
-  $("policy").innerHTML=Object.entries(s.policies).map(([a,p])=>`<b>${esc(a)}</b> v${p.version}: ${esc(JSON.stringify(p))}`).join("<br><br>")+
-    (s.policy_changes.length?"<br><br>"+s.policy_changes.map(c=>`${esc(c.arm)} v${c.version} · ${esc(c.author)} · ${t(c.at)} · ${esc(c.reason)}`).join("<br>"):"");
+  $("policy").innerHTML=Object.entries(s.policies).map(([a,p])=>`<b>${esc(armLabel("H-002-"+a))}</b> (arm ${esc(a)}) v${p.version}: ${esc(JSON.stringify(p))}`).join("<br><br>")+
+    (s.policy_changes.length?"<br><br>"+s.policy_changes.map(c=>`${esc(armLabel("H-002-"+c.arm))} v${c.version} · ${esc(who(c.author))} · ${t(c.at)} · ${esc(c.reason)}`).join("<br>"):"");
   $("proposals").innerHTML=s.proposals.length?`<table><tr><th>#</th><th>By</th><th>Proposal</th><th>Evidence</th><th>Status</th><th>Review</th></tr>`+
-    s.proposals.map(p=>`<tr><td>${p.id}</td><td>${esc(p.author)}</td><td>${esc(p.text)}</td><td>${esc(p.evidence)}</td><td><b>${esc(p.status)}</b></td><td>${esc(p.reviewer?p.reviewer+": "+p.review:"")}</td></tr>`).join("")+"</table>":'<p class="muted">No proposals yet. A rule is distilled only when the other model agrees.</p>';
+    s.proposals.map(p=>`<tr><td>${p.id}</td><td>${esc(who(p.author))}</td><td>${esc(p.text)}</td><td>${esc(p.evidence)}</td><td><b>${esc(p.status)}</b></td><td>${esc(p.reviewer?who(p.reviewer)+": "+p.review:"")}</td></tr>`).join("")+"</table>":'<p class="muted">No proposals yet. A rule is distilled only when the other model agrees.</p>';
   $("mode").textContent="mode: "+(s.mode||"no risk.toml");
   $("kill").innerHTML=s.kill_switch?'<span class="bad">kill switch ON</span>':'<span class="ok">kill switch off</span>';
   $("conn").innerHTML=s.live_error?`<span class="bad">MT5: ${esc(s.live_error)}</span>`:(L.account?'<span class="ok">MT5 demo connected</span>':"MT5: waiting");
@@ -251,10 +288,10 @@ async function load(){
   const floating=ps.reduce((a,p)=>a+p.profit,0), byArm={};
   ps.forEach(p=>{const k=p.strategy||"?";byArm[k]=(byArm[k]||0)+p.profit});
   $("position").innerHTML=ps.length?
-    `<div class="possum">${kpi("Open",ps.length)}${kpi("Floating total",money(floating,ccy))}${Object.entries(byArm).map(([k,v])=>kpi(esc(k),money(v,ccy))).join("")}</div>
-    <div class="scroll"><table><tr><th>Arm</th><th>Symbol</th><th>Pattern</th><th>Side</th><th class="right">Entry → now</th><th style="min-width:180px">Stop ↔ target</th><th class="right">Held</th><th class="right">Floating</th></tr>`+
+    `<div class="possum">${kpi("Open",ps.length)}${kpi("Floating total",money(floating,ccy))}${Object.entries(byArm).map(([k,v])=>kpi(esc(armLabel(k)),money(v,ccy))).join("")}</div>
+    <div class="scroll"><table><tr><th>Model (arm)</th><th>Symbol</th><th>Pattern</th><th>Side</th><th class="right">Entry → now</th><th style="min-width:180px">Stop ↔ target</th><th class="right">Held</th><th class="right">Floating</th></tr>`+
     ps.map(p=>{const d=p.side==="buy"?1:-1, move=(p.price_current-p.price_open)*d/pipOf(p);
-      return `<tr><td>${esc(p.strategy||"")}</td><td>${esc(p.symbol||"EURUSD")}</td><td>${esc(patternOf[p.comment]||"–")}</td>
+      return `<tr><td>${esc(armLabel(p.strategy||""))}</td><td>${esc(p.symbol||"EURUSD")}</td><td>${esc(patternOf[p.comment]||"–")}</td>
       <td><span class="badge b-${p.side}">${p.side} ${p.volume}</span></td>
       <td class="right num">${p.price_open} → ${p.price_current}<br><span class="muted">${pips(move)} pips</span></td>
       <td>${track(p)}</td>
@@ -268,14 +305,14 @@ async function load(){
       const what=r.action==="skip"&&r.reason==="already decided for this bar"?"waiting for next bar":r.action;
       const why=n?r.entries.map(e=>`${e.symbol?e.symbol+" ":""}${e.pattern} ${e.side}`).join(", "):x?`${x} time exit(s)`:(r.blocked||[]).length?"risk gate blocked"
         :what==="waiting for next bar"?"already decided this bar":esc(r.reason||"");
-      return `<div class="steprow"><b>${esc(k)}</b><span class="badge b-${esc(r.action)}">${esc(what)}</span>
+      return `<div class="steprow"><b>${esc(armLabel(k))}</b><span class="badge b-${esc(r.action)}">${esc(what)}</span>
         <span class="why">${bar?`<span class="muted">bar ${t(bar)}</span> · `:""}${why}</span></div>`}).join("")+"</div>";
   $("equity").innerHTML=chart(s.equity);
   $("trades").innerHTML="<tr><th>Opened</th><th>Pattern</th><th>Side</th><th>Lots</th><th>Entry</th><th>Closed</th><th>Exit</th><th>Reason</th><th>Gross</th><th>Comm.</th><th>Swap</th><th>Net</th></tr>"+
     (s.trades.map(r=>`<tr><td>${t(r.open_time)}</td><td>${esc(r.pattern?r.pattern+" · "+r.hour_utc+"h":(r.entry_id||"").startsWith("T3-")?"TECH-0003":"H-001B")}</td><td>${r.side}</td><td>${r.volume}</td><td>${r.open_price}</td><td>${t(r.close_time)}</td><td>${r.close_price??"open"}</td><td>${esc(r.exit_reason??"")}</td><td>${money(r.profit)}</td><td>${money(r.commission)}</td><td>${money(r.swap)}</td><td>${money(r.net,ccy)}</td></tr>`).join("")||'<tr><td colspan="12" class="muted">No trades yet.</td></tr>');
   $("decisions").innerHTML="<tr><th>Bar (UTC)</th><th>Strategy</th><th>Action</th><th>Side</th><th>Why</th><th>ATR</th><th>Close</th></tr>"+
-    (s.decisions.map(d=>{const g=d.details.signal||{},m=d.bar.match(/^(H-002[^:]*):(?:([A-Z]{6}):)?(.*)$/);return `<tr><td>${t(m?m[3]:d.bar)}</td><td>${esc(m?m[1]:"H-001B")} · ${esc(m&&m[2]?m[2]:"EURUSD")}${m?" · M15":" · H1"}</td><td><b>${esc(d.action)}</b></td><td>${esc(d.side??"")}</td><td>${esc(d.reason)}</td><td>${g.atr_pips?g.atr_pips.toFixed(1)+" pips":g.atr?(g.atr/0.0001).toFixed(1)+" pips":""}</td><td>${g.close??""}</td></tr>`}).join("")||'<tr><td colspan="7" class="muted">No decisions yet.</td></tr>');
-  $("lessons").innerHTML=s.lessons.map(l=>`<div class="lesson">${esc(l.text)}<br><small>#${l.id} · ${esc(l.author)} · ${t(l.at)}${l.hindsight_document?" · Hindsight: "+esc(l.hindsight_document):" · not yet in Hindsight"}</small></div>`).join("")||'<p class="muted">Lessons appear after each closed trade.</p>';
+    (s.decisions.map(d=>{const g=d.details.signal||{},m=d.bar.match(/^(H-002[^:]*):(?:([A-Z]{6}):)?(.*)$/);return `<tr><td>${t(m?m[3]:d.bar)}</td><td>${esc(m?armLabel(m[1]):"H-001B")} · ${esc(m&&m[2]?m[2]:"EURUSD")}${m?" · M15":" · H1"}</td><td><b>${esc(d.action)}</b></td><td>${esc(d.side??"")}</td><td>${esc(d.reason)}</td><td>${g.atr_pips?g.atr_pips.toFixed(1)+" pips":g.atr?(g.atr/0.0001).toFixed(1)+" pips":""}</td><td>${g.close??""}</td></tr>`}).join("")||'<tr><td colspan="7" class="muted">No decisions yet.</td></tr>');
+  $("lessons").innerHTML=s.lessons.map(l=>`<div class="lesson">${esc(l.text)}<br><small>#${l.id} · ${esc(l.author==="agent"?"agent (automatic)":who(l.author))} · ${t(l.at)}${l.hindsight_document?" · Hindsight: "+esc(l.hindsight_document):" · not yet in Hindsight"}</small></div>`).join("")||'<p class="muted">Lessons appear after each closed trade.</p>';
 }
 load(); setInterval(load,10000);
 </script></body></html>"""

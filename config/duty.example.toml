@@ -1,17 +1,27 @@
-# Demo duty roster (D-32, D-33). Copy to config/duty.toml (gitignored) to change it; without it the
+# Demo duty roster (D-32, D-33, D-35). Copy to config/duty.toml (gitignored) to change it; without it the
 # defaults below apply. Times are local to `timezone`; a shift may wrap midnight; start == end means 24h.
 # The first matching shift is primary (operations); later matches are co-duty.
 # Take over outside the schedule with: uv run fxra demo-shift take --agent <a> --model <m> --hours <h> --reason "..."
 timezone = "Asia/Ho_Chi_Minh"
 
+# The model each agent runs now. When an agent switches model or effort, change it here: new trades
+# record the new label, so per-model statistics stay separate. `label` is what the dashboard shows.
+[agents.codex]
+model = "gpt-6.1-sol"
+effort = "medium"
+label = "Codex GPT-6.1 Sol Medium"
+
+[agents.claude]
+model = "claude-opus-5-5"
+effort = "medium"
+label = "Claude Opus 5.5 Medium"
+
 [[shift]]
 agent = "codex"
-model = "gpt-6-sol"
 start = "00:00"
 end = "00:00"
 
 [[shift]]
 agent = "claude"
-model = "claude-opus-5-5"
 start = "18:00"
 end = "08:00"
