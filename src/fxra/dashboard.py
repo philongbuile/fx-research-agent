@@ -171,11 +171,17 @@ def make_handler(agent: Agent):
     return Handler
 
 
+class _ExclusiveServer(ThreadingHTTPServer):
+    # On Windows SO_REUSEADDR lets a second process bind the same port, so a second
+    # demo-run would silently start a second trading loop. Bind exclusively instead.
+    allow_reuse_address = False
+
+
 def serve(agent: Agent, port: int, *, loop=True):
     stop = threading.Event()
+    server = _ExclusiveServer(("127.0.0.1", port), make_handler(agent))  # fails if a loop already runs
     if loop:
         threading.Thread(target=agent.run_forever, args=(stop,), daemon=True).start()
-    server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(agent))
     print(f"dashboard: http://127.0.0.1:{port}  (agent loop {'on' if loop else 'off'}, send={agent.send})", flush=True)
     try:
         server.serve_forever()
