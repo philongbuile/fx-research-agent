@@ -266,7 +266,9 @@ def arm_policy(demo_dir: Path, arm: str, journal: Journal) -> dict:
         source = legacy if arm == "claude" else policy_path(demo_dir, "claude")
         if arm != "claude" and not source.exists():
             arm_policy(demo_dir, "claude", journal)
-        start = {**load_policy(source if source.exists() else legacy), "version": 0}
+        start = load_policy(source if source.exists() else legacy)
+        # Claude continues the legacy version line (its history was migrated); Codex starts at 1.
+        start["version"] = journal.last_policy_version(arm) if arm == "claude" else 0
         path.write_text(json.dumps(start, indent=2))
         update_policy(path, journal, {}, "system", f"{arm} arm initialised from {source.name}", arm=arm)
     return load_policy(path)
