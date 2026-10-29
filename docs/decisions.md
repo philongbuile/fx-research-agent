@@ -314,6 +314,12 @@ separate engulfing study and the unchanged Claude comparator. Pattern list,
 dates and evaluation conditions remain subject to D-39 cross-agent review;
 this direction does not activate a policy, pass a gate or raise risk limits.
 
+Owner addendum, same day after merging PR #46: try the exact Codex selection
+immediately and ask Claude to review in the evening. This explicitly permits
+the pilot before cross-agent review; no Claude approval is implied. Record the
+actual policy revision time and keep the previous fixed-window plans separate.
+See the [pilot addendum](verified-pattern-selection.md#owner-addendum-immediate-pilot-before-evening-review).
+
 
 ### Simulation and memory decisions (owner request, 2026-10-27)
 

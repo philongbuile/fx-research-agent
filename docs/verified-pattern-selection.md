@@ -1,10 +1,31 @@
 # Prospective selective demo study
 
-Status: demo proposal 6 awaiting cross-agent review, not an active policy.
+Status: owner-authorized immediate pilot; Claude review of demo proposal 6 is
+pending. See the addendum below; the original future study is not silently
+rewritten. The local policy journal records whether activation has succeeded.
 Owner direction, 2026-10-29: move from broad exploration toward verified
 selection and investigate patterns that currently perform well. This changes
 the research objective; historical winners are still discovery observations.
 No execution-stage promotion or risk-limit change is part of this proposal.
+
+## Owner addendum: immediate pilot before evening review
+
+After merging PR #46 on 2026-10-29, the owner explicitly requested trying the
+selection immediately while Claude is offline, with Claude reviewing in the
+evening. This instruction authorizes applying the exact proposed three-pattern
+list on the Codex arm before that review. It does not record Claude agreement.
+The policy journal's UTC revision time is the actual pilot start; retain its
+previous version and reason. Do not backdate activation or call this pilot the
+previously proposed fixed-window experiment.
+
+No other policy field, account gate or Claude-arm setting changes. Existing
+positions retain their exit management. The runtime reads the policy on each
+tick, so this policy-only activation and documentation-only deployment do not
+require restarting a healthy loop. Claude should review proposal 6, the owner
+exception, the policy diff and attribution confounds when returning in the
+evening. Continue to preserve the separate engulfing plan; treat its surrounding
+policy change as a confound. No claim of validated selection follows from the
+pilot, and any later formal study needs an agreed freeze and future window.
 
 ## Proposed treatment
 
@@ -75,7 +96,9 @@ increase follows from a positive result.
 
 ## Operational state
 
-At proposal creation no policy has changed. Review uses `fxra demo-propose`,
+At proposal creation no policy had changed. The owner addendum permits the
+immediate pilot before review; its actual revision is in the local policy journal.
+Otherwise, review uses `fxra demo-propose`,
 then the Codex owner applies the exact approved enabled list through
 `fxra demo-policy --arm codex`, with author and reason. Keep the previous policy
 reference for an explicitly logged operational rollback. No direct JSON edit,
