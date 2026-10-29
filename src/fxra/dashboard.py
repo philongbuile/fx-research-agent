@@ -328,7 +328,7 @@ blockquote.stated{margin:6px 0;padding:6px 10px;border-left:3px solid var(--up);
 <section class="card wide"><h2>Trades (broker deals)</h2><label class="muted" style="font-size:13px"><input type="checkbox" id="alltrades" onchange="ALLT=this.checked;load()"> include H-002 / H-001B learning data</label>
   <div class="scroll"><table id="trades"></table></div><div id="trades-more"></div></section>
 <section class="card wide learnhead"><h2>Learning data · H-002 scripted control and history</h2><p class="muted" style="margin:0">Everything below comes from the scripted explorer (H-002, every matched pattern trades) and the history since 2026-10-28.
-  It keeps running as the control for H-003 and is the evidence the models read before deciding: playbook, lessons, pattern stats. It is not the current way of trading.</p></section>
+  It stopped opening trades on 2026-10-29 (owner, D-43) and is the evidence the models read before deciding: playbook, lessons, pattern stats. It is not the current way of trading.</p></section>
 <section class="card wide"><h2>Decisions, bar by bar (H-001B / H-002 script)</h2><div class="scroll"><table id="decisions"></table></div><div id="decisions-more"></div></section>
 <section class="card wide"><h2>H-002 scoreboard (scripted arms)</h2><div id="scoreboard"></div></section>
 <section class="card wide"><h2>What H-002 is learning (exploration, after assumed cost)</h2><div id="learning"></div></section>
