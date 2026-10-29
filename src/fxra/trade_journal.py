@@ -53,7 +53,13 @@ CREATE TABLE IF NOT EXISTS playbook (
     id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, author TEXT NOT NULL, title TEXT NOT NULL,
     action TEXT NOT NULL, filter TEXT NOT NULL, rationale TEXT NOT NULL, confirm_n INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'candidate', proposal_id INTEGER, updated_at TEXT, note TEXT);
+CREATE TABLE IF NOT EXISTS candidates (
+    id TEXT PRIMARY KEY, arm TEXT NOT NULL, symbol TEXT NOT NULL, bar TEXT NOT NULL, side TEXT NOT NULL,
+    created_at TEXT NOT NULL, expires_at TEXT NOT NULL, patterns TEXT NOT NULL, context TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending', decided_at TEXT, decider TEXT, reason TEXT,
+    sl_atr REAL, tp_rr REAL, client_order_id TEXT, result TEXT, shadow TEXT);
 """
+CANDIDATE_JSON = ("patterns", "context", "result", "shadow")
 MIGRATIONS = [("entry_tags", "duty_agent", "TEXT"), ("entry_tags", "duty_model", "TEXT"), ("entry_tags", "arm", "TEXT"),
               ("entry_tags", "symbol", "TEXT"), ("entry_tags", "arm_model", "TEXT")]
 # Entries made before D-35 recorded no model label; these were the models running each arm then.
@@ -216,6 +222,42 @@ class Journal:
     def entry_pattern(self, entry_id: str) -> str | None:
         row = self.db.execute("SELECT pattern FROM entry_tags WHERE entry_id=?", (entry_id,)).fetchone()
         return row[0] if row else None
+
+    # H-003 candidates: the model approves or skips each one (D-42) -----------
+    def add_candidate(self, c: dict):
+        with self.db:
+            self.db.execute("INSERT OR IGNORE INTO candidates (id, arm, symbol, bar, side, created_at, expires_at,"
+                            " patterns, context) VALUES (?,?,?,?,?,?,?,?,?)",
+                            (c["id"], c["arm"], c["symbol"], c["bar"], c["side"], c["created_at"], c["expires_at"],
+                             json.dumps(c["patterns"], default=str), json.dumps(c["context"], default=str)))
+
+    def set_candidate(self, cid: str, **fields):
+        with self.db:
+            self.db.execute(f"UPDATE candidates SET {', '.join(f'{k}=?' for k in fields)} WHERE id=?",
+                            (*fields.values(), cid))
+
+    def candidates(self, *, arm=None, status=None, symbol=None, ids=None, since: datetime | None = None,
+                   unscored=False, limit=500) -> list[dict]:
+        """Newest first, with the JSON columns decoded."""
+        where, args = [], []
+        for col, value in (("arm", arm), ("status", status), ("symbol", symbol)):
+            if value is not None:
+                where.append(f"{col}=?")
+                args.append(value)
+        if ids is not None:
+            where.append(f"id IN ({','.join('?' * len(ids))})")
+            args += list(ids)
+        if since is not None:
+            where.append("created_at>=?")
+            args.append(since.isoformat())
+        if unscored:
+            where.append("shadow IS NULL")
+        rows = self._rows("SELECT * FROM candidates" + (" WHERE " + " AND ".join(where) if where else "")
+                          + " ORDER BY created_at DESC, id LIMIT ?", *args, limit)
+        for r in rows:
+            for k in CANDIDATE_JSON:
+                r[k] = json.loads(r[k]) if r[k] else None
+        return rows
 
     # collaboration: proposals need the other model's review ------------------
     def propose(self, at: datetime, author: str, text: str, evidence: str) -> int:

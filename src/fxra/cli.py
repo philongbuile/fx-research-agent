@@ -296,6 +296,32 @@ def cmd_demo_propose(a) -> int:
     return 0
 
 
+def cmd_demo_decide(a) -> int:
+    """H-003 (D-42): show pending candidates, or take/skip one with a reason. The agent loop sends approved ones."""
+    from . import h003
+    from .trade_journal import Journal
+
+    j, now = Journal(a.journal), datetime.now(timezone.utc)
+    if a.take or a.skip or a.skip_rest:
+        if not a.reason:
+            raise SystemExit("--reason is required: why take or skip this candidate")
+        if a.skip_rest:
+            ids = [c["id"] for c in h003.brief(j, now, a.arm)["pending"]]
+        else:
+            ids = [a.take or a.skip]
+        out = []
+        for cid in ids:
+            try:
+                c = h003.decide(j, cid, bool(a.take), a.reason, a.author, now, a.sl_atr, a.tp_rr)
+                out.append({"id": cid, "status": c["status"], "sl_atr": c["sl_atr"], "tp_rr": c["tp_rr"]})
+            except (ValueError, PermissionError) as e:
+                out.append({"id": cid, "error": str(e)})
+        print(json.dumps(out, indent=2))
+        return 1 if any("error" in o for o in out) else 0
+    print(json.dumps(h003.brief(j, now, a.arm), indent=2, default=str))
+    return 0
+
+
 def cmd_demo_playbook(a) -> int:
     """List playbook rules with recounted evidence, add a candidate rule, or change a rule's status."""
     from . import playbook
@@ -443,6 +469,18 @@ def main(argv=None) -> int:
     pr.add_argument("--note")
     pr.add_argument("--author", default="", help="<agent>/<model>")
     pr.set_defaults(fn=cmd_demo_propose)
+
+    dd = sub.add_parser("demo-decide", help="H-003: list pending candidates, or take/skip one with a reason (D-42)")
+    dd.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
+    dd.add_argument("--arm", choices=["claude"], default="claude")
+    dd.add_argument("--take", metavar="ID")
+    dd.add_argument("--skip", metavar="ID")
+    dd.add_argument("--skip-rest", action="store_true", help="skip every pending candidate with one reason")
+    dd.add_argument("--sl-atr", type=float, help="stop = max(this x ATR, min pips); default and bounds in the listing")
+    dd.add_argument("--tp-rr", type=float, help="target in R; default and bounds in the listing")
+    dd.add_argument("--reason")
+    dd.add_argument("--author", default="", help="<agent>/<model>, must own the arm")
+    dd.set_defaults(fn=cmd_demo_decide)
 
     pb = sub.add_parser("demo-playbook", help="playbook rules distilled from lessons, with evidence from the journal")
     pb.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))

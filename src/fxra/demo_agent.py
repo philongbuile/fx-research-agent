@@ -117,14 +117,16 @@ def _lesson_text(trade: dict, market: dict, currency: str, info: dict | None = N
     reason = trade["exit_reason"] or "unknown"
     eid = trade["entry_id"] or ""
 
-    if eid.startswith("H2"):
+    if eid.startswith(("H2", "H3")):
         hour = trade.get("hour_utc")
         when = ", ".join(x for x in (trade.get("session"), f"{hour}h UTC" if hour is not None else None,
                                      f.get("dow") or f"{o:%a}") if x)
         regime = ", ".join(x for x in (f"{f['vol']} vol" if f.get("vol") else None,
                                        f"H1 trend {f['h1_trend']}" if f.get("h1_trend") else None,
                                        f"M15 trend {f['m15_trend']}" if f.get("m15_trend") else None) if x)
-        head = (f"H-002-{trade.get('arm') or 'claude'} {trade.get('pattern') or ''} {trade['side']} {symbol}"
+        what = (f"H-003 model-approved ({'+'.join(f.get('patterns_for') or [])})" if eid.startswith("H3")
+                else f"H-002-{trade.get('arm') or 'claude'} {trade.get('pattern') or ''}")
+        head = (f"{what} {trade['side']} {symbol}"
                 f" ({when}{'; ' + regime if regime else ''}): {verdict} {in_r(moved)}, {reason}.")
     else:
         label = "TECH-0003 execution check" if eid.startswith("T3-") else STRATEGY_ID
@@ -150,6 +152,9 @@ def _lesson_text(trade: dict, market: dict, currency: str, info: dict | None = N
                      f"({f.get('event_minutes', 0):+d} min from release{impact})")
     if trade.get("policy_version") is not None:
         setup.append(f"policy v{trade['policy_version']}")
+    if f.get("decision_reason"):
+        setup.append(f"model {f.get('decider')} chose stop {f.get('sl_atr')}x ATR, target {f.get('tp_rr')}R, "
+                     f"{f.get('decision_latency_min')} min after the bar, because: {f['decision_reason']}")
     return (f"{head} "
             + (("Setup: " + "; ".join(setup) + ". ") if setup else "")
             + f"Result {moved / pip:+.1f} pips, {verdict} {trade['net']:+.2f} {currency} (gross {trade['profit']:+.2f}, "
@@ -162,7 +167,7 @@ def _lesson_text(trade: dict, market: dict, currency: str, info: dict | None = N
 def _exit_reason(trade: dict, journal: Journal) -> str:
     if (trade["exit_id"] or "").lower().startswith("[tp"):
         return "take_profit"
-    if trade["exit_id"] and trade["exit_id"].startswith(("H1B-X-", "T3X-", "H2X-")):
+    if trade["exit_id"] and trade["exit_id"].startswith(("H1B-X-", "T3X-", "H2X-", "H3X-")):
         row = journal.db.execute("SELECT result FROM orders WHERE client_order_id=?", (trade["exit_id"],)).fetchone()
         return json.loads(row[0]).get("rule", "rule_exit") if row else "rule_exit"
     if (trade["exit_id"] or "").lower().startswith("[sl"):  # MT5 marks stop-outs "[sl <price>]"
