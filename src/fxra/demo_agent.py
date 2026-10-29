@@ -218,6 +218,33 @@ def test_round_trip(journal: Journal, broker, limits: risk.RiskLimits | None, no
     return {"action": "round_trip", "entry": opened, "exit": closed}
 
 
+EXIT_PREFIX = {"H-001B": "H1B-X-", "H-002-claude": "H2X-", "H-002-codex": "H2X-",
+               "H-003-claude": "H3X-", "H-003-codex": "H3X-"}
+
+
+def close_positions(journal: Journal, broker, strategies: set[str], now: datetime, reason: str, author: str, *,
+                    send: bool = True) -> list[dict]:
+    """Owner-requested close of every open position of the named strategies/arms, through the demo adapter.
+
+    Each exit is journaled before and after the send with rule "owner_close", so lessons and
+    stats show why the trade ended. Never opens anything.
+    """
+    snap = broker.snapshot(SNAPSHOT_REQUEST)
+    out = []
+    for pos in snap["positions"]:
+        if pos.get("strategy") not in strategies:
+            continue
+        cid = f"{EXIT_PREFIX[pos['strategy']]}{pos['ticket']}"
+        side = "sell" if pos["side"] == "buy" else "buy"
+        journal.order(cid, now, "exit", side, pos["volume"], None, "sending" if send else "not_sent", {}, {})
+        result = broker.close({"ticket": pos["ticket"], "client_order_id": cid, "symbol": pos.get("symbol", SYMBOL)})             if send else {"status": "not_sent"}
+        result.update(rule="owner_close", reason=reason, author=author)
+        journal.order(cid, now, "exit", side, pos["volume"], None, result["status"], {}, result)
+        out.append({"ticket": pos["ticket"], "strategy": pos["strategy"], "symbol": pos.get("symbol"),
+                    "profit": pos.get("profit"), "status": result["status"]})
+    return out
+
+
 SNAPSHOT_REQUEST = {"symbols": ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "XAUUSD",
                                 "EURJPY", "GBPJPY", "AUDJPY", "NZDUSD", "EURGBP"],  # D-41 Asia/London pairs
                     "h1_bars": 60, "m15_bars": 120}
