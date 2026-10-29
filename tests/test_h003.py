@@ -132,6 +132,26 @@ def test_shadow_outcome():
     assert flat["exit"] == "max_hold_bars" and flat["R"] == 0.4
 
 
+def test_codex_arm_gets_the_same_candidates_and_its_own_magic(journal, tmp_path):
+    b, lim = Broker(), limits(tmp_path)
+    for arm in h003.ARMS:
+        h003.step(journal, b, lim, NOW, snap(m15(1.1020)), POLICY, arm=arm)
+    claude, codex = "H3GC-2610281400-B", "H3GX-2610281400-B"
+    with pytest.raises(PermissionError):
+        h003.decide(journal, codex, True, "breakout with H1 trend", AUTHOR, NOW)
+    h003.decide(journal, codex, True, "agreement and fresh breakout", "codex/gpt-6.1-sol", NOW)
+    h003.decide(journal, claude, False, "late in an extended move", AUTHOR, NOW)
+    later = NOW + timedelta(seconds=30)
+    h003.step(journal, b, lim, later, snap(m15(1.1020), at=later), POLICY, arm="codex")
+    assert [s["magic"] for s in b.sent] == [20261032] and b.sent[0]["intent"]["client_order_id"] == codex
+    journal.set_candidate(codex, shadow='{"R": 1.4, "exit": "take_profit", "bars": 3}')
+    journal.set_candidate(claude, shadow='{"R": 1.4, "exit": "take_profit", "bars": 3}')
+    sb = h003.scoreboard(journal)
+    assert sb["decisions"]["codex"]["sent"] == 1 and sb["decisions"]["codex"]["shadow_taken"] == 1.4
+    assert sb["decisions"]["claude"]["skipped"] == 1 and sb["decisions"]["claude"]["shadow_passed"] == 1.4
+    assert sb["agreement"] == {"n": 1, "agree": 0} and sb["by_arm"] == {}
+
+
 def test_brief_reports_pending_and_feedback(journal, tmp_path):
     h003.step(journal, Broker(), limits(tmp_path), NOW, snap(m15(1.1020)), POLICY)
     b = h003.brief(journal, NOW + timedelta(minutes=1))

@@ -124,7 +124,8 @@ def _lesson_text(trade: dict, market: dict, currency: str, info: dict | None = N
         regime = ", ".join(x for x in (f"{f['vol']} vol" if f.get("vol") else None,
                                        f"H1 trend {f['h1_trend']}" if f.get("h1_trend") else None,
                                        f"M15 trend {f['m15_trend']}" if f.get("m15_trend") else None) if x)
-        what = (f"H-003 model-approved ({'+'.join(f.get('patterns_for') or [])})" if eid.startswith("H3")
+        what = (f"H-003-{'codex' if eid.startswith('H3GX') else 'claude'} model-approved "
+                f"({'+'.join(f.get('patterns_for') or [])})" if eid.startswith("H3")
                 else f"H-002-{trade.get('arm') or 'claude'} {trade.get('pattern') or ''}")
         head = (f"{what} {trade['side']} {symbol}"
                 f" ({when}{'; ' + regime if regime else ''}): {verdict} {in_r(moved)}, {reason}.")

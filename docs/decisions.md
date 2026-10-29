@@ -336,6 +336,19 @@ Owner choices:
 The owner adds `H-003@gated-v1` to `approved_strategies` in the local
 `config/risk.toml`; until then the risk gate rejects every H-003 order.
 
+## Codex decides too; the dashboard follows H-003 (D-43)
+
+Owner request, 2026-10-29: let Claude trade H-003 on its own, run Codex GPT-6.1
+Sol Medium the same way so the two models can be compared, and make the
+dashboard follow the new way of trading with the earlier data kept for study.
+Added arm `H-003-codex` (magic 20261032, lots of the H-002 Codex arm). Both
+arms receive the same candidates and decide independently; the scoreboard
+compares net, R, taken-vs-passed shadow R and agreement on shared candidates.
+Codex is invoked by its own app's automation; until that exists its candidates
+expire. H-002 keeps running as the scripted control, and its sections move
+below a "learning data" divider. A refined lessons document and playbook update
+come from a separate curation session.
+
 ## Open questions
 
 ### Verified selection direction (owner, 2026-10-29)
