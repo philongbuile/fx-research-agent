@@ -372,6 +372,22 @@ def cmd_demo_test_order(a) -> int:
     return 0 if result["action"] == "round_trip" else 2
 
 
+def cmd_demo_close(a) -> int:
+    """Owner-requested close of all open positions of the given strategies/arms (through the demo adapter)."""
+    from .demo_agent import EXIT_PREFIX, SubprocessBroker, close_positions
+    from .trade_journal import Journal
+
+    strategies = {x.strip() for x in a.strategies.split(",") if x.strip()}
+    if not strategies <= set(EXIT_PREFIX):
+        raise SystemExit(f"strategies must be among {sorted(EXIT_PREFIX)}")
+    if not a.dry and not (a.reason and "/" in a.author):
+        raise SystemExit("--reason and --author <agent>/<model> are required to close positions")
+    out = close_positions(Journal(a.journal), SubprocessBroker(a.mt5_python, a.terminal), strategies,
+                          datetime.now(timezone.utc), a.reason or "", a.author, send=not a.dry)
+    print(json.dumps(out, indent=2))
+    return 0 if all(o["status"] in ("filled", "not_sent") for o in out) else 2
+
+
 def cmd_demo_run(a) -> int:
     from .dashboard import serve
 
@@ -510,6 +526,14 @@ def main(argv=None) -> int:
     demo_args(dt)
     dt.add_argument("--hold-seconds", type=int, default=60)
     dt.set_defaults(fn=cmd_demo_test_order)
+
+    dx = sub.add_parser("demo-close", help="close every open position of the given strategies/arms (owner request)")
+    demo_args(dx)
+    dx.add_argument("strategies", help="comma list, e.g. H-002-claude,H-002-codex")
+    dx.add_argument("--dry", action="store_true", help="list what would be closed, send nothing")
+    dx.add_argument("--reason")
+    dx.add_argument("--author", default="", help="<agent>/<model>")
+    dx.set_defaults(fn=cmd_demo_close)
 
     dr = sub.add_parser("demo-run", help="agent loop + local dashboard on 127.0.0.1")
     demo_args(dr)

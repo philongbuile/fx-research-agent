@@ -215,7 +215,7 @@ Two arms decide the same candidates independently (D-43): `H-003-claude`
 the `--author`'s own arm; a model can decide only its own arm's candidates.
 The dashboard opens with the H-003 model-vs-model section (net, R, taken vs
 passed shadow R, agreement on shared candidates, by session and symbol); the
-H-002 sections below it are learning data and the scripted control.
+H-002 sections below it are learning data: H-002 stopped opening trades on 2026-10-29 (D-43 addendum).
 
 Each model is invoked by its own app every 15 minutes, following
 `.claude/skills/fxra-demo-decide/SKILL.md` (Codex reads the mirror in
