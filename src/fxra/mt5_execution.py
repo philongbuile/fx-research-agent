@@ -20,7 +20,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 MAGIC = 20261028  # H-001B (and the TECH-0003 check)
-MAGICS = {MAGIC: "H-001B", 20261029: "H-002-claude", 20261030: "H-002-codex"}  # one per demo strategy/arm
+MAGICS = {MAGIC: "H-001B", 20261029: "H-002-claude", 20261030: "H-002-codex",  # one per demo strategy/arm
+          20261031: "H-003-claude"}  # D-42: model-approved entries
 SYMBOLS = frozenset({"EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "XAUUSD",  # owner's choice, 2026-10-28
                      "EURJPY", "GBPJPY", "AUDJPY", "NZDUSD", "EURGBP"})  # owner D-41, 2026-10-29
 MAX_DEVIATION_POINTS = 20

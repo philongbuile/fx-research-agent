@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import demo_agent, duty, econ_calendar, h002, lesson_insights, lesson_memory, playbook, risk
+from . import demo_agent, duty, econ_calendar, h002, h003, lesson_insights, lesson_memory, playbook, risk
 from .trade_journal import Journal
 
 
@@ -82,7 +82,8 @@ class Agent:
     def arm_labels(self) -> dict:
         """Arm name -> label of the model its owner runs now (config/duty.toml [agents])."""
         roster = duty.load_roster(self.roster_path)
-        return {cfg["arm"]: duty.agent_info(roster, cfg["owner"])["label"] for cfg in h002.ARMS.values()}
+        return {cfg["arm"]: duty.agent_info(roster, cfg["owner"])["label"]
+                for cfg in (*h002.ARMS.values(), *h003.ARMS.values())}
 
     def model_labels(self) -> dict:
         """Model id (and agent name) -> display label, for attribution columns written as ids."""
@@ -129,6 +130,10 @@ class Agent:
                     self.journal, self.broker, limits, now, snap,
                     h002.arm_policy(self.demo_dir, arm, self.journal), send=self.send, duty=on, arm=arm,
                     arm_model=labels[cfg["arm"]])))
+            for arm, cfg in h003.ARMS.items():  # D-42: sends only what the arm's model approved
+                runs.append((cfg["arm"], lambda arm=arm, cfg=cfg: h003.step(
+                    self.journal, self.broker, limits, now, snap, h003.policy(self.demo_dir, arm, self.journal),
+                    send=self.send, duty=on, arm=arm, arm_model=labels[cfg["arm"]])))
             for name, run in runs:
                 try:
                     results[name] = run()
@@ -149,7 +154,9 @@ class Agent:
         with self.lock:
             data = self.journal.state()
             data["playbook"] = playbook.report(self.journal)
-        ids = [f"{demo_agent.STRATEGY_ID}@{demo_agent.STRATEGY_VERSION}", f"{h002.STRATEGY_ID}@{h002.STRATEGY_VERSION}"]
+            data["h003"] = {arm: h003.brief(self.journal, datetime.now(timezone.utc), arm) for arm in h003.ARMS}
+        ids = [f"{demo_agent.STRATEGY_ID}@{demo_agent.STRATEGY_VERSION}", f"{h002.STRATEGY_ID}@{h002.STRATEGY_VERSION}",
+               f"{h003.STRATEGY_ID}@{h003.STRATEGY_VERSION}"]
         data.update(live=self.broker.last, live_error=self.broker.error, last_step=self.last_step,
                     kill_switch=risk.kill_switch_active(limits), mode=limits.mode if limits else None,
                     strategies={i: bool(limits and i in limits.approved_strategies) for i in ids},
@@ -268,6 +275,7 @@ details{margin-top:12px}summary{cursor:pointer;color:var(--mute);font-size:13px}
 <section class="card wide"><h2>Daily KPI (UTC day)</h2><div id="kpi"></div></section>
 <section class="card wide"><h2>Open positions</h2><div id="position"></div></section>
 <section class="card wide"><h2>Agent status</h2><div id="step"></div></section>
+<section class="card wide"><h2>H-003 · the model decides each entry</h2><div id="h003"></div></section>
 <section class="card wide"><h2>Economic calendar (MT5, moderate and high importance)</h2><div id="calendar"></div></section>
 <section class="card wide"><h2>Equity</h2><div id="equity"></div></section>
 <section class="card wide"><h2>Trades (broker deals)</h2><div class="scroll"><table id="trades"></table></div><div id="trades-more"></div></section>
@@ -382,6 +390,16 @@ async function load(){
       <p style="margin:8px 0 4px;font-size:13px"><b>Matched:</b> ${fmtS(e.matched)}<br><span class="muted"><b>Others:</b> ${fmtS(e.others)}</span>${e.by_arm?`<br><span class="muted" style="font-size:12px">${fmtArm(e.by_arm)}</span>`:""}</p>
       <p class="muted" style="margin:4px 0 0;font-size:12px">${esc(r.rationale)} · ${esc(who(r.author))}${r.proposal_id?` · proposal #${r.proposal_id}`:""}${r.note?` · ${esc(r.note)}`:""}</p></div>`}).join("")+"</div>"
     :'<p class="muted">No rules yet. Each shift, Claude and Codex distill candidate rules from Hindsight lessons with <code>fxra demo-playbook --add</code>.</p>';
+  const fr=v=>v==null?"–":`<span class="${v>0?"ok":v<0?"bad":""}">${v>0?"+":""}${v.toFixed(2)}R</span>`;
+  $("h003").innerHTML=Object.entries(s.h003||{}).map(([a,b])=>{const f=b.feedback_3d;
+    return `<h3>${esc(armLabel(b.arm))} · ${esc(b.arm)}</h3><div class="kpis">${kpi("Waiting for the model",b.pending.length)}${kpi("Decided (3 days)",f.decided)}
+      ${kpi(`Taken · shadow R (${f.n_taken_scored})`,fr(f.shadow_mean_R_taken))}${kpi(`Passed · shadow R (${f.n_passed_scored})`,fr(f.shadow_mean_R_passed))}</div>
+      <p class="muted">Shadow R = what the default stop/target would have made from the bar close, after assumed cost. The model's filter helps only if taken beats passed.</p>`+
+      (b.pending.length?`<table class="mx"><tr><th>Candidate</th><th>Side</th><th style="text-align:left">Patterns for / against</th><th>Expires</th></tr>`+
+        b.pending.map(c=>`<tr><td>${esc(c.id)}</td><td>${esc(c.side)}</td><td style="text-align:left">${esc(c.for.join(", "))}${c.against.length?` <span class="muted">vs ${esc(c.against.join(", "))}</span>`:""}</td><td>${c.expires_in_min} min</td></tr>`).join("")+"</table>":"")+
+      (b.recent.length?`<details open><summary>Recent decisions</summary><table class="mx"><tr><th>Candidate</th><th>Status</th><th>Shadow</th><th style="text-align:left">Reason</th></tr>`+
+        b.recent.map(c=>`<tr><td>${esc(c.id)}</td><td><span class="badge ${c.status==="sent"||c.status==="approved"?"b-entry":c.status==="skipped"?"b-hold":"b-exit"}">${esc(c.status)}</span></td><td>${fr(c.shadow_R)}</td><td style="text-align:left;white-space:normal">${esc(c.reason||"")}</td></tr>`).join("")+"</table></details>"
+        :'<p class="muted">No candidates yet.</p>')}).join("")||'<p class="muted">H-003 is not running.</p>';
   $("proposals").innerHTML=s.proposals.length?`<table><tr><th>#</th><th>By</th><th>Proposal</th><th>Evidence</th><th>Status</th><th>Review</th></tr>`+
     s.proposals.map(p=>`<tr><td>${p.id}</td><td>${esc(who(p.author))}</td><td>${esc(p.text)}</td><td>${esc(p.evidence)}</td><td><b>${esc(p.status)}</b></td><td>${esc(p.reviewer?who(p.reviewer)+": "+p.review:"")}</td></tr>`).join("")+"</table>":'<p class="muted">No proposals yet. A rule is distilled only when the other model agrees.</p>';
   $("mode").textContent="mode: "+(s.mode||"no risk.toml");

@@ -303,6 +303,39 @@ the account currency by the broker. Note: the agent started at 14:00 UTC on
 2026-10-28, so the first Asia session (00:00-07:00 UTC) had not happened yet
 when the request was made.
 
+## The model decides each entry (D-42)
+
+Owner decision, 2026-10-29, after asking why H-002 lost so much and noting that
+the explorer is a script, not the model, choosing trades. The journal recount
+(1238 closed H-002 trades) found the losses in the trend/breakout patterns
+(914 trades, -0.24R) on both arms alike, stops at the 5-pip floor (-0.19R) and
+one position per pattern, so three agreeing patterns tripled one idea.
+
+Owner choices:
+
+- Claude arm H-002 policy v8 disables breakout10, breakout20, inside_bar_break,
+  three_bar_momentum and macd_cross (negative outside the FOMC hour too). This
+  changes the Claude arm that the Codex selective study uses as its comparator;
+  report the v8 boundary (2026-10-29 ~12:45Z) as a confound there.
+- New hypothesis **H-003 (`H-003@gated-v1`, arm `H-003-claude`, magic
+  20261031)**: each closed M15 bar the loop records one candidate per symbol,
+  bar and side with the matching patterns and context. Nothing is sent until
+  Claude approves a candidate with a reason (`fxra demo-decide`); Claude may set
+  the stop (1-3 x ATR, at least 8 pips) and target (1-3 R), never the lots.
+  Approved candidates go through the same risk gate, kill switch and demo
+  adapter. Unanswered candidates expire after 12 minutes.
+- The model is invoked by a Claude desktop scheduled task every 15 minutes
+  (no API key). The app must be open; late runs find expired candidates.
+- H-002 keeps running in parallel as the scripted control. H-003 uses the same
+  lots as the H-002 Claude arm.
+- Every candidate gets a shadow outcome (default stop/target from the bar close,
+  after the assumed cost). The model's filter adds value only if taken
+  candidates beat passed ones on future data. Demo forward observation, not
+  evidence of edge; no claim that an LLM predicts prices.
+
+The owner adds `H-003@gated-v1` to `approved_strategies` in the local
+`config/risk.toml`; until then the risk gate rejects every H-003 order.
+
 ## Open questions
 
 ### Verified selection direction (owner, 2026-10-29)

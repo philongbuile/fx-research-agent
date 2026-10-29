@@ -176,6 +176,45 @@ uv run fxra demo-playbook --add "Avoid breakouts in the FOMC hour" --action avoi
 uv run fxra demo-playbook --status 1 proposed --proposal 2 --author claude/claude-opus-5-5
 ```
 
+## H-003: the model decides each entry (D-42)
+
+H-002 is a script: every matched pattern opens a position. H-003 (`src/fxra/h003.py`,
+arm `H-003-claude`, magic `20261031`) puts the model in the loop:
+
+1. Each closed M15 bar the loop writes **candidates** to the journal's
+   `candidates` table, one per symbol, bar and side
+   (`H3GC-[code-]<yymmddHHMM>-<B|S>`). A candidate lists the patterns for and
+   against, signal agreement, per-pattern stats, session, trend, volatility,
+   news and open positions on the symbol, and the default stop and target
+   (`max(1.5 x ATR, 8 pips)`, 1.5R). Nothing is sent.
+2. The model reads them and decides, with a reason (at least 10 characters):
+
+   ```powershell
+   uv run fxra demo-decide                     # pending candidates + how past decisions turned out
+   uv run fxra demo-decide --take H3GC-XA-2610291430-B --sl-atr 2 --tp-rr 1.5 --reason "..." --author claude/claude-opus-5-5
+   uv run fxra demo-decide --skip H3GC-EG-2610291430-S --reason "..." --author claude/claude-opus-5-5
+   uv run fxra demo-decide --skip-rest --reason "..." --author claude/claude-opus-5-5
+   ```
+
+   Stop 1-3 x ATR (at least 8 pips) and target 1-3R are the model's choice.
+   Lots follow the H-002 Claude arm policy and cannot be changed here.
+3. Within 30 seconds the loop sends approved candidates through the risk gate
+   and kill switch, using the candidate id as the client order id. Positions
+   are time-exited after 8 bars (`H3X-<ticket>`). A candidate not answered in
+   12 minutes expires; an approval the loop could not send within 5 minutes
+   after that expires too.
+4. Every candidate gets a **shadow outcome** once 8 later bars have closed:
+   the default stop/target from the bar close, stop first when one bar touches
+   both, minus the assumed 0.8-pip cost. The dashboard and `demo-decide` compare
+   the shadow R of taken and passed candidates. That comparison, on future
+   data, is the test of whether the model's filter helps.
+
+The model is invoked by a Claude desktop scheduled task every 15 minutes that
+follows `.claude/skills/fxra-demo-decide/SKILL.md`. The app must be open. H-003
+trades are tagged `strategy H-003` with no pattern, so they stay out of the
+H-002 per-pattern stats; their lessons quote the model's reason. The risk gate
+rejects H-003 until the owner adds `H-003@gated-v1` to `approved_strategies`.
+
 ## Lessons and memory
 
 - `fxra demo-step` writes a factual lesson row for each closed trade. It leads
