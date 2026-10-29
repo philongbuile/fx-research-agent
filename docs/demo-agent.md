@@ -256,6 +256,10 @@ rejects H-003 until the owner adds `H-003@gated-v1` to `approved_strategies`.
   `H-001B`, `lesson`), and writes a narrative lesson there. It records it with
   `uv run fxra demo-lesson --add "<text>" --trade <position_id> --author claude|codex --hindsight-document <id>`
   (or `--mark-retained <lesson_id> <document_id>` for an agent-written row).
+- `docs/demo-lessons.md` is the curated summary of what H-002 taught (by
+  family, agreement, stop, hour, symbol, news and arm, counted as unique
+  events), with the open questions H-003 should test. The matching Hindsight
+  documents are `fxra-lessons-<theme>` (tags `demo`, `lesson`, `curated`).
 - Development progress goes to ai-memory (`personal-development/fx-research-agent`),
   never trade results. Trade results and lessons go to Hindsight, never secrets
   or account identifiers.

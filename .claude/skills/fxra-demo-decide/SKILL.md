@@ -57,20 +57,41 @@ something if the decisions are independent.
 
 4. Reply with one line: how many taken and skipped, and why in a few words.
 
-## What the evidence said when H-003 started (2026-10-29, two days, in-sample)
+## What the evidence says: decision checklist
 
-These are observations to weigh, not rules:
+Details, numbers and caveats: `docs/demo-lessons.md`. All of it is in-sample
+H-002 data from about one trading day (bars 2026-10-28 15:00Z to 2026-10-29
+15:45Z, 520 unique events, R after a 0.8-pip cost). Weigh it; it is not a rule.
+For each candidate, check:
 
-- Trend/breakout patterns lost on both H-002 arms (about -0.24R); mean-reversion
-  patterns (ema50_stretch_fade, pin_bar, bb_rsi_reversion, failed_breakout_fade)
-  gained (about +0.28R).
-- Stops at the 5-pip floor lost; H-003 already defaults to max(1.5 x ATR, 8 pips).
-- Three or more patterns agreeing did worse than a single pattern: the move is
-  often already extended.
-- The FOMC hour and the thin 22-23h UTC Asia open produced clusters of stop-outs.
-- Many USD pairs moving together are one idea, not several.
+1. **Family.** Trend/breakout entries lost on both days (-0.34R over 314
+   events); worst and negative on both days: breakout10, breakout20,
+   inside_bar_break, macd_cross, ema_pullback, three_bar_momentum. Reversion
+   gained (+0.17R, 185); only ema50_stretch_fade was positive on both days.
+   pin_bar and failed_breakout_fade flipped sign; engulfing is unproven (frozen
+   study to 2026-11-05).
+2. **Opposition.** A trend signal with any pattern pointing the other way lost
+   badly (-0.78R, 74 events); the fade side was usually right. Opposition does
+   not hurt a reversion signal. Plain agreement without opposition did not
+   help or hurt (3+ agree -0.10R vs solo -0.10R).
+3. **Same idea twice.** Do not add a position where your arm already holds the
+   same idea on that symbol. Several USD pairs in the same USD direction are
+   one bet; on the FOMC night they all lost together.
+4. **Stop.** Tight stops hurt trend entries most (-0.61R at the old 5-pip
+   floor). Keep the default max(1.5 x ATR, 8 pips) or wider; a wider stop does
+   not rescue a bad entry.
+5. **Time.** Trend entries at thin opens (22-23h and 06-07h UTC) lost (-0.78R,
+   63 events, one night and one morning). The first hour after a major release
+   (FOMC 2026-10-28) ran over breakouts and most fades. Check
+   `uv run fxra demo-calendar`; the candidate `event` field is `none` until
+   the calendar export runs.
+6. **Symbol.** GBPUSD was the only clearly positive symbol (+0.17R, 62); EURGBP
+   the most consistent loser (-0.47R, 40). One day of data each.
+7. **Stats shown with a candidate** are raw trades and pips, pooled over arms;
+   prefer the event-R figures in `docs/demo-lessons.md` and `fxra demo-playbook`.
 
-Judge each candidate on its own. Taking every candidate or skipping every one
+Write in the reason which of these you used, so the lesson can test it. Judge
+each candidate on its own. Taking every candidate or skipping every one
 teaches nothing: the test is whether your taken candidates beat your passed
 ones on shadow R over the coming days. Results are demo forward observations,
 not evidence of edge. Do not claim you can predict prices.

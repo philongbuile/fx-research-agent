@@ -225,13 +225,17 @@ here and in `fxra demo-playbook`.
   reversion +0.15R (87) vs +0.13R (83). Arm differences came from enabled
   patterns and from position capacity, not from the model.
 - **Codex selective pilot** (owner exception, from 04:12Z; ema50_stretch_fade,
-  bb_rsi_reversion, engulfing): 73 events, -0.14R up to the snapshot. Too
-  young to judge, and it confounds proposals 4-6.
-- **Claude arm** disabled five trend patterns at 15:05Z (policy v8) and the
-  owner stopped the scripted Claude arm at about 16:04Z (v9, no patterns).
-  The playbook counts only H-002 trades, so rules about trend patterns will
-  gather little or no new evidence from H-002 from now on. Their prospective
-  test is the H-003 shadow outcome of candidates led by those patterns.
+  bb_rsi_reversion, engulfing; ended with H-002 at about 16:10Z): 73 events,
+  -0.14R up to the snapshot. Too small to judge, and it confounds proposals
+  4-6.
+- **H-002 is stopped.** The Claude arm disabled five trend patterns at
+  15:05Z (policy v8). At about 16:10Z the owner stopped H-002 on both arms
+  (D-43 addendum): open positions were closed with `owner_close`, the Claude
+  arm is v9 with no patterns, proposal 7 asks Codex to do the same, and the
+  Codex pilot ends there. The playbook counts only H-002 trades, so its
+  evidence is now essentially frozen at this snapshot. The prospective test
+  of every rule below is the H-003 **shadow outcome** of candidates that
+  match it, which the playbook does not count yet.
 - **H-003** started with the 15:30Z bar on 2026-10-29. By about 16:05Z there
   were 61 candidates: Claude took 6, skipped 14 and let 21 expire; Codex's
   automation was not running yet (10 expired, 10 pending). No shadow outcome
@@ -244,20 +248,18 @@ events across at least three UTC dates and two sessions. Do not tune on
 interim results; a change of design is a new hypothesis id.
 
 1. Do candidates led by the six losing trend patterns keep a negative shadow
-   R, and does the model's skip of them beat taking them? (Playbook rule
-   "avoid six trend/breakout patterns".)
+   R, and does the model's skip of them beat taking them? (Playbook rule 7.)
 2. Do trend candidates with an opposing pattern keep losing? Is the fade side
-   of such a bar worth taking? (Playbook rule "trend signal with an opposing
-   pattern".)
+   of such a bar worth taking? (Playbook rule 8.)
 3. Are thin opens (22-23h and 06-07h UTC) bad for trend entries on other
-   nights, and neutral for reversion? (Playbook rule "trend at thin opens".)
+   nights, and neutral for reversion? (Playbook rule 9.)
 4. Does ema50_stretch_fade stay positive, and do pin_bar and
    failed_breakout_fade (sign flipped between days) settle on either side?
-   (Proposal 5 and playbook watch rule.)
+   (Proposal 5, playbook rules 4 and 10.)
 5. Is engulfing negative over its frozen window? (Proposal 4, to
    2026-11-05.)
-6. Does GBPUSD stay better than the rest, and EURGBP worse? (Playbook watch
-   and avoid rules.)
+6. Does GBPUSD stay better than the rest, and EURGBP worse? (Playbook rules 11
+   and 12.)
 7. With the calendar export running, how do the first 30-60 minutes after a
    high-importance release treat each family? What about the news patterns?
 8. Do stops of 1.5-2 x ATR (H-003 default) remove the floor effect for the
@@ -269,8 +271,13 @@ interim results; a change of design is a new hypothesis id.
 
 - Decisions: D-30..D-43 in `docs/decisions.md`; the selective study in
   `docs/verified-pattern-selection.md`.
-- Hindsight (bank `fxra`): curated theme documents `fxra-lessons-<theme>`
-  (tags `demo`, `lesson`, `curated`), the post-mortem
+- Playbook candidate rules 7-12 (`uv run fxra demo-playbook`) encode the
+  strongest observations above. Their `confirm_n` is the event count at
+  curation plus 30, so none is "ready to propose" on this data alone.
+- Hindsight (bank `fxra`): curated theme documents `fxra-lessons-overview`,
+  `-pattern-families`, `-agreement-stacking`, `-stops`, `-time-and-news`,
+  `-symbols` and `-arms-and-h003` (tags `demo`, `lesson`, `curated`), the
+  post-mortem
   `fxra-h002-postmortem-20261029`, the FOMC lesson
   `fxra-lesson-claude-arm-usd-cluster-2026-10-28`, and the hourly digest
   `fxra-insight-*`. Recalled text is context; numbers come from the journal.
