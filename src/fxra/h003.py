@@ -19,12 +19,13 @@ from pathlib import Path
 
 from . import econ_calendar, h002, risk
 from .contracts import AccountSnapshot, OrderIntent, Quote, SymbolSpec
-from .trade_journal import PIP_SIZES, Journal, confluence
+from .trade_journal import PIP_SIZES, Journal, _group, confluence
 
 STRATEGY_ID = "H-003"
 STRATEGY_VERSION = "gated-v1"  # risk.toml must approve "H-003@gated-v1"
-ARMS = {"claude": {"arm": "H-003-claude", "owner": "claude", "magic": 20261031, "code": "GC",
-                   "h002_arm": "claude"}}  # lots and symbols follow this H-002 arm (owner: same lots)
+# Lots and symbols follow the named H-002 arm (owner: same lots). Both arms see the same candidates.
+ARMS = {"claude": {"arm": "H-003-claude", "owner": "claude", "magic": 20261031, "code": "GC", "h002_arm": "claude"},
+        "codex": {"arm": "H-003-codex", "owner": "codex", "magic": 20261032, "code": "GX", "h002_arm": "codex"}}
 
 DEFAULT_POLICY = {
     "sl_atr": 1.5, "min_sl_pips": 8.0, "tp_rr": 1.5, "max_hold_bars": 8,
@@ -130,9 +131,46 @@ def brief(journal: Journal, now: datetime, arm: str = "claude") -> dict:
                         "shadow_mean_R_taken": mean(taken), "n_taken_scored": len(taken),
                         "shadow_mean_R_passed": mean(passed), "n_passed_scored": len(passed)},
         "recent": [{"id": c["id"], "status": c["status"], "reason": c["reason"],
-                    "shadow_R": (c["shadow"] or {}).get("R")} for c in done if c["status"] != "pending"][:15],
+                    "shadow_R": (c["shadow"] or {}).get("R")} for c in done if c["status"] not in ("pending", "expired")][:15],
         "bounds": {k: DEFAULT_POLICY[k] for k in ("sl_atr", "tp_rr", "sl_atr_bounds", "tp_rr_bounds", "min_sl_pips")},
     }
+
+
+def scoreboard(journal: Journal, assumed_cost_pips: float = 0.8) -> dict:
+    """Model vs model on H-003: closed trades (net, R), decisions and how taken compares with passed."""
+    closed = journal._rows(
+        "SELECT t.*, g.arm, g.symbol, g.session, o.stop_loss FROM trades t JOIN entry_tags g ON g.entry_id=t.entry_id"
+        " LEFT JOIN orders o ON o.client_order_id=t.entry_id WHERE g.strategy=? AND t.net IS NOT NULL", STRATEGY_ID)
+    for t in closed:
+        sign = 1 if t["side"] == "buy" else -1
+        risk_dist = abs(t["open_price"] - t["stop_loss"]) if t["stop_loss"] else None
+        t["R"] = sign * (t["close_price"] - t["open_price"]) / risk_dist if risk_dist else None
+    group = lambda key: _group(closed, key, assumed_cost_pips)
+    by_arm = group(lambda t: t["arm"])
+    for arm, g in by_arm.items():
+        rs = [t["R"] for t in closed if t["arm"] == arm and t["R"] is not None]
+        g["avg_r"] = round(sum(rs) / len(rs), 3) if rs else None
+    decisions, mean = {}, lambda xs: round(sum(xs) / len(xs), 3) if xs else None
+    cands = journal.candidates(limit=100000)
+    for arm in ARMS:
+        mine = [c for c in cands if c["arm"] == arm]
+        status = {s: sum(c["status"] == s for c in mine) for s in STATUSES}
+        lat = [(_t(c["decided_at"]) - _t(c["created_at"])).total_seconds() / 60 for c in mine if c["decided_at"]]
+        shadow_of = lambda sts: [c["shadow"]["R"] for c in mine if c["shadow"] and c["status"] in sts]
+        taken, passed = shadow_of(("approved", "sent", "rejected")), shadow_of(("skipped", "expired"))
+        decisions[arm] = {"candidates": len(mine), **status, "avg_latency_min": round(sum(lat) / len(lat), 1) if lat else None,
+                          "shadow_taken": mean(taken), "n_taken": len(taken),
+                          "shadow_passed": mean(passed), "n_passed": len(passed)}
+    # same candidate (symbol, bar, side) decided by both arms: how often they agree
+    seen: dict = {}
+    for c in cands:
+        if c["status"] in ("approved", "sent", "rejected", "skipped"):
+            seen.setdefault((c["symbol"], c["bar"], c["side"]), {})[c["arm"]] = c["status"] != "skipped"
+    both = [v for v in seen.values() if len(v) == len(ARMS)]
+    return {"by_arm": by_arm, "decisions": decisions,
+            "by_arm_session": {f"{a} / {s}": v for (a, s), v in sorted(group(lambda t: (t["arm"], t["session"])).items())},
+            "by_arm_symbol": {f"{a} / {s}": v for (a, s), v in sorted(group(lambda t: (t["arm"], t["symbol"])).items())},
+            "agreement": {"n": len(both), "agree": sum(len(set(v.values())) == 1 for v in both)}}
 
 
 # the loop's side -----------------------------------------------------------

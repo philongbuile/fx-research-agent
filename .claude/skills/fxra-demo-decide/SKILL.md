@@ -22,9 +22,22 @@ From the repository root, in PowerShell:
 $env:PATH="$PWD\artifacts\tools\uv-0.12.7;$env:PATH"; $env:UV_CACHE_DIR="$PWD\artifacts\uv-cache"; $env:UV_OFFLINE="1"; $env:PYTHONIOENCODING="utf-8"
 ```
 
+## Who you are
+
+Each model decides only its own arm and always passes its own author:
+
+| Model | Arm | `--author` |
+|---|---|---|
+| Claude Opus 5.5 Medium | `H-003-claude` | `claude/claude-opus-5-5` |
+| Codex GPT-6.1 Sol Medium | `H-003-codex` | `codex/gpt-6.1-sol` |
+
+Both arms see the same candidates and decide independently. Do not read or copy
+the other arm's pending decisions before you decide; the comparison only means
+something if the decisions are independent.
+
 ## Each run
 
-1. `uv run fxra demo-decide` lists `pending` candidates with their context,
+1. `uv run fxra demo-decide --author <yours>` lists your arm's `pending` candidates with their context,
    your recent decisions with their shadow R, and the stop/target bounds. If
    nothing is pending, stop. Say so in one line.
 2. Optional, if time allows: `uv run fxra demo-playbook` for the candidate
@@ -37,9 +50,9 @@ $env:PATH="$PWD\artifacts\tools\uv-0.12.7;$env:PATH"; $env:UV_CACHE_DIR="$PWD\ar
    you want to learn from later.
 
    ```powershell
-   uv run fxra demo-decide --take <id> [--sl-atr 1.0-3.0] [--tp-rr 1.0-3.0] --reason "..." --author claude/claude-opus-5-5
-   uv run fxra demo-decide --skip <id> --reason "..." --author claude/claude-opus-5-5
-   uv run fxra demo-decide --skip-rest --reason "..." --author claude/claude-opus-5-5
+   uv run fxra demo-decide --take <id> [--sl-atr 1.0-3.0] [--tp-rr 1.0-3.0] --reason "..." --author <yours>
+   uv run fxra demo-decide --skip <id> --reason "..." --author <yours>
+   uv run fxra demo-decide --skip-rest --reason "..." --author <yours>
    ```
 
 4. Reply with one line: how many taken and skipped, and why in a few words.

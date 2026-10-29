@@ -155,6 +155,7 @@ class Agent:
             data = self.journal.state()
             data["playbook"] = playbook.report(self.journal)
             data["h003"] = {arm: h003.brief(self.journal, datetime.now(timezone.utc), arm) for arm in h003.ARMS}
+            data["h003_scoreboard"] = h003.scoreboard(self.journal)
         ids = [f"{demo_agent.STRATEGY_ID}@{demo_agent.STRATEGY_VERSION}", f"{h002.STRATEGY_ID}@{h002.STRATEGY_VERSION}",
                f"{h003.STRATEGY_ID}@{h003.STRATEGY_VERSION}"]
         data.update(live=self.broker.last, live_error=self.broker.error, last_step=self.last_step,
@@ -266,25 +267,29 @@ table.mx{width:auto;min-width:100%}.mx th,.mx td{text-align:center;white-space:n
 .params .diff{border-color:var(--accent)}.params .diff span:after{content:" · differs";color:var(--accent)}
 details{margin-top:12px}summary{cursor:pointer;color:var(--mute);font-size:13px}
 .tl{display:grid;grid-template-columns:auto auto 1fr;gap:4px 12px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line)}
+.learnhead{border-style:dashed;margin-top:16px}
 .tl:last-child{border-bottom:0}@media (max-width:640px){.tl{grid-template-columns:1fr auto}.tl>:last-child{grid-column:1/-1}}
 </style></head><body>
 <header><h1>FX Demo Agent</h1><span id="duty" class="pill"></span><span id="memsync" class="pill"></span><span id="calsync" class="pill"></span><span id="strategy" class="pill"></span><span id="mode" class="pill"></span>
 <span id="kill" class="pill"></span><span id="conn" class="pill"></span><span id="updated" class="muted"></span></header>
 <main>
 <section class="card wide"><h2>Account &amp; market</h2><div class="kpis" id="kpis"></div></section>
+<section class="card wide"><h2>H-003 · model vs model · the model decides each entry</h2><div id="h003"></div></section>
 <section class="card wide"><h2>Daily KPI (UTC day)</h2><div id="kpi"></div></section>
 <section class="card wide"><h2>Open positions</h2><div id="position"></div></section>
 <section class="card wide"><h2>Agent status</h2><div id="step"></div></section>
-<section class="card wide"><h2>H-003 · the model decides each entry</h2><div id="h003"></div></section>
 <section class="card wide"><h2>Economic calendar (MT5, moderate and high importance)</h2><div id="calendar"></div></section>
-<section class="card wide"><h2>Equity</h2><div id="equity"></div></section>
-<section class="card wide"><h2>Trades (broker deals)</h2><div class="scroll"><table id="trades"></table></div><div id="trades-more"></div></section>
-<section class="card wide"><h2>Decisions, hour by hour</h2><div class="scroll"><table id="decisions"></table></div><div id="decisions-more"></div></section>
-<section class="card wide"><h2>Model scoreboard</h2><div id="scoreboard"></div></section>
+<section class="card wide"><h2>Equity (whole demo account)</h2><div id="equity"></div></section>
+<section class="card wide"><h2>Trades (broker deals)</h2><label class="muted" style="font-size:13px"><input type="checkbox" id="alltrades" onchange="ALLT=this.checked;load()"> include H-002 / H-001B learning data</label>
+  <div class="scroll"><table id="trades"></table></div><div id="trades-more"></div></section>
+<section class="card wide learnhead"><h2>Learning data · H-002 scripted control and history</h2><p class="muted" style="margin:0">Everything below comes from the scripted explorer (H-002, every matched pattern trades) and the history since 2026-10-28.
+  It keeps running as the control for H-003 and is the evidence the models read before deciding: playbook, lessons, pattern stats. It is not the current way of trading.</p></section>
+<section class="card wide"><h2>Decisions, bar by bar (H-001B / H-002 script)</h2><div class="scroll"><table id="decisions"></table></div><div id="decisions-more"></div></section>
+<section class="card wide"><h2>H-002 scoreboard (scripted arms)</h2><div id="scoreboard"></div></section>
 <section class="card wide"><h2>What H-002 is learning (exploration, after assumed cost)</h2><div id="learning"></div></section>
 <section class="card wide"><h2>Playbook (candidate rules, evidence recounted from trades)</h2><div id="playbook"></div></section>
 <section class="card wide"><h2>Proposals (need the other model's review)</h2><div id="proposals"></div></section>
-<section class="card wide"><h2>Arm policies</h2><div id="policy"></div></section>
+<section class="card wide"><h2>H-002 arm policies</h2><div id="policy"></div></section>
 <section class="card wide"><h2>Lessons</h2><div id="lessons"></div><div id="lessons-more"></div></section>
 </main>
 <script>
@@ -304,7 +309,8 @@ async function load(){
   const L=s.live||{}, a=L.account||{}, q=L.quote, ccy=a.currency||"";
   $("strategy").textContent=Object.entries(s.strategies).map(([k,v])=>k+(v?" ✓":" ✗ not approved")).join("  ·  ");
   const k=s.kpi, pct=Math.max(0,Math.min(100,k.progress*100));
-  $("kpi").innerHTML=`<div class="kpis">${kpi("Net today",money(k.net_today,"USD"))}${kpi("Target",k.target_usd+" USD")}${kpi("Progress",(k.progress*100).toFixed(0)+"%")}</div>
+  const h3today=s.trades.filter(r=>(r.entry_id||"").startsWith("H3")&&r.net!=null&&(r.close_time||"").slice(0,10)===k.day_utc).reduce((x,r)=>x+r.net,0);
+  $("kpi").innerHTML=`<div class="kpis">${kpi("H-003 net today",money(h3today,"USD"))}${kpi("Whole account net today",money(k.net_today,"USD"))}${kpi("Target",k.target_usd+" USD")}${kpi("Progress (account)",(k.progress*100).toFixed(0)+"%")}</div>
     <div style="height:10px;background:var(--line);border-radius:99px;margin-top:10px"><div style="height:10px;width:${pct}%;background:${k.net_today<0?"var(--down)":"var(--up)"};border-radius:99px"></div></div>
     <p class="muted">Tracked, not optimised: the agent never sizes up to chase it.</p>`;
   const AL=s.arm_labels||{}, ML=s.model_labels||{};
@@ -391,15 +397,27 @@ async function load(){
       <p class="muted" style="margin:4px 0 0;font-size:12px">${esc(r.rationale)} · ${esc(who(r.author))}${r.proposal_id?` · proposal #${r.proposal_id}`:""}${r.note?` · ${esc(r.note)}`:""}</p></div>`}).join("")+"</div>"
     :'<p class="muted">No rules yet. Each shift, Claude and Codex distill candidate rules from Hindsight lessons with <code>fxra demo-playbook --add</code>.</p>';
   const fr=v=>v==null?"–":`<span class="${v>0?"ok":v<0?"bad":""}">${v>0?"+":""}${v.toFixed(2)}R</span>`;
-  $("h003").innerHTML=Object.entries(s.h003||{}).map(([a,b])=>{const f=b.feedback_3d;
-    return `<h3>${esc(armLabel(b.arm))} · ${esc(b.arm)}</h3><div class="kpis">${kpi("Waiting for the model",b.pending.length)}${kpi("Decided (3 days)",f.decided)}
-      ${kpi(`Taken · shadow R (${f.n_taken_scored})`,fr(f.shadow_mean_R_taken))}${kpi(`Passed · shadow R (${f.n_passed_scored})`,fr(f.shadow_mean_R_passed))}</div>
-      <p class="muted">Shadow R = what the default stop/target would have made from the bar close, after assumed cost. The model's filter helps only if taken beats passed.</p>`+
-      (b.pending.length?`<table class="mx"><tr><th>Candidate</th><th>Side</th><th style="text-align:left">Patterns for / against</th><th>Expires</th></tr>`+
-        b.pending.map(c=>`<tr><td>${esc(c.id)}</td><td>${esc(c.side)}</td><td style="text-align:left">${esc(c.for.join(", "))}${c.against.length?` <span class="muted">vs ${esc(c.against.join(", "))}</span>`:""}</td><td>${c.expires_in_min} min</td></tr>`).join("")+"</table>":"")+
-      (b.recent.length?`<details open><summary>Recent decisions</summary><table class="mx"><tr><th>Candidate</th><th>Status</th><th>Shadow</th><th style="text-align:left">Reason</th></tr>`+
-        b.recent.map(c=>`<tr><td>${esc(c.id)}</td><td><span class="badge ${c.status==="sent"||c.status==="approved"?"b-entry":c.status==="skipped"?"b-hold":"b-exit"}">${esc(c.status)}</span></td><td>${fr(c.shadow_R)}</td><td style="text-align:left;white-space:normal">${esc(c.reason||"")}</td></tr>`).join("")+"</table></details>"
-        :'<p class="muted">No candidates yet.</p>')}).join("")||'<p class="muted">H-003 is not running.</p>';
+  const H=s.h003||{}, HS=s.h003_scoreboard||{by_arm:{},decisions:{},agreement:{n:0,agree:0}}, harms=Object.keys(H);
+  const hlab=a=>armLabel("H-003-"+a), sbadge=st=>`<span class="badge ${st==="sent"||st==="approved"?"b-entry":st==="skipped"?"b-hold":"b-exit"}">${esc(st)}</span>`;
+  const hleader=harms.filter(a=>HS.by_arm[a]).sort((x,y)=>HS.by_arm[y].net-HS.by_arm[x].net)[0];
+  const ag=HS.agreement;
+  $("h003").innerHTML=!harms.length?'<p class="muted">H-003 is not running.</p>':
+    `<p class="muted">Each closed M15 bar the loop proposes one candidate per symbol, bar and side to every arm. Each model takes or skips it with a reason; only taken ones trade, through the same risk gate.
+      Shadow R = what the default stop/target would have made from the bar close after cost: a model's filter helps only if its taken candidates beat its passed ones.</p><div class="cards">`+
+    harms.map(a=>{const g=HS.by_arm[a], d=HS.decisions[a]||{}, taken=(d.approved||0)+(d.sent||0)+(d.rejected||0), idle=d.candidates&&!taken&&!d.skipped;
+      return `<div class="mcard"><h4>${esc(hlab(a))}${a===hleader&&harms.length>1&&Object.keys(HS.by_arm).length>1?' <span class="badge b-entry">leading</span>':""}</h4>
+        <div class="sub">arm H-003-${esc(a)} · ${idle?'<span class="bad">not deciding yet: candidates expire unanswered</span>':`avg decision ${d.avg_latency_min??"–"} min after the bar`}</div>
+        ${g?`<div class="big">${money(g.net,"USD")}</div>${stats(g,30)}<div class="stats"><span>avg <b>${fr(g.avg_r)}</b> per trade</span></div>`:'<div class="big muted">–</div><div class="stats">no closed trades yet</div>'}
+        <div class="stats" style="margin-top:8px"><span><b>${d.candidates||0}</b> candidates</span><span><b>${taken}</b> taken</span><span><b>${d.skipped||0}</b> skipped</span><span><b>${d.expired||0}</b> expired</span><span><b>${d.pending||0}</b> waiting</span></div>
+        <div class="stats"><span>taken shadow <b>${fr(d.shadow_taken)}</b> (${d.n_taken||0})</span><span>passed shadow <b>${fr(d.shadow_passed)}</b> (${d.n_passed||0})</span></div></div>`}).join("")+"</div>"+
+    (ag.n?`<p class="muted">Same candidate decided by both models: ${ag.n} · they agreed ${ag.agree} (${pc(ag.agree/ag.n)})</p>`:"")+
+    (Object.keys(HS.by_arm).length?`<div class="cols"><div><h3>By session · net USD</h3><div class="hscroll">${matrix(HS.by_arm_session,SESS,harms,hlab,"Session",true)}</div></div>
+      <div><h3>By symbol · net USD</h3><div class="hscroll">${matrix(HS.by_arm_symbol,syms,harms,hlab,"Symbol",true)}</div></div></div>`:"")+
+    harms.map(a=>{const b=H[a];return `<h3>${esc(hlab(a))} · waiting for a decision (${b.pending.length})</h3>`+
+      (b.pending.length?`<div class="hscroll"><table class="mx"><tr><th>Candidate</th><th>Side</th><th style="text-align:left">Patterns for / against</th><th>Agreement</th><th>Expires</th></tr>`+
+        b.pending.map(c=>`<tr><td>${esc(c.id)}</td><td><span class="badge b-${c.side}">${esc(c.side)}</span></td><td style="text-align:left">${esc(c.for.join(", "))}${c.against.length?` <span class="muted">vs ${esc(c.against.join(", "))}</span>`:""}</td><td>${esc(c.confluence||"")}</td><td>${c.expires_in_min} min</td></tr>`).join("")+"</table></div>":'<p class="muted">Nothing waiting.</p>')+
+      (b.recent.length?`<details${a===harms[0]?" open":""}><summary>Recent decisions and reasons</summary><div class="hscroll"><table class="mx"><tr><th>Candidate</th><th>Decision</th><th>Shadow</th><th style="text-align:left">Reason</th></tr>`+
+        b.recent.map(c=>`<tr><td>${esc(c.id)}</td><td>${sbadge(c.status)}</td><td>${fr(c.shadow_R)}</td><td style="text-align:left;white-space:normal">${esc(c.reason||"")}</td></tr>`).join("")+"</table></div></details>":"")}).join("");
   $("proposals").innerHTML=s.proposals.length?`<table><tr><th>#</th><th>By</th><th>Proposal</th><th>Evidence</th><th>Status</th><th>Review</th></tr>`+
     s.proposals.map(p=>`<tr><td>${p.id}</td><td>${esc(who(p.author))}</td><td>${esc(p.text)}</td><td>${esc(p.evidence)}</td><td><b>${esc(p.status)}</b></td><td>${esc(p.reviewer?who(p.reviewer)+": "+p.review:"")}</td></tr>`).join("")+"</table>":'<p class="muted">No proposals yet. A rule is distilled only when the other model agrees.</p>';
   $("mode").textContent="mode: "+(s.mode||"no risk.toml");
@@ -409,8 +427,9 @@ async function load(){
   const sm=s.summary;
   $("kpis").innerHTML=kpi("Balance",a.balance!=null?(+a.balance).toFixed(2)+" "+ccy:"–")+kpi("Equity",a.equity!=null?(+a.equity).toFixed(2)+" "+ccy:"–")+
     Object.entries(L.markets||{EURUSD:{quote:q}}).map(([sym,m])=>kpi(sym,m.quote?`${m.quote.bid} / ${m.quote.ask}`:"no fresh tick")).join("")+
-    kpi("Closed trades",sm.closed_trades)+
-    kpi("Win rate",sm.win_rate==null?"–":(sm.win_rate*100).toFixed(0)+"%")+kpi("Net P&L (closed)",money(sm.net_total,ccy))+
+    (()=>{const g=Object.values((s.h003_scoreboard||{}).by_arm||{}), n=g.reduce((x,v)=>x+v.n,0), w=g.reduce((x,v)=>x+v.wins,0);
+      return kpi("H-003 closed trades",n)+kpi("H-003 win rate",n?(w/n*100).toFixed(0)+"%":"–")+kpi("H-003 net",money(g.reduce((x,v)=>x+v.net,0),ccy))})()+
+    kpi(`All strategies net (${sm.closed_trades} trades)`,money(sm.net_total,ccy))+
     kpi("Account mode",a.hedging==null?"–":(a.hedging?"hedging":"netting"));
   const PIPS={EURUSD:0.0001,GBPUSD:0.0001,AUDUSD:0.0001,NZDUSD:0.0001,EURGBP:0.0001,USDJPY:0.01,EURJPY:0.01,GBPJPY:0.01,AUDJPY:0.01,XAUUSD:0.1};
   const ps=L.positions||[], nowMs=Date.parse(s.server_time), pipOf=p=>PIPS[p.symbol]||0.0001;
@@ -429,7 +448,7 @@ async function load(){
     `<div class="possum">${kpi("Open",ps.length)}${kpi("Floating total",money(floating,ccy))}${Object.entries(byArm).map(([k,v])=>kpi(esc(armLabel(k)),money(v,ccy))).join("")}</div>
     <div class="scroll"><table><tr><th>Model (arm)</th><th>Symbol</th><th>Pattern</th><th>Side</th><th class="right">Entry → now</th><th style="min-width:180px">Stop ↔ target</th><th class="right">Held</th><th class="right">Floating</th></tr>`+
     ps.map(p=>{const d=p.side==="buy"?1:-1, move=(p.price_current-p.price_open)*d/pipOf(p);
-      return `<tr><td>${esc(armLabel(p.strategy||""))}</td><td>${esc(p.symbol||"EURUSD")}</td><td>${esc(patternOf[p.comment]||"–")}</td>
+      return `<tr><td>${esc(armLabel(p.strategy||""))}</td><td>${esc(p.symbol||"EURUSD")}</td><td>${esc((p.comment||"").startsWith("H3")?"model decision":patternOf[p.comment]||"–")}</td>
       <td><span class="badge b-${p.side}">${p.side} ${p.volume}</span></td>
       <td class="right num">${p.price_open} → ${p.price_current}<br><span class="muted">${pips(move)} pips</span></td>
       <td>${track(p)}</td>
@@ -465,15 +484,19 @@ async function load(){
       <td>${num(e.forecast)}</td><td><b>${num(e.actual)}</b></td><td>${num(e.previous)}</td><td>${e.impact===1?`<span class="ok">good for ${esc(e.currency)}</span>`:e.impact===2?`<span class="bad">bad for ${esc(e.currency)}</span>`:"–"}</td></tr>`}).join("")+"</table></div>"
     :'<p class="muted">No moderate or high importance events in the last 12 h or the next 24 h.</p>';
   $("equity").innerHTML=chart(s.equity);
-  $("trades").innerHTML="<tr><th>Opened</th><th>Pattern</th><th>Side</th><th>Lots</th><th>Entry</th><th>Closed</th><th>Exit</th><th>Reason</th><th>Gross</th><th>Comm.</th><th>Swap</th><th>Net</th></tr>"+
-    (s.trades.slice(0,SHOW.trades).map(r=>`<tr><td>${t(r.open_time)}</td><td>${esc(r.pattern?r.pattern+" · "+r.hour_utc+"h":(r.entry_id||"").startsWith("T3-")?"TECH-0003":"H-001B")}</td><td>${r.side}</td><td>${r.volume}</td><td>${r.open_price}</td><td>${t(r.close_time)}</td><td>${r.close_price??"open"}</td><td>${esc(r.exit_reason??"")}</td><td>${money(r.profit)}</td><td>${money(r.commission)}</td><td>${money(r.swap)}</td><td>${money(r.net,ccy)}</td></tr>`).join("")||'<tr><td colspan="12" class="muted">No trades yet.</td></tr>');
+  const isH3=r=>(r.entry_id||"").startsWith("H3"), trs=ALLT?s.trades:s.trades.filter(isH3);
+  const tradeWhat=r=>isH3(r)?hlab((r.entry_id||"").startsWith("H3GX")?"codex":"claude")+" · model":
+    r.pattern?"H-002 "+r.pattern+" · "+r.hour_utc+"h":(r.entry_id||"").startsWith("T3-")?"TECH-0003":"H-001B";
+  $("trades").innerHTML="<tr><th>Opened</th><th>Who / pattern</th><th>Symbol</th><th>Side</th><th>Lots</th><th>Entry</th><th>Closed</th><th>Exit</th><th>Reason</th><th>Gross</th><th>Comm.</th><th>Swap</th><th>Net</th></tr>"+
+    (trs.slice(0,SHOW.trades).map(r=>`<tr><td>${t(r.open_time)}</td><td>${esc(tradeWhat(r))}</td><td>${esc(r.symbol||"")}</td><td>${r.side}</td><td>${r.volume}</td><td>${r.open_price}</td><td>${t(r.close_time)}</td><td>${r.close_price??"open"}</td><td>${esc(r.exit_reason??"")}</td><td>${money(r.profit)}</td><td>${money(r.commission)}</td><td>${money(r.swap)}</td><td>${money(r.net,ccy)}</td></tr>`).join("")||`<tr><td colspan="13" class="muted">${ALLT?"No trades yet.":"No H-003 trades yet. Tick the box to see the H-002 learning data."}</td></tr>`);
   $("decisions").innerHTML="<tr><th>Bar (UTC)</th><th>Strategy</th><th>Action</th><th>Side</th><th>Why</th><th>ATR</th><th>Close</th></tr>"+
     (s.decisions.slice(0,SHOW.decisions).map(d=>{const g=d.details.signal||{},m=d.bar.match(/^(H-002[^:]*):(?:([A-Z]{6}):)?(.*)$/);return `<tr><td>${t(m?m[3]:d.bar)}</td><td>${esc(m?armLabel(m[1]):"H-001B")} · ${esc(m&&m[2]?m[2]:"EURUSD")}${m?" · M15":" · H1"}</td><td><b>${esc(d.action)}</b></td><td>${esc(d.side??"")}</td><td>${esc(d.reason)}</td><td>${g.atr_pips?g.atr_pips.toFixed(1)+" pips":g.atr?(g.atr/0.0001).toFixed(1)+" pips":""}</td><td>${g.close??""}</td></tr>`}).join("")||'<tr><td colspan="7" class="muted">No decisions yet.</td></tr>');
   $("lessons").innerHTML=s.lessons.slice(0,SHOW.lessons).map(l=>`<div class="lesson">${esc(l.text)}<br><small>#${l.id} · ${esc(l.author==="agent"?"agent (automatic)":who(l.author))} · ${t(l.at)}${l.hindsight_document?" · Hindsight: "+esc(l.hindsight_document):" · not yet in Hindsight"}</small></div>`).join("")||'<p class="muted">Lessons appear after each closed trade.</p>';
-  more("trades",s.trades.length,50); more("decisions",s.decisions.length,50); more("lessons",s.lessons.length,10);
+  more("trades",trs.length,50); more("decisions",s.decisions.length,50); more("lessons",s.lessons.length,10);
 }
 // long lists show the latest items; the button reveals older ones (kept across refreshes)
 const SHOW={trades:50,decisions:50,lessons:10}, BASE={...SHOW};
+let ALLT=false;  // trades table: H-003 only unless the learning data is asked for
 function more(key,total,step){const shown=Math.min(SHOW[key],total), left=total-shown;
   $(key+"-more").innerHTML=(left>0||SHOW[key]>BASE[key])?`<p class="muted" style="margin:8px 0 0">Showing latest ${shown} of ${total}${total>=200?" (journal view keeps the latest 200)":""}`+
     (left>0?` · <button onclick="SHOW['${key}']+=${step};load()">Show ${Math.min(step,left)} older</button> <button onclick="SHOW['${key}']=1e9;load()">Show all</button>`:"")+

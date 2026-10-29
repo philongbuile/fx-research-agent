@@ -209,8 +209,26 @@ arm `H-003-claude`, magic `20261031`) puts the model in the loop:
    the shadow R of taken and passed candidates. That comparison, on future
    data, is the test of whether the model's filter helps.
 
-The model is invoked by a Claude desktop scheduled task every 15 minutes that
-follows `.claude/skills/fxra-demo-decide/SKILL.md`. The app must be open. H-003
+Two arms decide the same candidates independently (D-43): `H-003-claude`
+(magic `20261031`, ids `H3GC-...`) and `H-003-codex` (magic `20261032`, ids
+`H3GX-...`), each with the lots of its owner's H-002 arm. `demo-decide` lists
+the `--author`'s own arm; a model can decide only its own arm's candidates.
+The dashboard opens with the H-003 model-vs-model section (net, R, taken vs
+passed shadow R, agreement on shared candidates, by session and symbol); the
+H-002 sections below it are learning data and the scripted control.
+
+Each model is invoked by its own app every 15 minutes, following
+`.claude/skills/fxra-demo-decide/SKILL.md` (Codex reads the mirror in
+`.agents/skills/`):
+
+- Claude: desktop scheduled task `fxra-h003-decide` (minutes 1, 16, 31, 46).
+- Codex: an automation in the Codex app with the same schedule and this prompt:
+  "Follow `.agents/skills/fxra-demo-decide/SKILL.md` in
+  D:\Work\codex\fx-research-agent as Codex GPT-6.1 Sol Medium: run
+  `uv run fxra demo-decide --author codex/gpt-6.1-sol`, decide every pending
+  H-003-codex candidate with a reason, never touch risk limits, lots or orders."
+
+The app must be open. Without a run, that arm's candidates expire. H-003
 trades are tagged `strategy H-003` with no pattern, so they stay out of the
 H-002 per-pattern stats; their lessons quote the model's reason. The risk gate
 rejects H-003 until the owner adds `H-003@gated-v1` to `approved_strategies`.

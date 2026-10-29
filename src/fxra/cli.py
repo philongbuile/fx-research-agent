@@ -302,6 +302,8 @@ def cmd_demo_decide(a) -> int:
     from .trade_journal import Journal
 
     j, now = Journal(a.journal), datetime.now(timezone.utc)
+    agent = a.author.split("/")[0]
+    a.arm = a.arm or (agent if agent in h003.ARMS else "claude")  # your own arm by default
     if a.take or a.skip or a.skip_rest:
         if not a.reason:
             raise SystemExit("--reason is required: why take or skip this candidate")
@@ -472,7 +474,7 @@ def main(argv=None) -> int:
 
     dd = sub.add_parser("demo-decide", help="H-003: list pending candidates, or take/skip one with a reason (D-42)")
     dd.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
-    dd.add_argument("--arm", choices=["claude"], default="claude")
+    dd.add_argument("--arm", choices=["claude", "codex"], help="H-003 arm to list (default: the --author's own arm)")
     dd.add_argument("--take", metavar="ID")
     dd.add_argument("--skip", metavar="ID")
     dd.add_argument("--skip-rest", action="store_true", help="skip every pending candidate with one reason")
