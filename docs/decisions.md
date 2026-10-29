@@ -349,6 +349,12 @@ expire. H-002 keeps running as the scripted control, and its sections move
 below a "learning data" divider. A refined lessons document and playbook update
 come from a separate curation session.
 
+Owner addendum, same day (~16:10Z): stop H-002 on both arms. Its open positions
+were closed through `fxra demo-close` (rule `owner_close`, PR #50); the Claude
+arm policy is v9 with no enabled patterns, and proposal 7 asks Codex to do the
+same on its arm. H-003 is the only mode that opens trades; H-002 history stays
+as learning data. This ends the Codex selective pilot (proposal 6) at that time.
+
 ## Open questions
 
 ### Verified selection direction (owner, 2026-10-29)
