@@ -17,7 +17,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from . import econ_calendar, h002, risk
+from . import econ_calendar, h002, memory_setup, risk
 from .contracts import AccountSnapshot, OrderIntent, Quote, SymbolSpec
 from .trade_journal import PIP_SIZES, Journal, _group, confluence
 
@@ -33,6 +33,7 @@ DEFAULT_POLICY = {
     "expiry_minutes": 12, "assumed_cost_pips": 0.8,
 }
 STATUSES = ("pending", "approved", "skipped", "expired", "sent", "rejected", "error")
+DECIDED = ("approved", "sent", "rejected", "error", "skipped")  # the model answered; expired ones did not
 
 
 def _t(s):
@@ -84,10 +85,72 @@ def shadow(candidate: dict, bars: list[dict], pol: dict) -> dict | None:
     return {"R": round(r - pol["assumed_cost_pips"] * pip / dist, 3), "exit": exit_, "bars": i}
 
 
+# feedback: every decided candidate becomes a lesson once its shadow outcome is known --
+def verdict(c: dict, s: dict) -> str:
+    if c["status"] != "skipped":
+        return "good_take" if s["R"] > 0 else "bad_take"
+    return "missed_winner" if s["R"] > 0 else "good_skip"
+
+
+def decision_lesson(c: dict, s: dict) -> str:
+    """Factual note on one decision and what the default stop/target did afterwards (the shadow outcome)."""
+    ctx, pats = c["context"], c["patterns"]
+    codes = json.loads(c.get("reason_codes") or "null") or []
+    event = ctx.get("event") if ctx.get("event") not in (None, "none") else None
+    return (f"{ARMS[c['arm']]['arm']} decision: {'skipped' if c['status'] == 'skipped' else 'took'} {c['side']} "
+            f"{c['symbol']} on the {c['bar'][:16]}Z M15 bar ({ctx.get('session')}, {ctx.get('hour_utc')}h UTC, "
+            f"{ctx.get('dow')}). Patterns for: {', '.join(pats.get('for') or []) or 'none'}; against: "
+            f"{', '.join(pats.get('against') or []) or 'none'} ({pats.get('confluence')}). Context: H1 trend "
+            f"{ctx.get('h1_trend')}, M15 trend {ctx.get('m15_trend')}, {ctx.get('vol')} vol, ATR {ctx.get('atr_pips')} pips"
+            + (f", news {event}" if event else "") + f". Reason given: \"{c.get('reason') or ''}\""
+            + (f" (codes {', '.join(codes)})" if codes else "") + ". Shadow outcome with the default stop/target "
+            f"from the bar close: {s['exit']} after {s['bars']} bars, {s['R']:+.2f}R after cost, so this was a "
+            f"{verdict(c, s).replace('_', ' ')}. One demo observation, not evidence of edge.")
+
+
+def decision_tags(c: dict, s: dict, arm_model: str | None) -> list[str]:
+    ctx = c["context"]
+    tags = ["H-003", ARMS[c["arm"]]["arm"], "decision", c["symbol"], str(ctx.get("session")),
+            f"decision:{'skip' if c['status'] == 'skipped' else 'take'}", f"verdict:{verdict(c, s)}",
+            f"outcome:{'win' if s['R'] > 0 else 'loss'}", f"hour:{int(ctx.get('hour_utc') or 0):02d}"]
+    tags += [f"pattern:{p}" for p in (c["patterns"].get("for") or [])]
+    tags += [f"code:{x}" for x in (json.loads(c.get("reason_codes") or "null") or [])]
+    return tags + ([f"model:{arm_model}"] if arm_model else [])
+
+
+def insight_documents(journal: Journal) -> list[dict]:
+    """Hourly digest per H-003 arm: how the model's decisions turned out, by verdict, session, pattern and code."""
+    docs, mean = [], lambda xs: f"{sum(xs) / len(xs):+.2f}R" if xs else "-"
+    for arm, cfg in ARMS.items():
+        rows = [c for c in journal.candidates(arm=arm, limit=100000) if c["shadow"] and c["status"] in DECIDED]
+        if not rows:
+            continue
+        group: dict = {}
+        for c in rows:
+            how = "skip" if c["status"] == "skipped" else "take"
+            keys = [("verdict", verdict(c, c["shadow"])), ("session", f"{c['context'].get('session')} {how}")]
+            keys += [("pattern", f"{p} {how}") for p in c["patterns"].get("for") or []]
+            keys += [("code", f"{x} {how}") for x in json.loads(c.get("reason_codes") or "null") or []]
+            for k in keys:
+                group.setdefault(k, []).append(c["shadow"]["R"])
+        part = lambda dim: "; ".join(f"{k} n={len(v)} {mean(v)}" for (d, k), v in sorted(group.items()) if d == dim)
+        taken = [c["shadow"]["R"] for c in rows if c["status"] != "skipped"]
+        passed = [c["shadow"]["R"] for c in rows if c["status"] == "skipped"]
+        content = (f"{cfg['arm']} decision quality digest: {len(rows)} decided candidates with a shadow outcome "
+                   f"(default stop/target from the bar close, R after the assumed 0.8-pip cost). Taken n={len(taken)} "
+                   f"{mean(taken)}; skipped n={len(passed)} {mean(passed)}. The filter helps only if taken beats "
+                   f"skipped. n<30 is weak; demo forward observation, not evidence of edge.\n"
+                   f"By verdict: {part('verdict')}\nBy session and decision: {part('session') or '-'}\n"
+                   f"By pattern and decision: {part('pattern') or '-'}\nBy reason code and decision: {part('code') or '-'}")
+        docs.append({"document": f"fxra-insight-h003-{arm}", "content": content,
+                     "tags": ["demo", "insight", "H-003", cfg["arm"], "decision"]})
+    return docs
+
+
 # the model's side ----------------------------------------------------------
 def decide(journal: Journal, cid: str, take: bool, reason: str, author: str, now: datetime,
            sl_atr: float | None = None, tp_rr: float | None = None, *, codes=None, confidence: float | None = None,
-           prompt_ref: str | None = None) -> dict:
+           prompt_ref: str | None = None, memory_refs: list[str] | None = None) -> dict:
     """Record the model's take/skip for one pending candidate. The loop sends approved ones.
 
     `codes`, `confidence` and `prompt_ref` are optional decision-log metadata (D-44); they
@@ -113,7 +176,8 @@ def decide(journal: Journal, cid: str, take: bool, reason: str, author: str, now
         raise ValueError("a reason of at least 10 characters is required")
     fields = {"status": "approved" if take else "skipped", "decided_at": now.isoformat(), "decider": author,
               "reason": reason.strip(), "reason_codes": json.dumps(codes) if codes else None,
-              "confidence": confidence, "prompt_ref": prompt_ref}
+              "confidence": confidence, "prompt_ref": prompt_ref,
+              "memory_refs": json.dumps(memory_refs) if memory_refs else None}  # what the decider read first
     if take:
         for key, value in (("sl_atr", sl_atr), ("tp_rr", tp_rr)):
             if value is not None:
@@ -143,6 +207,7 @@ def brief(journal: Journal, now: datetime, arm: str = "claude") -> dict:
                         "shadow_mean_R_passed": mean(passed), "n_passed_scored": len(passed)},
         "recent": [{"id": c["id"], "status": c["status"], "reason": c["reason"],
                     "shadow_R": (c["shadow"] or {}).get("R")} for c in done if c["status"] not in ("pending", "expired")][:15],
+        "read_first": memory_setup.read_first(arm),  # D-45: Hindsight memory to read before deciding
         "bounds": {k: DEFAULT_POLICY[k] for k in ("sl_atr", "tp_rr", "sl_atr_bounds", "tp_rr_bounds", "min_sl_pips")},
     }
 
@@ -216,6 +281,9 @@ def step(journal: Journal, broker, limits, now: datetime, snap: dict, pol: dict,
             s = shadow(c, market.get("m15_bars") or [], pol)
             if s:
                 journal.set_candidate(c["id"], shadow=json.dumps(s))
+                if c["status"] in DECIDED:  # feedback for the decider's memory, taken or skipped
+                    journal.add_lesson(now, None, f"h003-{arm}", decision_lesson(c, s),
+                                       tags=decision_tags(c, s, arm_model))
     if out["sent"]:
         out["action"] = "entry"
     elif out["new"]:

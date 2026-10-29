@@ -339,6 +339,7 @@ def from_candidate(cx: _Ctx, c: dict) -> list[dict]:
                              "confluence": pats.get("confluence"), "pattern_stats": pats.get("pattern_stats"),
                              **{k: ctx[k] for k in keep if k in ctx}},
                 "account": _account(cx.j, c["created_at"]), "presented_at": c["created_at"],
+                "memory_read": json.loads(c.get("memory_refs") or "null"),
                 "expires_at": c["expires_at"]},
         reasons=reasons, model_reason=c["reason"], plan=plan, outcome=outcome, final=int(final),
         source=f"candidates:{c['id']}", src_at=c["created_at"])]

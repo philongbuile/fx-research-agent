@@ -64,9 +64,10 @@ def breakdown(rows: list[dict], key: str) -> list[str]:
 
 def digest(journal: Journal, assumed_cost_pips: float = 0.8) -> list[dict]:
     """Documents to retain: an overview and one per traded pattern."""
+    from .h003 import insight_documents  # decision-quality digests of the model arms (H-003)
     rows = closed_trades(journal, assumed_cost_pips)
     if not rows:
-        return []
+        return insight_documents(journal)
     header = (f"Digest of {len(rows)} closed H-002 demo trades through {rows[-1]['close_time'][:16]}Z "
               f"(R after an assumed {assumed_cost_pips} pip cost; n<10 noise, n<30 weak). "
               f"Exploratory in-sample observations, not evidence of edge; numbers come from the demo journal.")
@@ -94,7 +95,7 @@ def digest(journal: Journal, assumed_cost_pips: float = 0.8) -> list[dict]:
     from .playbook import document  # the playbook counts from the same rows
     if (pb := document(journal, rows)) is not None:
         docs.append(pb)
-    return docs
+    return docs + insight_documents(journal)
 
 
 def sync(journal: Journal, backend, now: datetime, lock=None, assumed_cost_pips: float = 0.8) -> dict:

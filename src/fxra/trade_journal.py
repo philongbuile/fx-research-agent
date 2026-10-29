@@ -72,7 +72,9 @@ MIGRATIONS = [("entry_tags", "duty_agent", "TEXT"), ("entry_tags", "duty_model",
               ("entry_tags", "symbol", "TEXT"), ("entry_tags", "arm_model", "TEXT"),
               # D-44: what the model states with its H-003 decision, besides the written reason
               ("candidates", "reason_codes", "TEXT"), ("candidates", "confidence", "REAL"),
-              ("candidates", "prompt_ref", "TEXT")]
+              ("candidates", "prompt_ref", "TEXT"),
+              # learning loop: which memory the decider read, and facet tags for non-trade lessons
+              ("candidates", "memory_refs", "TEXT"), ("lessons", "tags", "TEXT")]
 # Entries made before D-35 recorded no model label; these were the models running each arm then.
 ARM_MODEL_BACKFILL = {"claude": "Claude Opus 5.5 Medium", "codex": "Codex GPT-6.1 Sol Medium"}
 
@@ -417,10 +419,11 @@ class Journal:
 
     # lessons -------------------------------------------------------------
     def add_lesson(self, at: datetime, position_id: int | None, author: str, text: str,
-                   hindsight_document: str | None = None) -> int:
+                   hindsight_document: str | None = None, tags: list[str] | None = None) -> int:
         with self.db:
-            cur = self.db.execute("INSERT INTO lessons (at, position_id, author, text, hindsight_document)"
-                                  " VALUES (?,?,?,?,?)", (at.isoformat(), position_id, author, text, hindsight_document))
+            cur = self.db.execute("INSERT INTO lessons (at, position_id, author, text, hindsight_document, tags)"
+                                  " VALUES (?,?,?,?,?,?)", (at.isoformat(), position_id, author, text,
+                                                            hindsight_document, json.dumps(tags) if tags else None))
         return cur.lastrowid
 
     def mark_retained(self, lesson_id: int, document: str):

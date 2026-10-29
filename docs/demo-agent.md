@@ -243,6 +243,20 @@ version, decision, decider and date; `uv run fxra demo-trace` gives the same as
 JSON. Observation only; no chain-of-thought is collected. Schema and data flow
 in [decision-log.md](decision-log.md).
 
+## Hindsight learning loop (D-45)
+
+Decision outcomes, taken or skipped, are retained as lessons (`decision`,
+`verdict:*` tags) once 8 bars have closed; the hourly digest adds
+`fxra-insight-h003-<arm>`. Before deciding, each model reads the mental models
+named in `demo-decide`'s `read_first` (or the fallback digests) and passes
+`--memory <ids>`. Bank setup, idempotent, key from the environment:
+
+```powershell
+uv run fxra memory-setup --dry
+uv run fxra memory-setup                 # directives
+uv run fxra memory-setup --mental-models # needs an LLM provider on the Hindsight server
+```
+
 ## Lessons and memory
 
 - `fxra demo-step` writes a factual lesson row for each closed trade. It leads

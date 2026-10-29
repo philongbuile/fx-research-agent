@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import re
 import sys
 import tomllib
 from collections import defaultdict
@@ -311,7 +312,11 @@ def cmd_demo_decide(a) -> int:
             codes = decision_log.validate_codes((a.codes or "").split(","))
         except ValueError as e:
             raise SystemExit(str(e)) from None
-        meta = {"codes": codes, "confidence": a.confidence, "prompt_ref": decision_log.prompt_ref(agent)}
+        memory = [m.strip() for m in (a.memory or "").split(",") if m.strip()]
+        if any(not re.fullmatch(r"[a-z0-9][a-z0-9_-]{2,80}", m) for m in memory) or len(memory) > 10:
+            raise SystemExit("--memory takes up to 10 Hindsight mental model or document ids")
+        meta = {"codes": codes, "confidence": a.confidence, "prompt_ref": decision_log.prompt_ref(agent),
+                "memory_refs": memory or None}
         if a.skip_rest:
             ids = [c["id"] for c in h003.brief(j, now, a.arm)["pending"]]
         else:
@@ -326,6 +331,14 @@ def cmd_demo_decide(a) -> int:
         print(json.dumps(out, indent=2))
         return 1 if any("error" in o for o in out) else 0
     print(json.dumps(h003.brief(j, now, a.arm), indent=2, default=str))
+    return 0
+
+
+def cmd_memory_setup(a) -> int:
+    """D-45: make Hindsight bank fxra hold the deciders' directives (and mental models). Key from the environment."""
+    from .memory_setup import BankAdmin, setup
+
+    print(json.dumps(setup(BankAdmin.from_env(), mental_models=a.mental_models, dry=a.dry), indent=2))
     return 0
 
 
@@ -519,8 +532,14 @@ def main(argv=None) -> int:
     dd.add_argument("--reason")
     dd.add_argument("--codes", help="comma-separated reason codes for the decision log (fxra demo-trace --codes)")
     dd.add_argument("--confidence", type=float, help="your confidence in the decision, 0 to 1 (optional)")
+    dd.add_argument("--memory", help="comma-separated Hindsight mental model/document ids you read before deciding")
     dd.add_argument("--author", default="", help="<agent>/<model>, must own the arm")
     dd.set_defaults(fn=cmd_demo_decide)
+
+    ms = sub.add_parser("memory-setup", help="Hindsight directives and mental models for the deciding models (D-45)")
+    ms.add_argument("--mental-models", action="store_true", help="also create/update mental models (needs a server LLM)")
+    ms.add_argument("--dry", action="store_true", help="list what would change")
+    ms.set_defaults(fn=cmd_memory_setup)
 
     tr = sub.add_parser("demo-trace", help="decision log: inputs, coded reasons, decision and outcome per evaluation (D-44)")
     tr.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))

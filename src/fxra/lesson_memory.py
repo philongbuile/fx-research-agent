@@ -6,6 +6,7 @@ later model through Hindsight within one agent tick, instead of at the next
 hourly review. Failed deliveries stay pending in the journal and are retried.
 """
 
+import json
 import os
 import re
 from datetime import datetime, timezone
@@ -54,12 +55,12 @@ def facet_tags(trade: dict, features: dict) -> list[str]:
 
 
 def pending(journal: Journal, limit: int = 20) -> list[dict]:
-    rows = journal._rows("SELECT id, at, position_id, author, text FROM lessons WHERE hindsight_document IS NULL"
+    rows = journal._rows("SELECT id, at, position_id, author, text, tags FROM lessons WHERE hindsight_document IS NULL"
                          " ORDER BY id LIMIT ?", limit)
     out = []
     for r in rows:
         trade = journal.trade(r["position_id"]) if r["position_id"] else {}
-        tags = ["demo", "lesson", f"author:{r['author']}"]
+        tags = ["demo", "lesson", f"author:{r['author']}"] + json.loads(r.pop("tags") or "[]")
         tags += [str(trade[k]) for k in ("strategy", "symbol", "pattern", "session") if trade.get(k)]
         if trade.get("arm"):
             tags.append(f"H-002-{trade['arm']}")
