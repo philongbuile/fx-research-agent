@@ -39,6 +39,12 @@ historical-data blockers (Q-14, UTC/DST) are unchanged.
 
 ## Workstream boundaries
 
+Owner update, 2026-10-29: prepare a [prospective selective demo study](verified-pattern-selection.md)
+instead of continuing exhaustive exploration indefinitely. Exact Codex selection
+and future evaluation conditions await cross-agent review; Claude's comparator
+and existing fixed studies remain separate. This is not completed validation,
+H-001 historical backtest readiness or strategy promotion.
+
 - Development memory: ai-memory handles coding context/handoffs only. D-26 explicitly authorizes its bounded MCP installation after exact-artifact review; both Claude and Codex must pass real shared-scope tests. Merging unrelated roadmap work does not certify artifacts or expand the authorized scope.
 - Character memory: Hindsight retains personal/professional narratives; the controller registry governs identity, chronology, evidence and status. Successors do not inherit another identity's lived experience.
 - Infrastructure: D-27 selects this development machine as the primary memory host for both clients, with loopback services and authenticated SSH forwarding from the other machine. Preserve both existing histories during cutover. Replacement credentials and a topology decision alone do not establish deployment or successful reconciliation.

@@ -305,6 +305,16 @@ when the request was made.
 
 ## Open questions
 
+### Verified selection direction (owner, 2026-10-29)
+
+The owner requested moving from exhaustive demo exploration toward selection
+validated on future observations. The [concrete selective-study proposal](verified-pattern-selection.md)
+limits new Codex entries to two discovery candidates while preserving the
+separate engulfing study and the unchanged Claude comparator. Pattern list,
+dates and evaluation conditions remain subject to D-39 cross-agent review;
+this direction does not activate a policy, pass a gate or raise risk limits.
+
+
 ### Simulation and memory decisions (owner request, 2026-10-27)
 
 - D-21: Separate development memory (ai-memory, shared Claude/Codex scope) from research/character memory (Hindsight). No migration or replacement of Hindsight. Adoption and bounded installation scope are now authorized by D-26; exact-artifact review and acceptance remain required; see `third-party/ai-memory.md`.
