@@ -66,3 +66,5 @@ def test_setup_is_idempotent_and_mental_models_are_opt_in():
     done = memory_setup.setup(b, mental_models=True)
     assert "mental model fx-entry-guide: updated" in done and "mental model h003-codex-decisions: created" in done
     assert ("PATCH", "/mental-models/fx-entry-guide") in [(m, p) for m, p, _ in b.calls]
+    refreshes = [d for m, p, d in b.calls if p.endswith("/refresh")]
+    assert len(refreshes) == len(memory_setup.MENTAL_MODELS) and all(d == {"mode": "full"} for d in refreshes)

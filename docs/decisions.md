@@ -401,10 +401,12 @@ candidates taught nothing.
 - The decide skill makes reading them mandatory; `--memory` records the ids read
   in the candidate and the decision log, so decisions with and without memory
   can be compared.
-- Limitation found 2026-10-29: the Hindsight server runs with LLM provider
-  `none`, so reflect and mental model refresh do not work. Deciders read the
-  digests and recall until the owner configures a provider in the private
-  `infra/hindsight/.env` (a key and cost decision for the owner).
+- Limitation found 2026-10-29: the Hindsight server ran with LLM provider
+  `none`, so reflect and mental model refresh did not work. The owner then set
+  an OpenAI provider in the private `infra/hindsight/.env` (same day, ~16:50Z);
+  the four mental models exist and refresh hourly. `memory-setup` triggers a
+  full refresh after creating or updating them. The per-arm decision models stay
+  empty until decision lessons tagged with that arm reach Hindsight.
 
 ## Open questions
 

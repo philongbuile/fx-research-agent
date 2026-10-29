@@ -90,4 +90,6 @@ def setup(admin, *, mental_models: bool = False, dry: bool = False) -> list[str]
                 (admin.call("PATCH", f"/mental-models/{m['id']}", {k: v for k, v in body.items() if k != "id"})
                  if m["id"] in have else admin.call("POST", "/mental-models", body))
             done.append(f"mental model {m['id']}: {'updated' if m['id'] in have else 'created'}")
+            if not dry:  # a new model starts empty and a plain refresh may keep it so; rebuild it now (async)
+                admin.call("POST", f"/mental-models/{m['id']}/refresh", {"mode": "full"})
     return done
