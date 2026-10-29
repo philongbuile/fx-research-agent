@@ -97,7 +97,7 @@ narrative layer on top: why it happened and what to try next.
   `uv run fxra demo-propose --text "..." --evidence "<arm, pattern, session, n, avg pips>" --author <agent>/<model>`.
   The other agent decides.
 - Never raise lots beyond `config/risk.toml` or remove stops. Never chase the
-  50 USD/day KPI. Account limits belong to the owner.
+  50,000 USD/month KPI (D-46). Account limits belong to the owner.
 
 ## Hand-over (Claude at 08:00, Codex at 18:00 summary)
 

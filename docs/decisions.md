@@ -126,6 +126,10 @@ Owner also set 0.1 lot for the new strategy and a daily KPI of 50 USD.
   strategy), 1% daily loss and the kill switch.
 - The 50 USD/day KPI is shown as progress. It is never an optimisation target:
   agents do not raise size or remove stops to chase it.
+- **D-46 (2026-10-29, owner):** the 50 USD/day KPI assumed a planned 100 USD
+  balance. The demo account holds about 95,654 USD, so the KPI is now
+  **50,000 USD per UTC calendar month** of whole-account closed net. Same rule:
+  shown as progress, never chased, no change to `config/risk.toml`.
 - Research honesty is unchanged in substance. Exploration results are
   in-sample observations on a zero-spread demo feed, not evidence of edge.
   Learning statistics subtract an assumed 0.8-pip cost. A rule distilled from
