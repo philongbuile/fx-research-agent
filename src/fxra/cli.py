@@ -298,7 +298,7 @@ def cmd_demo_propose(a) -> int:
 
 def cmd_demo_decide(a) -> int:
     """H-003 (D-42): show pending candidates, or take/skip one with a reason. The agent loop sends approved ones."""
-    from . import h003
+    from . import decision_log, h003
     from .trade_journal import Journal
 
     j, now = Journal(a.journal), datetime.now(timezone.utc)
@@ -307,6 +307,11 @@ def cmd_demo_decide(a) -> int:
     if a.take or a.skip or a.skip_rest:
         if not a.reason:
             raise SystemExit("--reason is required: why take or skip this candidate")
+        try:
+            codes = decision_log.validate_codes((a.codes or "").split(","))
+        except ValueError as e:
+            raise SystemExit(str(e)) from None
+        meta = {"codes": codes, "confidence": a.confidence, "prompt_ref": decision_log.prompt_ref(agent)}
         if a.skip_rest:
             ids = [c["id"] for c in h003.brief(j, now, a.arm)["pending"]]
         else:
@@ -314,13 +319,28 @@ def cmd_demo_decide(a) -> int:
         out = []
         for cid in ids:
             try:
-                c = h003.decide(j, cid, bool(a.take), a.reason, a.author, now, a.sl_atr, a.tp_rr)
+                c = h003.decide(j, cid, bool(a.take), a.reason, a.author, now, a.sl_atr, a.tp_rr, **meta)
                 out.append({"id": cid, "status": c["status"], "sl_atr": c["sl_atr"], "tp_rr": c["tp_rr"]})
             except (ValueError, PermissionError) as e:
                 out.append({"id": cid, "error": str(e)})
         print(json.dumps(out, indent=2))
         return 1 if any("error" in o for o in out) else 0
     print(json.dumps(h003.brief(j, now, a.arm), indent=2, default=str))
+    return 0
+
+
+def cmd_demo_trace(a) -> int:
+    """Decision log (D-44): sync traces from the journal, then list them newest first as JSON."""
+    from . import decision_log
+    from .trade_journal import Journal
+
+    j = Journal(a.journal)
+    status = decision_log.sync(j)
+    out = decision_log.query(j, **{k: getattr(a, k) for k in decision_log.FILTERS}, limit=a.limit)
+    if a.codes:
+        print(json.dumps(out["codes"], indent=2))
+        return 0
+    print(json.dumps({"sync": status, "total": out["total"], "traces": out["traces"]}, indent=2, default=str))
     return 0
 
 
@@ -497,8 +517,23 @@ def main(argv=None) -> int:
     dd.add_argument("--sl-atr", type=float, help="stop = max(this x ATR, min pips); default and bounds in the listing")
     dd.add_argument("--tp-rr", type=float, help="target in R; default and bounds in the listing")
     dd.add_argument("--reason")
+    dd.add_argument("--codes", help="comma-separated reason codes for the decision log (fxra demo-trace --codes)")
+    dd.add_argument("--confidence", type=float, help="your confidence in the decision, 0 to 1 (optional)")
     dd.add_argument("--author", default="", help="<agent>/<model>, must own the arm")
     dd.set_defaults(fn=cmd_demo_decide)
+
+    tr = sub.add_parser("demo-trace", help="decision log: inputs, coded reasons, decision and outcome per evaluation (D-44)")
+    tr.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
+    tr.add_argument("--symbol")
+    tr.add_argument("--strategy", help="H-001B, H-002, H-003 or an arm such as H-003-claude")
+    tr.add_argument("--version", help="e.g. H-003@gated-v1")
+    tr.add_argument("--decision", choices=["buy", "sell", "hold", "close", "no_trade", "pending"])
+    tr.add_argument("--decider", help="substring, e.g. claude-opus or script")
+    tr.add_argument("--since", help="UTC date or ISO time")
+    tr.add_argument("--until", help="UTC date (inclusive) or ISO time")
+    tr.add_argument("--limit", type=int, default=20)
+    tr.add_argument("--codes", action="store_true", help="print the reason-code vocabulary and exit")
+    tr.set_defaults(fn=cmd_demo_trace)
 
     pb = sub.add_parser("demo-playbook", help="playbook rules distilled from lessons, with evidence from the journal")
     pb.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))

@@ -233,6 +233,16 @@ trades are tagged `strategy H-003` with no pattern, so they stay out of the
 H-002 per-pattern stats; their lessons quote the model's reason. The risk gate
 rejects H-003 until the owner adds `H-003@gated-v1` to `approved_strategies`.
 
+## Decision log (D-44)
+
+Every evaluation and decision gets a structured trace: the inputs the decider
+was given, its coded reasons (and, for H-003, the model's codes, confidence and
+written reason as submitted), codes derived afterwards, and the measured
+outcome. The dashboard's Decision log panel filters by symbol, strategy/arm,
+version, decision, decider and date; `uv run fxra demo-trace` gives the same as
+JSON. Observation only; no chain-of-thought is collected. Schema and data flow
+in [decision-log.md](decision-log.md).
+
 ## Lessons and memory
 
 - `fxra demo-step` writes a factual lesson row for each closed trade. It leads

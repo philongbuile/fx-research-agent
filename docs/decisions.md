@@ -349,6 +349,32 @@ expire. H-002 keeps running as the scripted control, and its sections move
 below a "learning data" divider. A refined lessons document and playbook update
 come from a separate curation session.
 
+## Decision trace and learning log (D-44)
+
+Owner request, 2026-10-29: record every market evaluation and decision so its
+quality can be judged and improved, and show it on the dashboard. Settled:
+
+- One trace per evaluation or decision (H-001B bar, H-002 evaluation or order,
+  H-003 candidate, exit order) in `decision_traces`, a read model rebuilt from
+  the journal's own tables. Observation only: it writes no other table and runs
+  after the strategies in each tick; strategies, the risk gate, order
+  permissions and the demo adapter are unchanged.
+- No chain-of-thought, hidden reasoning or scratchpad is collected. Reasons are
+  short codes with an origin: `rule` (what the script recorded), `model` (codes,
+  optional confidence and the short written reason submitted with
+  `fxra demo-decide`), `owner`, and `derived` (computed from the inputs
+  afterwards, never shown as the decider's reasons). Outcomes (P&L, R,
+  slippage, excursion, shadow, whether stop/target/time limit happened) are
+  measured later and shown separately.
+- `fxra demo-decide` gains optional `--codes` and `--confidence`, and records a
+  hash of the decide skill as `prompt_ref`. Migration: three nullable
+  `candidates` columns.
+- No credentials, account numbers or personal data in traces; account state is
+  equity, balance, currency and open-position count.
+
+Schema and data flow: [decision-log.md](decision-log.md). Demo forward
+observations, not evidence of edge.
+
 ## Open questions
 
 ### Verified selection direction (owner, 2026-10-29)

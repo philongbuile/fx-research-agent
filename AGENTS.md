@@ -49,6 +49,7 @@ For memory or simulation work, also read `docs/simulation-design.md`, `docs/simu
 - Follow `.claude/skills/fxra-demo-duty/SKILL.md` (mirrored for Codex in `.agents/skills/`) at every shift start and end. Hindsight holds trading lessons and shift summaries tagged `model:<label>` (the label from `config/duty.toml` [agents], e.g. `model:Claude Opus 5.5 Medium`). ai-memory holds development handoffs. Docs and skills are updated in the same PR as the code they describe.
 - Trades, policy versions and lessons are attributed to the model on duty, so results can be compared across models.
 - D-42: in H-003 the model approves or skips each entry candidate with a reason (`fxra demo-decide`, skill `fxra-demo-decide`); H-002 keeps running as the scripted control. The model never sends orders or sets lots itself.
+- D-44: every evaluation and decision is traced in the decision log (`docs/decision-log.md`, `fxra demo-trace`), observation only. Record short coded reasons and verifiable explanations, never chain-of-thought; never present derived or post-hoc explanations as the decider's own reasons.
 
 ## Research and character memory (Hindsight)
 

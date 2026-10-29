@@ -58,10 +58,21 @@ CREATE TABLE IF NOT EXISTS candidates (
     created_at TEXT NOT NULL, expires_at TEXT NOT NULL, patterns TEXT NOT NULL, context TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending', decided_at TEXT, decider TEXT, reason TEXT,
     sl_atr REAL, tp_rr REAL, client_order_id TEXT, result TEXT, shadow TEXT);
+CREATE TABLE IF NOT EXISTS decision_traces (
+    id TEXT PRIMARY KEY, at TEXT NOT NULL, bar TEXT, strategy TEXT NOT NULL, arm TEXT, symbol TEXT NOT NULL,
+    timeframe TEXT NOT NULL, session TEXT, version TEXT NOT NULL, policy_version INTEGER, decider TEXT NOT NULL,
+    prompt_ref TEXT, decision TEXT, status TEXT NOT NULL, confidence REAL, inputs TEXT NOT NULL, reasons TEXT NOT NULL,
+    model_reason TEXT, plan TEXT, outcome TEXT, excursion TEXT, final INTEGER NOT NULL DEFAULT 0, source TEXT NOT NULL,
+    src_at TEXT NOT NULL, codes_version INTEGER NOT NULL, updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS decision_traces_at ON decision_traces (at);
+CREATE INDEX IF NOT EXISTS decision_traces_source ON decision_traces (source, src_at);
 """
-CANDIDATE_JSON = ("patterns", "context", "result", "shadow")
+CANDIDATE_JSON = ("patterns", "context", "result", "shadow", "reason_codes")
 MIGRATIONS = [("entry_tags", "duty_agent", "TEXT"), ("entry_tags", "duty_model", "TEXT"), ("entry_tags", "arm", "TEXT"),
-              ("entry_tags", "symbol", "TEXT"), ("entry_tags", "arm_model", "TEXT")]
+              ("entry_tags", "symbol", "TEXT"), ("entry_tags", "arm_model", "TEXT"),
+              # D-44: what the model states with its H-003 decision, besides the written reason
+              ("candidates", "reason_codes", "TEXT"), ("candidates", "confidence", "REAL"),
+              ("candidates", "prompt_ref", "TEXT")]
 # Entries made before D-35 recorded no model label; these were the models running each arm then.
 ARM_MODEL_BACKFILL = {"claude": "Claude Opus 5.5 Medium", "codex": "Codex GPT-6.1 Sol Medium"}
 

@@ -2,6 +2,7 @@
 
 GET /            single page (auto-refresh)
 GET /api/state   journal read model + latest live snapshot + kill switch status
+GET /api/decision-log?symbol=&strategy=&version=&decision=&decider=&since=&until=&limit=   decision traces (D-44)
 """
 
 import json
@@ -10,8 +11,9 @@ import time
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
-from . import demo_agent, duty, econ_calendar, h002, h003, lesson_insights, lesson_memory, playbook, risk
+from . import decision_log, demo_agent, duty, econ_calendar, h002, h003, lesson_insights, lesson_memory, playbook, risk
 from .trade_journal import Journal
 
 
@@ -49,6 +51,7 @@ class Agent:
         self.last_insights = None
         self.calendar_path = Path(calendar_path) if calendar_path else econ_calendar.DEFAULT_PATH
         self.calendar = {"status": "missing"}
+        self.last_trace = None
 
     def refresh_calendar(self, now):
         """Economic calendar (D-40) for this tick; trading continues without it."""
@@ -57,6 +60,22 @@ class Agent:
         except Exception as e:
             self.calendar = {"status": "error", "reason": f"{type(e).__name__}: {e}"}
         return self.journal.events(now - timedelta(hours=3), now + timedelta(hours=3))
+
+    def sync_traces(self, now=None, snap=None):
+        """Decision log (D-44), observation only: runs after the strategies and never touches trading."""
+        try:
+            self.last_trace = decision_log.sync(self.journal, now or datetime.now(timezone.utc), snap)
+        except Exception as e:
+            self.last_trace = {"error": f"{type(e).__name__}: {e}"}
+        return self.last_trace
+
+    def decision_log(self, params: dict) -> dict:
+        args = {k: params[k] for k in decision_log.FILTERS if params.get(k)}
+        with self.lock:
+            self.sync_traces()
+            out = decision_log.query(self.journal, **args, limit=min(int(params.get("limit") or 100), 500),
+                                     offset=int(params.get("offset") or 0))
+        return {**out, "sync": self.last_trace}
 
     def sync_lessons(self):
         if self.memory is None:
@@ -140,6 +159,7 @@ class Agent:
                 except Exception as e:  # one strategy failing must not stop the others
                     results[name] = {"action": "error", "reason": f"{type(e).__name__}: {e}"}
             self.last_step = {"at": now.isoformat(), **results}
+            self.sync_traces(now, snap)
         return self.last_step
 
     def run_forever(self, stop: threading.Event):
@@ -180,8 +200,17 @@ def make_handler(agent: Agent):
             self.wfile.write(body)
 
         def do_GET(self):
+            url = urlparse(self.path)
             if self.path == "/api/state":
                 self._send(200, json.dumps(agent.state(), default=str).encode(), "application/json")
+            elif url.path == "/api/decision-log":
+                params = {k: v[-1] for k, v in parse_qs(url.query).items()}
+                try:
+                    body = agent.decision_log(params)
+                except ValueError as e:  # a malformed filter
+                    self._send(400, str(e).encode(), "text/plain")
+                    return
+                self._send(200, json.dumps(body, default=str).encode(), "application/json")
             elif self.path in ("/", "/index.html"):
                 self._send(200, PAGE.encode(), "text/html; charset=utf-8")
             else:
@@ -269,12 +298,28 @@ details{margin-top:12px}summary{cursor:pointer;color:var(--mute);font-size:13px}
 .tl{display:grid;grid-template-columns:auto auto 1fr;gap:4px 12px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line)}
 .learnhead{border-style:dashed;margin-top:16px}
 .tl:last-child{border-bottom:0}@media (max-width:640px){.tl{grid-template-columns:1fr auto}.tl>:last-child{grid-column:1/-1}}
+.filters{display:flex;flex-wrap:wrap;gap:8px 12px;margin:0 0 10px}.filters label{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--mute)}
+.filters select,.filters input{font:inherit;font-size:13px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);max-width:190px}
+tr.lrow{cursor:pointer}tr.lrow:hover,tr.lrow.open{background:color-mix(in srgb,var(--accent) 7%,transparent)}td.ldet{white-space:normal;padding:4px 0 12px}
+.dgrid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr))}
+.dbox{border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}.dbox h4{margin:0 0 2px;font-size:13px}.dbox h5{margin:8px 0 2px;font-size:12px;color:var(--mute);font-weight:500}
+.dbox.seen{border-left:3px solid var(--accent)}.dbox.post{border-style:dashed}.hint{color:var(--mute);font-size:11px;margin:0 0 6px}
+table.kv th{width:42%;font-size:11px;padding:2px 6px}table.kv td{font-size:12px;padding:2px 6px;word-break:break-word}
+.rlist{margin:0;padding:0;list-style:none;font-size:12px}.rlist li{padding:2px 0}.rlist .chip{margin-right:6px}
+.o-rule{border-color:var(--accent)}.o-model{border-color:var(--up);color:var(--up)}.o-owner{border-color:var(--down);color:var(--down)}.o-derived{border-style:dashed;color:var(--mute)}.o-outcome{border-style:dotted}
+blockquote.stated{margin:6px 0;padding:6px 10px;border-left:3px solid var(--up);background:color-mix(in srgb,var(--up) 7%,transparent);font-size:13px}
+.b-close{color:var(--down);border-color:var(--down)}.b-no_trade{color:var(--mute)}
 </style></head><body>
 <header><h1>FX Demo Agent</h1><span id="duty" class="pill"></span><span id="memsync" class="pill"></span><span id="calsync" class="pill"></span><span id="strategy" class="pill"></span><span id="mode" class="pill"></span>
 <span id="kill" class="pill"></span><span id="conn" class="pill"></span><span id="updated" class="muted"></span></header>
 <main>
 <section class="card wide"><h2>Account &amp; market</h2><div class="kpis" id="kpis"></div></section>
 <section class="card wide"><h2>H-003 · model vs model · the model decides each entry</h2><div id="h003"></div></section>
+<section class="card wide"><h2>Decision log · inputs, reasons, decision, outcome</h2>
+  <p class="muted" style="margin:0 0 10px">One row per evaluation or decision. Click a row: <b>1</b> what the decider was given, <b>2</b> the decision with the coded reasons and short reason it recorded,
+  <b>3</b> codes fxra derived afterwards, <b>4</b> the outcome measured later. No chain-of-thought or hidden reasoning is collected. Observation only: the log never changes orders.</p>
+  <div class="filters" id="dlog-filters"></div><div id="dlog-status" class="muted" style="font-size:12px"></div>
+  <div class="hscroll"><table id="dlog"></table></div><div id="dlog-more"></div></section>
 <section class="card wide"><h2>Daily KPI (UTC day)</h2><div id="kpi"></div></section>
 <section class="card wide"><h2>Open positions</h2><div id="position"></div></section>
 <section class="card wide"><h2>Agent status</h2><div id="step"></div></section>
@@ -313,7 +358,7 @@ async function load(){
   $("kpi").innerHTML=`<div class="kpis">${kpi("H-003 net today",money(h3today,"USD"))}${kpi("Whole account net today",money(k.net_today,"USD"))}${kpi("Target",k.target_usd+" USD")}${kpi("Progress (account)",(k.progress*100).toFixed(0)+"%")}</div>
     <div style="height:10px;background:var(--line);border-radius:99px;margin-top:10px"><div style="height:10px;width:${pct}%;background:${k.net_today<0?"var(--down)":"var(--up)"};border-radius:99px"></div></div>
     <p class="muted">Tracked, not optimised: the agent never sizes up to chase it.</p>`;
-  const AL=s.arm_labels||{}, ML=s.model_labels||{};
+  const AL=s.arm_labels||{}, ML=s.model_labels||{}; LBL=ML;
   const armLabel=n=>AL[n]?`${AL[n]}`:n;  // H-002-claude -> "Claude Opus 5.5 Medium"
   const who=a=>{if(!a)return "";const [ag,m]=String(a).split("/");return ML[m]||ML[ag]||a};
   const d=s.duty; $("duty").innerHTML=`on duty: <b>${esc(d.label||d.model)}</b>`+(d.co_duty||[]).map(c=>` + <b>${esc(c.label||c.model)}</b> <span class="muted">until ${esc((c.until||"").slice(11,16))}</span>`).join("");
@@ -501,5 +546,67 @@ function more(key,total,step){const shown=Math.min(SHOW[key],total), left=total-
   $(key+"-more").innerHTML=(left>0||SHOW[key]>BASE[key])?`<p class="muted" style="margin:8px 0 0">Showing latest ${shown} of ${total}${total>=200?" (journal view keeps the latest 200)":""}`+
     (left>0?` · <button onclick="SHOW['${key}']+=${step};load()">Show ${Math.min(step,left)} older</button> <button onclick="SHOW['${key}']=1e9;load()">Show all</button>`:"")+
     (SHOW[key]>BASE[key]?` · <button onclick="SHOW['${key}']=BASE['${key}'];load()">Collapse</button>`:"")+"</p>":""}
+// Decision log (D-44): structured traces; the written reason is shown as stated, never as internal reasoning
+const LOGF={strategy:"H-003",symbol:"",version:"",decision:"",decider:"",since:"",until:""}, LOGOPEN=new Set();
+let LOGN=100, LOGD=null, LOGFK="", LBL={};
+const ORIGIN={rule:"recorded by the script's rule",model:"stated by the model with its decision",owner:"owner request",derived:"derived afterwards by fxra",outcome:"measured afterwards"};
+async function loadLog(){
+  const q=new URLSearchParams(Object.entries(LOGF).filter(([,v])=>v)); q.set("limit",LOGN);
+  try{ LOGD=await (await fetch("/api/decision-log?"+q)).json() }catch(e){ $("dlog-status").textContent="decision log offline"; return }
+  renderLog();
+}
+function setLog(k,v){LOGF[k]=v;LOGN=100;loadLog()}
+function togLog(id){LOGOPEN.has(id)?LOGOPEN.delete(id):LOGOPEN.add(id);renderLog()}
+function renderLog(){
+  const D=LOGD, F=D.facets, C=D.codes, sy=D.sync||{};
+  const fk=JSON.stringify([F,LOGF]);
+  if(fk!==LOGFK){LOGFK=fk;  // re-render filters only when they change, so an open dropdown stays open
+    const sel=(k,label)=>{const o=[...new Set([...(F[k]||[]),...(LOGF[k]?[LOGF[k]]:[])])];
+      return `<label>${label}<select onchange="setLog('${k}',this.value)"><option value="">all</option>${o.map(x=>`<option value="${esc(x)}"${x===LOGF[k]?" selected":""}>${esc(k==="decider"?(LBL[x.split("/")[1]]||x):x)}</option>`).join("")}</select></label>`};
+    $("dlog-filters").innerHTML=sel("strategy","Strategy / arm")+sel("symbol","Symbol")+sel("version","Version")+sel("decision","Decision")+sel("decider","Decider")+
+      `<label>From (UTC)<input type="date" value="${esc(LOGF.since)}" onchange="setLog('since',this.value)"></label><label>To (UTC)<input type="date" value="${esc(LOGF.until)}" onchange="setLog('until',this.value)"></label>`}
+  $("dlog-status").innerHTML=sy.error?`<span class="bad">trace sync failed: ${esc(sy.error)}</span>`:`${D.total} matching · ${sy.open??0} still collecting outcomes`;
+  const chip=r=>`<span class="chip o-${r.origin}" title="${esc(((C[r.code]||{}).description||"")+" · "+ORIGIN[r.origin])}">${esc(r.code)}</span>`;
+  const fr=v=>v==null?"–":`<span class="${v>0?"ok":v<0?"bad":""}">${v>0?"+":""}${(+v).toFixed(2)}R</span>`;
+  const outSum=o=>{if(!o)return '<span class="muted">–</span>';const tr=o.trade,sh=o.shadow,b=[];
+    if(tr)b.push(tr.closed?`${money(tr.net)}${tr.R!=null?" · "+fr(tr.R):""}`:'<span class="muted">open</span>');
+    if(sh)b.push(`<span class="muted">shadow</span> ${fr(sh.R)}`);
+    if(o.verdict)b.push(`<span class="badge ${/win|avoided/.test(o.verdict)?"b-entry":/loss|missed/.test(o.verdict)?"b-exit":""}">${esc(o.verdict.replace("_"," "))}</span>`);
+    return b.join(" ")||'<span class="muted">pending</span>'};
+  const val=v=>typeof v==="object"?JSON.stringify(v):String(v);
+  const kv=o=>{const r=Object.entries(o||{}).filter(([,v])=>v!=null&&v!==""&&!(Array.isArray(v)&&!v.length));
+    return r.length?`<table class="kv">${r.map(([k,v])=>`<tr><th>${esc(k)}</th><td class="mono">${esc(val(v))}</td></tr>`).join("")}</table>`:'<p class="muted" style="font-size:12px">none recorded</p>'};
+  const rl=rs=>rs.length?`<ul class="rlist">${rs.map(r=>`<li>${chip(r)}${esc((C[r.code]||{}).description||"")}${r.detail?` <span class="muted">· ${esc(r.detail)}</span>`:""}</li>`).join("")}</ul>`:'<p class="muted" style="font-size:12px">none</p>';
+  const dname=d=>{d=d||"";const owner=d.startsWith("owner:"), m=owner?d.slice(6):d, l=LBL[m.split("/")[1]]||m;
+    return owner?`owner request (via ${l})`:l};
+  const detail=x=>{const I=x.inputs||{}, stated=x.reasons.filter(r=>r.origin!=="derived"), derived=x.reasons.filter(r=>r.origin==="derived"), o=x.outcome||{}, P=x.plan;
+    const model=(x.decider||"").includes("/");
+    return `<div class="dgrid">
+      <div class="dbox seen"><h4>1 · Inputs the decider was given</h4><p class="hint">Recorded by the loop at decision time${I.presented_at?`; shown to the model from ${t(I.presented_at)} until ${t(I.expires_at)}`:""}.</p>
+        <h5>Market data</h5>${kv(I.market)}${I.position?`<h5>Position</h5>${kv(I.position)}`:""}<h5>Signals and features</h5>${kv(I.features)}<h5>Account</h5>${kv(I.account)}</div>
+      <div class="dbox"><h4>2 · Decision as recorded</h4><p class="hint">${model?"What the model submitted with fxra demo-decide.":"The rule outcome the script recorded; scripts write no free-text reasoning."}</p>
+        ${kv({decision:x.decision??"pending",status:x.status,version:x.version,policy_version:x.policy_version,decider:dname(x.decider),prompt_ref:x.prompt_ref,confidence:x.confidence,at:x.at})}
+        <h5>Coded reasons</h5>${rl(stated)}
+        ${x.model_reason?`<h5>Written reason submitted with the decision</h5><blockquote class="stated">${esc(x.model_reason)}</blockquote><p class="hint">Stored exactly as given. It is the model's stated justification, not a record of its internal reasoning.</p>`:""}
+        ${P?`<h5>Plan (${esc(P.basis==="shadow"?"not sent: default stop/target from the bar close":"as sent")})</h5>${kv({entry_ref:P.entry_ref,stop:P.stop,target:P.target,lots:P.lots,risk_gate:P.risk&&(P.risk.approved?"approved":"rejected: "+(P.risk.reasons||[]).join(", "))})}
+          <h5>Invalidation</h5>${kv(Object.fromEntries(P.invalidation.map(v=>[v.code,v.price??(v.bars+" bars")])))}`:""}</div>
+      <div class="dbox post"><h4>3 · Derived afterwards by fxra</h4><p class="hint">Computed from the inputs in 1 when this trace was built, to group and compare decisions. The decider did not state these.</p>${rl(derived)}</div>
+      <div class="dbox post"><h4>4 · Outcome, measured after the decision</h4><p class="hint">Broker deals, shadow scoring and M15 bars after the decision. Demo observations, not evidence of edge.</p>
+        ${o.trade?`<h5>Trade</h5>${kv(o.trade)}`:""}${o.shadow?`<h5>Shadow (default stop/target from the bar close)</h5>${kv(o.shadow)}`:""}${x.excursion?`<h5>Excursion (approximate, M15 bars)</h5>${kv(x.excursion)}`:""}
+        ${(o.checks||[]).length?`<h5>Did the planned conditions happen?</h5>${rl(o.checks.map(c=>({code:c,origin:"outcome"})))}`:""}
+        ${!x.outcome?'<p class="muted" style="font-size:12px">Nothing to verify yet, or nothing was planned.</p>':""}</div></div>`};
+  const rows=D.traces.map(x=>{const open=LOGOPEN.has(x.id), stated=x.reasons.filter(r=>r.origin!=="derived");
+    return `<tr class="lrow${open?" open":""}" data-id="${esc(x.id)}" onclick="togLog(this.dataset.id)"><td class="num">${t(x.at)}</td>
+      <td>${esc(x.arm||x.strategy)}<br><span class="muted" style="font-size:12px">${esc(dname(x.decider))}</span></td>
+      <td>${esc(x.symbol)}<br><span class="muted" style="font-size:12px">${esc(x.timeframe)} · ${esc(x.session||"")}</span></td>
+      <td><span class="badge b-${esc(x.decision||"hold")}">${esc(x.decision||"pending")}</span><br><span class="muted" style="font-size:12px">${esc(x.status)}</span></td>
+      <td style="white-space:normal"><div class="chips">${stated.slice(0,4).map(chip).join("")}${stated.length>4?`<span class="muted">+${stated.length-4}</span>`:""}</div></td>
+      <td class="num">${outSum(x.outcome)}</td></tr>`+(open?`<tr><td colspan="6" class="ldet">${detail(x)}</td></tr>`:"")}).join("");
+  $("dlog").innerHTML="<tr><th>When (UTC)</th><th>Arm · decider</th><th>Symbol</th><th>Decision</th><th>Stated reasons</th><th>Outcome</th></tr>"+
+    (rows||'<tr><td colspan="6" class="muted">No traces match these filters.</td></tr>');
+  const left=D.total-D.traces.length;
+  $("dlog-more").innerHTML=left>0&&LOGN<500?`<p class="muted" style="margin:8px 0 0">Showing ${D.traces.length} of ${D.total} · <button onclick="LOGN=Math.min(500,LOGN+100);loadLog()">Show ${Math.min(100,left)} older</button></p>`:"";
+}
+loadLog(); setInterval(loadLog,30000);
 load(); setInterval(load,10000);
 </script></body></html>"""
