@@ -50,10 +50,17 @@ something if the decisions are independent.
    you want to learn from later.
 
    ```powershell
-   uv run fxra demo-decide --take <id> [--sl-atr 1.0-3.0] [--tp-rr 1.0-3.0] --reason "..." --author <yours>
-   uv run fxra demo-decide --skip <id> --reason "..." --author <yours>
+   uv run fxra demo-decide --take <id> [--sl-atr 1.0-3.0] [--tp-rr 1.0-3.0] --codes <c1,c2> [--confidence 0-1] --reason "..." --author <yours>
+   uv run fxra demo-decide --skip <id> --codes <c1,c2> --reason "..." --author <yours>
    uv run fxra demo-decide --skip-rest --reason "..." --author <yours>
    ```
+
+   For the decision log (D-44), also pass `--codes`: the one to three codes that
+   carried the decision, from `uv run fxra demo-trace --codes` (origin `model`,
+   e.g. `trend_against`, `extended_move`, `exposure_conflict`, `risk_reward_ok`).
+   `--confidence` is optional; give it only if you have a real estimate. Keep the
+   reason short and verifiable from the listed inputs: the evidence, not a
+   narration of your thinking. It is stored and shown as given.
 
 4. Reply with one line: how many taken and skipped, and why in a few words.
 

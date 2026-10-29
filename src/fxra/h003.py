@@ -86,8 +86,18 @@ def shadow(candidate: dict, bars: list[dict], pol: dict) -> dict | None:
 
 # the model's side ----------------------------------------------------------
 def decide(journal: Journal, cid: str, take: bool, reason: str, author: str, now: datetime,
-           sl_atr: float | None = None, tp_rr: float | None = None) -> dict:
-    """Record the model's take/skip for one pending candidate. The loop sends approved ones."""
+           sl_atr: float | None = None, tp_rr: float | None = None, *, codes=None, confidence: float | None = None,
+           prompt_ref: str | None = None) -> dict:
+    """Record the model's take/skip for one pending candidate. The loop sends approved ones.
+
+    `codes`, `confidence` and `prompt_ref` are optional decision-log metadata (D-44); they
+    never change what is sent.
+    """
+    from .decision_log import validate_codes  # decision_log imports this module
+
+    codes = validate_codes(codes)
+    if confidence is not None and not 0 <= confidence <= 1:
+        raise ValueError("confidence must be within [0, 1]")
     rows = journal.candidates(ids=[cid])
     if not rows:
         raise ValueError(f"no candidate {cid}")
@@ -102,7 +112,8 @@ def decide(journal: Journal, cid: str, take: bool, reason: str, author: str, now
     if len((reason or "").strip()) < 10:
         raise ValueError("a reason of at least 10 characters is required")
     fields = {"status": "approved" if take else "skipped", "decided_at": now.isoformat(), "decider": author,
-              "reason": reason.strip()}
+              "reason": reason.strip(), "reason_codes": json.dumps(codes) if codes else None,
+              "confidence": confidence, "prompt_ref": prompt_ref}
     if take:
         for key, value in (("sl_atr", sl_atr), ("tp_rr", tp_rr)):
             if value is not None:
