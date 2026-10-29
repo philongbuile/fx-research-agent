@@ -297,6 +297,8 @@ table.mx{width:auto;min-width:100%}.mx th,.mx td{text-align:center;white-space:n
 details{margin-top:12px}summary{cursor:pointer;color:var(--mute);font-size:13px}
 .tl{display:grid;grid-template-columns:auto auto 1fr;gap:4px 12px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line)}
 .learnhead{border-style:dashed;margin-top:16px}
+section.fold>h2{cursor:pointer;user-select:none}section.fold>h2:before{content:"▾ ";color:var(--mute)}
+section.fold.shut>h2:before{content:"▸ "}section.fold.shut>:not(h2){display:none}
 .tl:last-child{border-bottom:0}@media (max-width:640px){.tl{grid-template-columns:1fr auto}.tl>:last-child{grid-column:1/-1}}
 .filters{display:flex;flex-wrap:wrap;gap:8px 12px;margin:0 0 10px}.filters label{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--mute)}
 .filters select,.filters input{font:inherit;font-size:13px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);max-width:190px}
@@ -314,13 +316,13 @@ blockquote.stated{margin:6px 0;padding:6px 10px;border-left:3px solid var(--up);
 <span id="kill" class="pill"></span><span id="conn" class="pill"></span><span id="updated" class="muted"></span></header>
 <main>
 <section class="card wide"><h2>Account &amp; market</h2><div class="kpis" id="kpis"></div></section>
-<section class="card wide"><h2>H-003 · model vs model · the model decides each entry</h2><div id="h003"></div></section>
-<section class="card wide"><h2>Decision log · inputs, reasons, decision, outcome</h2>
+<section class="card wide fold" id="f-h003"><h2>H-003 · model vs model · the model decides each entry</h2><div id="h003"></div></section>
+<section class="card wide fold" id="f-dlog"><h2>Decision log · inputs, reasons, decision, outcome</h2>
   <p class="muted" style="margin:0 0 10px">One row per evaluation or decision. Click a row: <b>1</b> what the decider was given, <b>2</b> the decision with the coded reasons and short reason it recorded,
   <b>3</b> codes fxra derived afterwards, <b>4</b> the outcome measured later. No chain-of-thought or hidden reasoning is collected. Observation only: the log never changes orders.</p>
   <div class="filters" id="dlog-filters"></div><div id="dlog-status" class="muted" style="font-size:12px"></div>
   <div class="hscroll"><table id="dlog"></table></div><div id="dlog-more"></div></section>
-<section class="card wide"><h2>Daily KPI (UTC day)</h2><div id="kpi"></div></section>
+<section class="card wide"><h2>Monthly KPI (UTC month)</h2><div id="kpi"></div></section>
 <section class="card wide"><h2>Open positions</h2><div id="position"></div></section>
 <section class="card wide"><h2>Agent status</h2><div id="step"></div></section>
 <section class="card wide"><h2>Economic calendar (MT5, moderate and high importance)</h2><div id="calendar"></div></section>
@@ -354,9 +356,9 @@ async function load(){
   const L=s.live||{}, a=L.account||{}, q=L.quote, ccy=a.currency||"";
   $("strategy").textContent=Object.entries(s.strategies).map(([k,v])=>k+(v?" ✓":" ✗ not approved")).join("  ·  ");
   const k=s.kpi, pct=Math.max(0,Math.min(100,k.progress*100));
-  const h3today=s.trades.filter(r=>(r.entry_id||"").startsWith("H3")&&r.net!=null&&(r.close_time||"").slice(0,10)===k.day_utc).reduce((x,r)=>x+r.net,0);
-  $("kpi").innerHTML=`<div class="kpis">${kpi("H-003 net today",money(h3today,"USD"))}${kpi("Whole account net today",money(k.net_today,"USD"))}${kpi("Target",k.target_usd+" USD")}${kpi("Progress (account)",(k.progress*100).toFixed(0)+"%")}</div>
-    <div style="height:10px;background:var(--line);border-radius:99px;margin-top:10px"><div style="height:10px;width:${pct}%;background:${k.net_today<0?"var(--down)":"var(--up)"};border-radius:99px"></div></div>
+  const h3month=s.trades.filter(r=>(r.entry_id||"").startsWith("H3")&&r.net!=null&&(r.close_time||"").slice(0,7)===k.month_utc).reduce((x,r)=>x+r.net,0);
+  $("kpi").innerHTML=`<div class="kpis">${kpi("H-003 net this month",money(h3month,"USD"))}${kpi("Whole account net this month",money(k.net_month,"USD"))}${kpi("Whole account net today",money(k.net_today,"USD"))}${kpi("Target ("+k.month_utc+")",k.target_usd+" USD")}${kpi("Progress (account)",(k.progress*100).toFixed(1)+"%")}</div>
+    <div style="height:10px;background:var(--line);border-radius:99px;margin-top:10px"><div style="height:10px;width:${pct}%;background:${k.net_month<0?"var(--down)":"var(--up)"};border-radius:99px"></div></div>
     <p class="muted">Tracked, not optimised: the agent never sizes up to chase it.</p>`;
   const AL=s.arm_labels||{}, ML=s.model_labels||{}; LBL=ML;
   const armLabel=n=>AL[n]?`${AL[n]}`:n;  // H-002-claude -> "Claude Opus 5.5 Medium"
@@ -411,7 +413,9 @@ async function load(){
     `<div class="cols"><div><h3>Pattern × symbol · net USD</h3><div class="hscroll">${matrix(ls.by_symbol_pattern,tried.map(([p])=>p),syms,x=>x,"Pattern",true)}</div></div>
       <div><h3>Pattern × session · net USD</h3><div class="hscroll">${matrix(ls.by_pattern_session,tried.map(([p])=>p),SESS,x=>x,"Pattern",false)}</div></div></div>`+
     `<h3>Hour of entry (UTC) · trades, tinted by net</h3><div class="hours">${Array.from({length:24},(_,h)=>{const g=(ls.by_hour||{})[h];
-      return `<div title="${h}:00 UTC${g?` · ${g.n} trades · net ${g.net}`:" · no trades"}" style="${g?tint(g.net,maxAbs(ls.by_hour)):""}"><b>${h}</b>${g?g.n:"·"}</div>`}).join("")}</div>`;
+      return `<div title="${h}:00 UTC${g?` · ${g.n} trades · net ${g.net}`:" · no trades"}" style="${g?tint(g.net,maxAbs(ls.by_hour)):""}"><b>${h}</b>${g?g.n:"·"}</div>`}).join("")}</div>`+
+    `<h3>Same data in Vietnam time (UTC+7)</h3><div class="hours">${Array.from({length:24},(_,v)=>{const h=(v+17)%24,g=(ls.by_hour||{})[h];
+      return `<div title="${v}:00 VN = ${h}:00 UTC${g?` · ${g.n} trades · net ${g.net}`:" · no trades"}" style="${g?tint(g.net,maxAbs(ls.by_hour)):""}"><b>${v}</b>${g?g.n:"·"}</div>`}).join("")}</div>`;
   const ch=s.policy_changes||[];
   const PF={lots:["Lots",p=>`${p.lots}${Object.entries(p.lots_by_symbol||{}).map(([k,v])=>` · ${k} ${v}`).join("")}`],
     stop:["Stop loss",p=>`max(${p.sl_atr}×ATR, ${p.min_sl_pips} pips)`], target:["Take profit",p=>`${p.tp_rr}R`],
@@ -607,6 +611,10 @@ function renderLog(){
   const left=D.total-D.traces.length;
   $("dlog-more").innerHTML=left>0&&LOGN<500?`<p class="muted" style="margin:8px 0 0">Showing ${D.traces.length} of ${D.total} · <button onclick="LOGN=Math.min(500,LOGN+100);loadLog()">Show ${Math.min(100,left)} older</button></p>`:"";
 }
+// collapsible sections; the open/closed choice is remembered per browser
+document.querySelectorAll("section.fold").forEach(sec=>{const key="fold:"+sec.id;
+  try{if(localStorage.getItem(key)==="1")sec.classList.add("shut")}catch(e){}
+  sec.querySelector("h2").onclick=()=>{const shut=sec.classList.toggle("shut");try{localStorage.setItem(key,shut?"1":"0")}catch(e){}}});
 loadLog(); setInterval(loadLog,30000);
 load(); setInterval(load,10000);
 </script></body></html>"""

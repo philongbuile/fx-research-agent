@@ -78,7 +78,7 @@ MIGRATIONS = [("entry_tags", "duty_agent", "TEXT"), ("entry_tags", "duty_model",
 # Entries made before D-35 recorded no model label; these were the models running each arm then.
 ARM_MODEL_BACKFILL = {"claude": "Claude Opus 5.5 Medium", "codex": "Codex GPT-6.1 Sol Medium"}
 
-DAILY_KPI_USD = 50.0  # owner's daily target; shown as progress, never optimised for
+MONTHLY_KPI_USD = 50000.0  # owner's monthly target (D-46); shown as progress, never optimised for
 PIP = 0.0001
 # Pip size per traded symbol, stated explicitly (SymbolSpec.pip_size); gold "pip" = 0.1 USD by convention.
 PIP_SIZES = {"EURUSD": 0.0001, "GBPUSD": 0.0001, "AUDUSD": 0.0001, "USDJPY": 0.01, "XAUUSD": 0.1,
@@ -448,9 +448,12 @@ class Journal:
         today = (now or datetime.now(timezone.utc)).date().isoformat()  # trade times are UTC
         today_net = sum(t["net"] for t in self._rows("SELECT net FROM trades WHERE net IS NOT NULL AND "
                                                     "substr(close_time,1,10)=?", today))
+        month_net = sum(t["net"] for t in self._rows("SELECT net FROM trades WHERE net IS NOT NULL AND "
+                                                    "substr(close_time,1,7)=?", today[:7]))
         return {
-            "kpi": {"day_utc": today, "target_usd": DAILY_KPI_USD, "net_today": round(today_net, 2),
-                    "progress": round(today_net / DAILY_KPI_USD, 3)},
+            "kpi": {"day_utc": today, "month_utc": today[:7], "target_usd": MONTHLY_KPI_USD,
+                    "net_today": round(today_net, 2), "net_month": round(month_net, 2),
+                    "progress": round(month_net / MONTHLY_KPI_USD, 3)},
             "learning": self.learning_stats(),
             "scoreboard": self.model_scoreboard(),
             "policy_changes": self._rows("SELECT arm, version, at, author, reason FROM arm_policy_changes ORDER BY at DESC"),
