@@ -381,6 +381,31 @@ quality can be judged and improved, and show it on the dashboard. Settled:
 Schema and data flow: [decision-log.md](decision-log.md). Demo forward
 observations, not evidence of edge.
 
+## Hindsight learning loop for the deciders (D-45)
+
+Owner request, 2026-10-29, after comparing the H-003 decide flow with the
+Hindsight cookbook (retain every outcome, keep mental models current, read them
+before each decision). Until then the deciders never read Hindsight and skipped
+candidates taught nothing.
+
+- Every decided H-003 candidate, taken or skipped, becomes a lesson once its
+  shadow outcome is known: reason, codes, context and a verdict (`good_take`,
+  `bad_take`, `good_skip`, `missed_winner`), tagged by arm, model, symbol,
+  session, pattern and code. Expired candidates are not lessons.
+- The hourly digest adds `fxra-insight-h003-<arm>`: taken vs skipped shadow R by
+  verdict, session, pattern and reason code.
+- `fxra memory-setup` keeps four directives in bank `fxra` (demo honesty,
+  numbers with provenance, memory is context, learn from skips) and, with
+  `--mental-models`, four mental models refreshed hourly: `fx-entry-guide`,
+  `fx-market-context`, `h003-claude-decisions`, `h003-codex-decisions`.
+- The decide skill makes reading them mandatory; `--memory` records the ids read
+  in the candidate and the decision log, so decisions with and without memory
+  can be compared.
+- Limitation found 2026-10-29: the Hindsight server runs with LLM provider
+  `none`, so reflect and mental model refresh do not work. Deciders read the
+  digests and recall until the owner configures a provider in the private
+  `infra/hindsight/.env` (a key and cost decision for the owner).
+
 ## Open questions
 
 ### Verified selection direction (owner, 2026-10-29)
