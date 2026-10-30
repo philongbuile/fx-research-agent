@@ -20,7 +20,7 @@ class HindsightLessons(HindsightDocuments):
 
     @staticmethod
     def _document(document):
-        if not re.fullmatch(r"fxra-lesson-\d+-\d+|fxra-insight-[a-z0-9_-]+", document):
+        if not re.fullmatch(r"fxra-lesson-\d+-\d+|fxra-insight-[a-z0-9_-]+|fxra-playbook", document):
             raise ValueError("lesson or insight document id required")
         return document
 

@@ -79,3 +79,7 @@ def test_decisions_with_reason_codes_become_lessons_and_backfill_fills_gaps(tmp_
     j.db.execute("DELETE FROM lessons")
     assert h003.backfill_decision_lessons(j, NOW, {"claude": "Claude Opus 5.5 Medium"}) == 1
     assert "model:Claude Opus 5.5 Medium" in lesson_memory.pending(j)[0]["tags"]
+
+
+def test_playbook_document_id_is_accepted():
+    assert lesson_memory.HindsightLessons._document("fxra-playbook") == "fxra-playbook"
