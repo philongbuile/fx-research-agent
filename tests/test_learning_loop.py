@@ -7,11 +7,11 @@ from fxra.trade_journal import Journal
 from test_h003 import AUTHOR, LATEST, NOW, POLICY, Broker, limits, m15, snap
 
 
-def scored(tmp_path, take: bool):
+def scored(tmp_path, take: bool, codes=None):
     """One decided candidate whose shadow outcome is known after 8 later bars."""
     j = Journal(tmp_path / "j.sqlite")
     cid = h003.step(j, Broker(), limits(tmp_path), NOW, snap(m15(1.1020)), POLICY)["new"][0]
-    h003.decide(j, cid, take, "three patterns agree, low spread", AUTHOR, NOW, codes=None,
+    h003.decide(j, cid, take, "three patterns agree, low spread", AUTHOR, NOW, codes=codes,
                 memory_refs=["fx-entry-guide", "h003-claude-decisions"])
     later = NOW + timedelta(hours=2, minutes=15)
     bars = m15(1.1020, n=88, end=LATEST + timedelta(hours=2))
@@ -68,3 +68,14 @@ def test_setup_is_idempotent_and_mental_models_are_opt_in():
     assert ("PATCH", "/mental-models/fx-entry-guide") in [(m, p) for m, p, _ in b.calls]
     refreshes = [d for m, p, d in b.calls if p.endswith("/refresh")]
     assert len(refreshes) == len(memory_setup.MENTAL_MODELS) and all(d == {"mode": "full"} for d in refreshes)
+
+
+def test_decisions_with_reason_codes_become_lessons_and_backfill_fills_gaps(tmp_path):
+    j, cid = scored(tmp_path, take=False, codes=["trend_against"])  # a take would expire unsent here
+    [item] = lesson_memory.pending(j)
+    assert "codes trend_against" in item["content"] and "code:trend_against" in item["tags"]
+    assert "trend_against skip n=1" in {d["document"]: d for d in lesson_insights.digest(j)}["fxra-insight-h003-claude"]["content"]
+    assert h003.backfill_decision_lessons(j, NOW) == 0  # already has its lesson
+    j.db.execute("DELETE FROM lessons")
+    assert h003.backfill_decision_lessons(j, NOW, {"claude": "Claude Opus 5.5 Medium"}) == 1
+    assert "model:Claude Opus 5.5 Medium" in lesson_memory.pending(j)[0]["tags"]
