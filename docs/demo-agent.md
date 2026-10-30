@@ -3,6 +3,11 @@
 Owner decision D-30 (2026-10-28) lets the agent trade the MT5 **demo** account on
 its own. This page is how to run it, watch it and stop it.
 
+Owner pause, 2026-10-30: trading is paused. The new
+[execution-aware evaluation tools](decision-study.md) audit the journal and score
+frozen offline comparisons without starting the trading loop. H-003's existing
+bar-close shadows remain legacy diagnostics, separate from actual fill returns.
+
 ## What it does
 
 `fxra demo-run` starts two things in one process:

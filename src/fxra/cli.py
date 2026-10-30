@@ -342,6 +342,47 @@ def cmd_memory_setup(a) -> int:
     return 0
 
 
+def cmd_demo_evaluate(a) -> int:
+    from . import demo_evaluation
+
+    payload = demo_evaluation.audit(a.journal, a.since, a.until)
+    out = demo_evaluation.write_run(payload, a.runs_root, kind="demo_audit", hypothesis_id="H-003")
+    # Full sanitized source projections stay in run.json, not the terminal.
+    print(json.dumps({**out, "metrics": {k: v for k, v in payload.items() if k != "records"}}, indent=2))
+    return 0
+
+
+def cmd_decision_study(a) -> int:
+    from . import decision_study, demo_evaluation
+
+    if a.action == "freeze":
+        manifest = decision_study.freeze(a.config, a.output)
+        print(json.dumps({"frozen_manifest": str(a.output), "sha256": manifest["sha256"]}))
+        return 0
+    manifest = {}
+    try:
+        manifest = json.loads(a.manifest.read_text(encoding="utf-8"))
+        packet = json.loads(a.packet.read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict) or not isinstance(packet, dict):
+            raise ValueError("manifest and packet must be JSON objects")
+        payload = decision_study.evaluate(manifest, packet)
+    except (ValueError, KeyError, TypeError) as e:
+        out = demo_evaluation.write_run(
+            {"error": str(e), "manifest_file_sha256": runs.sha256_file(a.manifest),
+             "packet_file_sha256": runs.sha256_file(a.packet)}, a.runs_root, kind="decision_study",
+            hypothesis_id=(manifest.get("config", {}).get("hypothesis_id", "unidentified-study")
+                           if isinstance(manifest, dict) else "unidentified-study"), status="failed")
+        print(json.dumps(out, indent=2))
+        return 1
+    # Pin the exact evaluation inputs so later file edits cannot alter this run.
+    payload["inputs"] = {"manifest": manifest, "packet": packet}
+    out = demo_evaluation.write_run(payload, a.runs_root, kind="decision_study",
+                                    hypothesis_id=manifest["config"]["hypothesis_id"])
+    print(json.dumps({"run_id": out["run_id"], "run_dir": out["run_dir"], "verdict": payload["verdict"],
+                      "reproducible": out["reproducible"], "arms": payload["arms"]}, indent=2))
+    return 0
+
+
 def cmd_demo_trace(a) -> int:
     """Decision log (D-44): sync traces from the journal, then list them newest first as JSON."""
     from . import decision_log
@@ -520,6 +561,25 @@ def main(argv=None) -> int:
     pr.add_argument("--note")
     pr.add_argument("--author", default="", help="<agent>/<model>")
     pr.set_defaults(fn=cmd_demo_propose)
+
+    ev = sub.add_parser("demo-evaluate", help="read-only H-003 audit: matched fills, legacy shadows and coverage")
+    ev.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
+    ev.add_argument("--since", required=True, help="inclusive ISO timestamp with UTC offset")
+    ev.add_argument("--until", required=True, help="exclusive ISO timestamp with UTC offset")
+    ev.add_argument("--runs-root", type=Path, default=Path("runs"))
+    ev.set_defaults(fn=cmd_demo_evaluate)
+
+    study = sub.add_parser("decision-study", help="offline frozen decision comparison; never sends orders")
+    study_sub = study.add_subparsers(dest="action", required=True)
+    sf = study_sub.add_parser("freeze", help="pin reviewed future study, clean code, prompt and memory")
+    sf.add_argument("--config", type=Path, required=True)
+    sf.add_argument("--output", type=Path, required=True)
+    sf.set_defaults(fn=cmd_decision_study)
+    se = study_sub.add_parser("evaluate", help="score all arms on common point-in-time quote packets")
+    se.add_argument("--manifest", type=Path, required=True)
+    se.add_argument("--packet", type=Path, required=True)
+    se.add_argument("--runs-root", type=Path, default=Path("runs"))
+    se.set_defaults(fn=cmd_decision_study)
 
     dd = sub.add_parser("demo-decide", help="H-003: list pending candidates, or take/skip one with a reason (D-42)")
     dd.add_argument("--journal", type=Path, default=Path("artifacts/demo/journal.sqlite"))
