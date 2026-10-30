@@ -92,10 +92,34 @@ def verdict(c: dict, s: dict) -> str:
     return "missed_winner" if s["R"] > 0 else "good_skip"
 
 
+def _codes(c: dict) -> list[str]:
+    """Reason codes as a list; the journal decodes them, older rows may still hold JSON text."""
+    codes = c.get("reason_codes") or []
+    return json.loads(codes) if isinstance(codes, str) else list(codes)
+
+
+def lesson_key(c: dict) -> str:
+    """The start of a decision lesson's text, which identifies its candidate."""
+    took = "skipped" if c["status"] == "skipped" else "took"
+    return f"{ARMS[c['arm']]['arm']} decision: {took} {c['side']} {c['symbol']} on the {c['bar'][:16]}Z"
+
+
+def backfill_decision_lessons(journal: Journal, now: datetime, labels: dict | None = None) -> int:
+    """Write the decision lessons a scored candidate should have but does not (one per candidate)."""
+    have = {r["text"].split(" M15 bar")[0] for r in journal._rows("SELECT text FROM lessons WHERE author LIKE 'h003-%'")}
+    n = 0
+    for c in journal.candidates(limit=100000):
+        if c["shadow"] and c["status"] in DECIDED and lesson_key(c) not in have:
+            journal.add_lesson(now, None, f"h003-{c['arm']}", decision_lesson(c, c["shadow"]),
+                               tags=decision_tags(c, c["shadow"], (labels or {}).get(c["arm"])))
+            n += 1
+    return n
+
+
 def decision_lesson(c: dict, s: dict) -> str:
     """Factual note on one decision and what the default stop/target did afterwards (the shadow outcome)."""
     ctx, pats = c["context"], c["patterns"]
-    codes = json.loads(c.get("reason_codes") or "null") or []
+    codes = _codes(c)
     event = ctx.get("event") if ctx.get("event") not in (None, "none") else None
     return (f"{ARMS[c['arm']]['arm']} decision: {'skipped' if c['status'] == 'skipped' else 'took'} {c['side']} "
             f"{c['symbol']} on the {c['bar'][:16]}Z M15 bar ({ctx.get('session')}, {ctx.get('hour_utc')}h UTC, "
@@ -114,7 +138,7 @@ def decision_tags(c: dict, s: dict, arm_model: str | None) -> list[str]:
             f"decision:{'skip' if c['status'] == 'skipped' else 'take'}", f"verdict:{verdict(c, s)}",
             f"outcome:{'win' if s['R'] > 0 else 'loss'}", f"hour:{int(ctx.get('hour_utc') or 0):02d}"]
     tags += [f"pattern:{p}" for p in (c["patterns"].get("for") or [])]
-    tags += [f"code:{x}" for x in (json.loads(c.get("reason_codes") or "null") or [])]
+    tags += [f"code:{x}" for x in _codes(c)]
     return tags + ([f"model:{arm_model}"] if arm_model else [])
 
 
@@ -130,7 +154,7 @@ def insight_documents(journal: Journal) -> list[dict]:
             how = "skip" if c["status"] == "skipped" else "take"
             keys = [("verdict", verdict(c, c["shadow"])), ("session", f"{c['context'].get('session')} {how}")]
             keys += [("pattern", f"{p} {how}") for p in c["patterns"].get("for") or []]
-            keys += [("code", f"{x} {how}") for x in json.loads(c.get("reason_codes") or "null") or []]
+            keys += [("code", f"{x} {how}") for x in _codes(c)]
             for k in keys:
                 group.setdefault(k, []).append(c["shadow"]["R"])
         part = lambda dim: "; ".join(f"{k} n={len(v)} {mean(v)}" for (d, k), v in sorted(group.items()) if d == dim)
