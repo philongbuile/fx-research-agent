@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Offline demo observation record (not a LEAN backtest)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "run_id", "created_at", "kind", "hypothesis_id", "technical_only",
+               "reproducible", "code", "status", "metrics", "artifacts", "evidence"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "run_id": {"type": "string", "pattern": "^[0-9]{8}T[0-9]{6}Z-[0-9a-f]{8}$"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "kind": {"enum": ["demo_audit", "decision_study"]},
+    "hypothesis_id": {"type": "string", "minLength": 1},
+    "technical_only": {"const": true},
+    "reproducible": {"type": "boolean"},
+    "code": {
+      "type": "object",
+      "required": ["git_commit", "git_dirty"],
+      "properties": {"git_commit": {"type": ["string", "null"]}, "git_dirty": {"type": "boolean"}}
+    },
+    "status": {"enum": ["completed", "failed"]},
+    "metrics": {"type": "object"},
+    "artifacts": {"type": "array", "items": {"type": "string"}},
+    "evidence": {"const": "observation only; no gate or promotion"}
+  }
+}

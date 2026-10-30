@@ -414,6 +414,21 @@ candidates taught nothing.
 
 ## Open questions
 
+### Execution-aware model comparison (owner, 2026-10-30)
+
+The owner requested implementation of the overnight-review recommendations:
+execution-aware measurement, a new frozen hypothesis, rule/model/memory comparison
+and evaluation across future days/sessions. Trading remains paused. The
+[H-0004 proposal](../experiments/H-0004-decision-value/hypothesis.md) and
+[offline tools](decision-study.md) do not adopt a strategy or change execution.
+
+- Q-15: Before freezing H-0004, fix the source and existing H-003 symbol scope,
+  simple baseline predicate, exact model/version, future evaluation window,
+  sample/drawdown criteria and calibrated costs. The EMA50 comparator and minimum
+  samples are proposals awaiting owner/reviewer selection. Until then, freeze
+  refuses the unfilled config; no trading resumes. A reviewed trusted quote
+  collector and isolated model invocations are still needed.
+
 ### Verified selection direction (owner, 2026-10-29)
 
 The owner requested moving from exhaustive demo exploration toward selection

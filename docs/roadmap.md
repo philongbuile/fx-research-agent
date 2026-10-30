@@ -39,6 +39,12 @@ historical-data blockers (Q-14, UTC/DST) are unchanged.
 
 ## Workstream boundaries
 
+Owner direction (2026-10-30): while trading is paused, implement execution-aware
+measurement and a prospective rule/model/memory comparison. Offline audit and
+quote-replay tooling plus [H-0004](../experiments/H-0004-decision-value/hypothesis.md)
+are proposed for review; no forward trial, strategy-stage approval or resumption
+is implied. See [remaining prerequisites and Q-15](decision-study.md).
+
 Owner update, 2026-10-29: prepare a [prospective selective demo study](verified-pattern-selection.md)
 instead of continuing exhaustive exploration indefinitely. Exact Codex selection
 and future evaluation conditions await cross-agent review; Claude's comparator

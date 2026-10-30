@@ -1,5 +1,10 @@
 # Decision trace and learning log (D-44)
 
+For read-only matched-fill audits and the separate frozen prospective comparison,
+see [execution-aware evaluation](decision-study.md). Neither command syncs traces,
+mutates candidate decisions nor sends orders. Existing shadow outcomes keep their
+original meaning; do not interpret them as decision-time executable returns.
+
 Owner request, 2026-10-29: record every market evaluation and decision of the
 demo agents in a form that lets us judge decision quality and improve it over
 time, and show it on the dashboard.
